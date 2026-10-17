@@ -1,0 +1,9 @@
+{
+  "appId": "com.natanael.ntplay",
+  "appName": "NTPlay",
+  "webDir": "www",
+  "server": { "androidScheme": "http", "cleartext": true },
+  "android": { "allowMixedContent": true },
+  "ios": { "contentInset": "always" },
+  "plugins": { "CapacitorHttp": { "enabled": true } }
+}

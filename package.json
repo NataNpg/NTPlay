@@ -1,0 +1,61 @@
+{
+  "name": "ntplay",
+  "version": "3.0.0",
+  "description": "NTPlay - player IPTV (M3U) para Windows, Android, Android TV e iOS",
+  "main": "electron/main.js",
+  "author": "Natanael G Silva <djnatan0@live.com>",
+  "scripts": {
+    "vendor": "node -e \"const f=require('fs');f.mkdirSync('www/vendor',{recursive:true});f.copyFileSync('node_modules/hls.js/dist/hls.min.js','www/vendor/hls.min.js');f.copyFileSync('node_modules/mpegts.js/dist/mpegts.js','www/vendor/mpegts.js');f.copyFileSync('node_modules/qrcode-generator/qrcode.js','www/vendor/qrcode.js')\"",
+    "postinstall": "npm run vendor && node -e \"const f=require('fs');if(!f.existsSync('www/config.js'))f.copyFileSync('www/config.example.js','www/config.js')\"",
+    "pc": "electron .",
+    "pc:build": "electron-builder --win nsis portable --publish never",
+    "web": "node -e \"require('http').createServer((q,r)=>require('fs').createReadStream('www'+(q.url=='/'?'/index.html':q.url.split('?')[0])).on('error',()=>{r.statusCode=404;r.end()}).pipe(r)).listen(8080,()=>console.log('http://localhost:8080'))\"",
+    "android:init": "cap add android && node scripts/patch-android.js && cap sync android",
+    "ios:init": "cap add ios && node scripts/patch-ios.js && cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "hls.js": "1.5.7",
+    "mpegts.js": "1.7.3",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/ios": "^6.1.2",
+    "capacitor-video-player": "6.0.2",
+    "qrcode-generator": "1.4.4"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.natanael.ntplay",
+    "productName": "NTPlay",
+    "files": [
+      "electron/**",
+      "www/**",
+      "build/icon.png"
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "m3u",
+          "m3u8"
+        ],
+        "name": "Lista M3U"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "icon": "build/icon.ico",
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "license": "MIT"
+}

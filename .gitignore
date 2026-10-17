@@ -1,0 +1,8 @@
+node_modules/
+dist/
+android/
+ios/
+www/vendor/
+www/config.js
+*.log
+.DS_Store
