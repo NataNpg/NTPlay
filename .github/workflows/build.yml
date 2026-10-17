@@ -1,0 +1,26 @@
+name: Build NTPlay
+on: { workflow_dispatch: {}, push: { tags: ['v*'] } }
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: npm install
+      - run: npm run apk:init
+      - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with: { name: BOB-Player-apk, path: android/app/build/outputs/apk/debug/app-debug.apk }
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install
+      - run: npm run pc:build
+      - uses: actions/upload-artifact@v4
+        with: { name: BOB-Player-windows, path: dist/*.exe }

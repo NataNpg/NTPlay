@@ -1,0 +1,8 @@
+{
+  "appId": "com.bob.player",
+  "appName": "NTPlay",
+  "webDir": "www",
+  "server": { "androidScheme": "http", "cleartext": true },
+  "android": { "allowMixedContent": true },
+  "plugins": { "CapacitorHttp": { "enabled": true } }
+}
