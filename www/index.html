@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NTPlay</title>
+<link rel="icon" href="img/favicon.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header>
+ <div class="hl"><div class="logo"><img src="img/icon.png" alt="" width="34" height="34"><span>NTPlay</span></div><nav id="nav"></nav><select id="navs"></select></div>
+ <div class="hr"><button class="hb" id="hsearch" title="Buscar (Ctrl+F)"><span data-ic="search"></span>Buscar</button><button class="hb o2" id="hload" title="Gerenciar listas M3U">☰ Listas M3U</button><div class="st"><i class="dot"></i><span id="st">Nenhuma lista carregada</span></div><div id="clock"></div><div class="av">G</div></div>
+</header>
+<div id="sdr" hidden><div class="sdi"><span data-ic="search"></span><input id="q" placeholder="Buscar canais, filmes e séries…" autocomplete="off"><button class="ib" id="sdx" title="Fechar (Esc)" data-ic="x"></button></div></div>
+<div id="mid">
+ <aside id="catp"><div class="cph" id="cph"></div><div class="cpl" id="cpl"></div></aside>
+ <div id="app">
+  <div class="pg pb2" id="pg-browse"><div id="bmain"></div></div>
+  <div class="pg" id="pg-detail" hidden></div>
+  <div class="pg pp" id="pg-player" hidden>
+   <div class="pm">
+    <div id="vid"><video id="v" controls playsinline></video>
+     <div id="ph"><div class="ci" data-ic="tv"></div><h2 id="ph1">Carregando…</h2><p id="ph2"></p></div>
+     <div id="tags"></div>
+     <div id="ptop"><button class="ib" id="bk" title="Voltar (Esc)" data-ic="back"></button><span id="pt2"></span><span class="sp"></span><span class="tg d" id="rsb" hidden></span><select id="qsel" class="in qs" hidden title="Qualidade"></select></div></div>
+    <div id="bar">
+     <div class="l"><b id="bt">—</b><span class="chip" id="bg" hidden></span><button class="ib fv" id="bf" title="Favoritar" hidden>★</button></div>
+     <div class="r"><label class="ck"><input type="checkbox" id="an"> Próximo automático</label>
+      <button class="ib" id="pv" title="Anterior (PgUp)">⏮</button><button class="ib" id="nx" title="Próximo (PgDn)">⏭</button><button class="ib" id="fs" title="Tela cheia (F)">⛶</button>
+      <button class="pk" id="vlc" hidden>▶ VLC</button><label class="ck" id="vlcl" hidden><input type="checkbox" id="vlca"> Sempre no VLC</label><span class="lv" id="lvb" hidden><i></i>AO VIVO</span></div>
+    </div>
+   </div>
+   <aside id="rside"><div class="hd" id="rx"></div><div id="rl"></div><div class="ft" id="rf"></div></aside>
+  </div>
+ </div>
+</div>
+<div class="mo" id="modal" hidden><div class="md">
+ <div class="hh"><div><h3>Listas M3U</h3><p>Adicione quantas listas quiser e marque as que deseja usar juntas.</p></div><button class="ib" id="mx" data-ic="x"></button></div>
+ <div class="bd">
+  <div><h4>Minhas listas</h4><div id="pls"></div></div>
+  <div><h4>Adicionar nova lista</h4>
+   <input type="text" id="nname" placeholder="Nome da lista (ex.: Lista 2)">
+   <input type="text" id="url" placeholder="Link M3U  http://..." style="margin-top:8px">
+   <div class="btns" style="margin-top:8px"><button class="bt o" id="mload">+ Adicionar lista</button><button class="bt" id="mfix">Usar link fixo</button><button class="bt" id="mfile">📂 Arquivo .m3u</button><input type="file" id="fi" accept=".m3u,.m3u8,.txt" hidden></div></div>
+  <div><h4>Enviar lista pelo celular</h4><p class="small">Escaneie o QR code com o celular (ou abra o link) e cole a lista numa página web. Ela chega aqui automaticamente.</p>
+   <div id="qrbox"></div><div class="btns" style="margin-top:8px"><input type="text" id="slink" readonly placeholder="Link de envio"><button class="bt" id="scopy">Copiar link</button></div>
+   <input type="text" id="sbase" placeholder="Endereço da página enviar.html (ex.: https://usuario.github.io/NTPlay/)" style="margin-top:8px"></div>
+  <div><h4>Preferências</h4><label class="ck" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="padult"> Mostrar conteúdo adulto (fica no fim da lista)</label><label class="ck" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="plite"> Modo leve (menos imagens e efeitos, mais rápido)</label></div>
+  <div><h4>Destaques e capas da internet</h4><input type="text" id="tkey" placeholder="Chave TMDB (opcional, grátis em themoviedb.org)"><div class="btns" style="margin-top:8px"><button class="bt" id="mhl">↻ Atualizar destaques</button></div>
+   <p class="small" style="margin-top:8px">Sem chave o app usa Wikipédia (em português), TVMaze e iTunes. Com a chave TMDB as capas, notas e banners ficam mais completos.</p></div>
+ </div>
+</div></div>
+<footer id="credits">NTPlay · © Natanael G Silva · <a href="mailto:djnatan0@live.com">djnatan0@live.com</a></footer>
+<button id="catfab" aria-label="Categorias">☰</button>
+<div id="toast" hidden></div>
+<script src="vendor/hls.min.js"></script>
+<script src="vendor/mpegts.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="config.js"></script>
+<script src="js/platform.js"></script>
+<script src="js/native.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

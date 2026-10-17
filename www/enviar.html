@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Enviar lista – NTPlay</title><link rel="icon" href="img/favicon.png">
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#08142e;color:#fff;font:16px system-ui,Segoe UI,Roboto,sans-serif;display:flex;flex-direction:column;align-items:center}
+main{width:100%;max-width:480px;padding:22px 18px}header{display:flex;align-items:center;gap:10px;margin-bottom:6px}header img{width:38px;height:38px;border-radius:10px}
+h1{font-size:22px;margin:0;background:linear-gradient(90deg,#22d3ee,#a855f7);-webkit-background-clip:text;background-clip:text;color:transparent}
+p{color:#fffa;font-size:14px;line-height:1.45}label{display:block;margin:16px 0 6px;font-size:13px;font-weight:700;color:#fffc}
+input,textarea{width:100%;padding:13px;border-radius:10px;border:1px solid #ffffff22;background:#0f2b5c;color:#fff;font:inherit}textarea{min-height:110px}
+button{margin-top:20px;width:100%;padding:14px;border:0;border-radius:10px;background:linear-gradient(90deg,#e93a7d,#a855f7);color:#fff;font:700 16px inherit;cursor:pointer}
+button:disabled{opacity:.5}#msg{margin-top:16px;padding:12px;border-radius:10px;font-size:14px;display:none}.ok{background:#064e3b;display:block!important}.er{background:#7f1d1d;display:block!important}
+footer{margin-top:auto;padding:16px;font-size:11px;color:#fff7}footer a{color:#22d3ee}
+</style></head><body><main>
+<header><img src="img/icon.png" alt=""><h1>NTPlay</h1></header>
+<p>Envie sua lista M3U para o aplicativo. Os dados seguem <b>criptografados</b> (a chave fica só neste link e no app).</p>
+<label for="n">Nome da lista (opcional)</label><input id="n" placeholder="Ex.: Minha lista">
+<label for="u">Link da lista M3U</label><input id="u" type="url" inputmode="url" placeholder="http://...">
+<label for="t">ou cole uma lista pequena (até ~2.500 caracteres)</label><textarea id="t" placeholder="#EXTM3U ..."></textarea>
+<button id="go">Enviar para o NTPlay</button><div id="msg"></div></main>
+<footer>NTPlay · © Natanael G Silva · <a href="mailto:djnatan0@live.com">djnatan0@live.com</a></footer>
+<script>
+const $=s=>document.querySelector(s),h=new URLSearchParams(location.hash.slice(1)),T=h.get('t'),K=h.get('k');
+const b64=u=>{u=u.replace(/-/g,'+').replace(/_/g,'/');while(u.length%4)u+='=';return Uint8Array.from(atob(u),c=>c.charCodeAt(0))};
+const eb=a=>btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const say=(t,c)=>{const m=$('#msg');m.className=c;m.textContent=t};
+if(!T||!K){say('Link inválido. Abra o QR code pelo aplicativo NTPlay (Listas M3U › Enviar pelo celular).','er');$('#go').disabled=true}
+$('#go').onclick=async()=>{const u=$('#u').value.trim(),t=$('#t').value.trim(),n=$('#n').value.trim();
+ if(!u&&!t)return say('Informe o link ou cole a lista.','er');
+ const o=u?{n,u}:{n,t};const raw=new TextEncoder().encode(JSON.stringify(o));if(raw.length>3000)return say('Lista grande demais para colar. Use o link da lista.','er');
+ $('#go').disabled=true;say('Enviando…','ok');
+ try{const key=await crypto.subtle.importKey('raw',b64(K),'AES-GCM',false,['encrypt']),iv=crypto.getRandomValues(new Uint8Array(12)),
+  ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,raw)),all=new Uint8Array(12+ct.length);all.set(iv);all.set(ct,12);
+  const r=await fetch('https://ntfy.sh/'+encodeURIComponent(T),{method:'POST',body:eb(all)});if(!r.ok)throw Error('HTTP '+r.status);
+  say('Enviado! A lista aparece no aplicativo em instantes.','ok')}catch(e){say('Falha ao enviar: '+(e.message||e),'er')}$('#go').disabled=false};
+</script></body></html>
