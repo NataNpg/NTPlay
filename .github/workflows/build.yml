@@ -20,8 +20,22 @@ jobs:
           OWNER=$(echo "$GITHUB_REPOSITORY_OWNER" | tr 'A-Z' 'a-z')
           echo "window.NT_SEND_BASE=\"https://$OWNER.github.io/${GITHUB_REPOSITORY#*/}/\";window.NT_DEFAULT_M3U=\"\";" > www/config.js
       - run: npm install
-      - run: npm run android:init
-      - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+      - name: Preparar projeto Android
+        shell: bash
+        run: |
+          set +e
+          npm run android:init > android-init.log 2>&1
+          code=$?
+          cat android-init.log
+          if [ $code -ne 0 ]; then echo "::error title=android:init falhou::$(tail -c 1500 android-init.log | tr '\n' '|' )"; exit $code; fi
+      - name: Compilar APK
+        shell: bash
+        run: |
+          cd android && chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon > ../gradle.log 2>&1
+          code=$?
+          tail -n 60 ../gradle.log
+          if [ $code -ne 0 ]; then echo "::error title=gradle falhou::$(grep -E 'error|Error|FAILED|What went wrong|Caused by' -A2 ../gradle.log | head -c 1500 | tr '\n' '|')"; exit $code; fi
       - run: cp android/app/build/outputs/apk/debug/app-debug.apk NTPlay-Android.apk
       - uses: actions/upload-artifact@v4
         with: { name: NTPlay-Android, path: NTPlay-Android.apk }
