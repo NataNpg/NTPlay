@@ -51,6 +51,18 @@ class Store(ctx: Context) {
         get() = sp.getString("tab", "RECOMENDAÇÕES") ?: "RECOMENDAÇÕES"
         set(v) { sp.edit().putString("tab", v).apply() }
 
+    var subs: Boolean
+        get() = sp.getBoolean("subs", false)
+        set(v) { sp.edit().putBoolean("subs", v).apply() }
+
+    var skipIntro: Int
+        get() = sp.getInt("skipintro", 85)
+        set(v) { sp.edit().putInt("skipintro", v).apply() }
+
+    /** vencimento da lista: "exp|status|max|ativos|quando" */
+    fun account(id: String): String = sp.getString("acc_$id", "") ?: ""
+    fun setAccount(id: String, v: String) { sp.edit().putString("acc_$id", v).apply() }
+
     var autoNext: Boolean
         get() = sp.getBoolean("autonext", true)
         set(v) { sp.edit().putBoolean("autonext", v).apply() }

@@ -123,6 +123,17 @@ object Xtream {
 
     var onCount: ((Int) -> Unit)? = null
 
+    class Account(val exp: Long, val status: String, val maxCon: Int, val active: Int)
+
+    /** dados da conta (vencimento, status, conexões) */
+    fun account(url: String): Account? {
+        val c = creds(url) ?: return null
+        val t = Net.getQuick(c.api("").removeSuffix("&action=")) ?: return null
+        val ui = try { JSONObject(t).optJSONObject("user_info") } catch (e: Exception) { null } ?: return null
+        val e = ui.optString("exp_date").toLongOrNull() ?: 0L
+        return Account(e * 1000L, ui.optString("status"), ui.optString("max_connections").toIntOrNull() ?: 0, ui.optString("active_cons").toIntOrNull() ?: 0)
+    }
+
     /** monta a M3U completa a partir da API. Lança exceção se a API não responder. */
     fun buildM3u(c: Creds, out: File, progress: (String) -> Unit): Int {
         // valida login
@@ -201,7 +212,7 @@ object Xtream {
         val g = m.groupValues
         val c = Creds(g[1], Uri.decode(g[3]), Uri.decode(g[4]))
         val txt = when {
-            g[2] == "movie" -> Net.getText(c.api("get_vod_info", "&vod_id=" + g[5]))
+            g[2] == "movie" -> Net.getQuick(c.api("get_vod_info", "&vod_id=" + g[5]))
             g[2] == "series" && g[6] == "xs" -> seriesInfo(c, g[5])
             else -> null
         } ?: return null

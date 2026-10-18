@@ -26,6 +26,15 @@ import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
+/** se a conexão segura (https) falhar — ex.: https://servidor:80 — tenta de novo em http */
+val httpFallback = okhttp3.Interceptor { c ->
+    val r = c.request()
+    try { c.proceed(r) } catch (e: java.io.IOException) {
+        val tls = e is javax.net.ssl.SSLException || (e.message ?: "").contains("TLS", true) || (e.message ?: "").contains("SSL", true)
+        if (r.url.isHttps && tls) c.proceed(r.newBuilder().url(r.url.newBuilder().scheme("http").build()).build()) else throw e
+    }
+}
+
 object Net {
     val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -33,6 +42,7 @@ object Net {
         .followRedirects(true)
         .followSslRedirects(true)
         .addInterceptor { c -> val r = c.request(); c.proceed(if (r.header("User-Agent") == null) r.newBuilder().header("User-Agent", Util.UA).build() else r) }
+        .addInterceptor(httpFallback)
         .build()
 
     val img: OkHttpClient = OkHttpClient.Builder()
@@ -42,6 +52,7 @@ object Net {
         .followSslRedirects(true)
         .addInterceptor { c ->
             val resp = c.proceed(c.request().newBuilder().header("User-Agent", "Mozilla/5.0 (Linux; Android 10; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36").build())
+            if (!resp.isSuccessful && resp.code >= 400) return@addInterceptor resp
             val u = resp.request.url.toString()
             if (u.contains("removed.png")) {
                 resp.close()
@@ -49,6 +60,7 @@ object Net {
                     .body("".toResponseBody(null)).build()
             } else resp
         }
+        .addInterceptor(httpFallback)
         .build()
 
     val sse: OkHttpClient = client.newBuilder().readTimeout(0, TimeUnit.SECONDS).build()
@@ -104,7 +116,7 @@ object Net {
 }
 
 object Meta {
-    private val semBg = Semaphore(3)
+    private val semBg = Semaphore(4)
 
     /** semelhança entre títulos (palavras em comum) */
     fun sim(a: String, b: String): Double {
@@ -183,7 +195,7 @@ object Meta {
             }
             if (!priority || c.ov.isNotEmpty() || c.none) return c
         }
-        return if (priority) fetch(store, it) else semBg.withPermit { fetch(store, it) }
+        return if (priority) fetch(store, it) else semBg.withPermit { kotlinx.coroutines.withTimeoutOrNull(30_000) { fetch(store, it) } }
     }
 
     private suspend fun fetch(store: Store, it: Item): Info = withContext(Dispatchers.IO) {
@@ -191,7 +203,7 @@ object Meta {
         val y = Util.yearOf(it.title)
         var img = ""; var ov = ""; var r = 0.0; var yr = y
         fun take(i: String, o: String) { if (img.isEmpty() && i.isNotEmpty()) img = i; if (ov.isEmpty() && o.length > 30) ov = o }
-        try { Xtream.info(it)?.let { x -> take(x.img, x.ov); r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
+        try { kotlinx.coroutines.withTimeoutOrNull(12_000) { kotlinx.coroutines.runInterruptible { Xtream.info(it) } }?.let { x -> take(x.img, x.ov); r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
         if (ov.isEmpty() || img.isEmpty()) try {
             if (it.kind == 's') {
                 val a = Net.getQuick("https://api.tvmaze.com/search/shows?q=" + Net.enc(t))?.let { s -> JSONArray(s) }

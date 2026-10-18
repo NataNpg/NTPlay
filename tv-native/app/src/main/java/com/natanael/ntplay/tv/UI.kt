@@ -497,14 +497,21 @@ fun Recom(st: AppState, lib: Library) {
     val favs = remember(st.favs, lib) { lib.every.filter { st.favs.contains(it.key) } }
     val favL = favs.filter { it.kind == 'l' }; val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
     val trend = st.trend
-    val hero = remember(lib, trend) {
-        trend.firstOrNull()?.items?.firstOrNull()
-            ?: cw.firstOrNull { it.first.kind != 'l' }?.first
-            ?: lib.movies.take(60).filter { it.logo.isNotEmpty() && !it.adult }.let { if (it.isEmpty()) null else it[(System.currentTimeMillis() / 60000 % it.size).toInt()] }
+    val heroes = remember(lib, trend) {
+        val out = LinkedHashMap<String, Item>()
+        for (r in trend) for (i in r.items.take(4)) if (i.kind != 'l') out.putIfAbsent(i.key, i)
+        val rnd = java.util.Random(System.currentTimeMillis() / 3_600_000L)
+        val mv = lib.movies.filter { it.logo.isNotEmpty() && !it.adult }
+        val sr = lib.series.filter { it.logo.isNotEmpty() && !it.adult }
+        for (k in 0 until 6) {
+            if (mv.isNotEmpty()) mv[rnd.nextInt(minOf(mv.size, 400))].let { out.putIfAbsent(it.key, it) }
+            if (sr.isNotEmpty()) sr[rnd.nextInt(minOf(sr.size, 400))].let { out.putIfAbsent(it.key, it) }
+        }
+        out.values.take(12)
     }
     val ls = rememberLazyListState()
     LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(bottom = 20.dp)) {
-        if (hero != null) item { Hero(st, hero) }
+        if (heroes.isNotEmpty()) item { HeroCarousel(st, heroes) }
         if (cw.isNotEmpty()) item {
             ShelfRow("Continuar assistindo", cw.size, null) {
                 items(cw, key = { it.first.key }) { (it2, ep) ->
@@ -527,7 +534,17 @@ fun Recom(st: AppState, lib: Library) {
 }
 
 @Composable
-fun Hero(st: AppState, item: Item) {
+fun HeroCarousel(st: AppState, list: List<Item>) {
+    var idx by remember(list) { mutableStateOf(0) }
+    var hold by remember { mutableStateOf(false) }
+    LaunchedEffect(list, hold, idx) { if (!hold) { delay(9000); idx = (idx + 1) % list.size } }
+    Box(Modifier.onFocusChanged { hold = it.hasFocus }) {
+        Hero(st, list[idx.coerceIn(0, list.size - 1)], idx, list.size, { idx = (idx - 1 + list.size) % list.size }, { idx = (idx + 1) % list.size })
+    }
+}
+
+@Composable
+fun Hero(st: AppState, item: Item, idx: Int = 0, total: Int = 1, onPrev: () -> Unit = {}, onNext: () -> Unit = {}) {
     var info by remember(item.key) { mutableStateOf(Meta.cached(st.store, item)) }
     LaunchedEffect(item.key) { val i = Meta.get(st.store, item); if (i != null) info = i }
     val img = item.logo.ifEmpty { info?.img ?: "" }
@@ -536,15 +553,25 @@ fun Hero(st: AppState, item: Item) {
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Bg, Color(0xCC0D0D12), Color.Transparent))))
         Row(Modifier.fillMaxSize().padding(22.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("EM DESTAQUE", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                Text(if (item.kind == 's') "SÉRIE EM DESTAQUE" else "FILME EM DESTAQUE", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                 Text(showTitle(item), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val meta = listOfNotNull(info?.y?.ifEmpty { null } ?: Util.yearOf(item.title).ifEmpty { null }, info?.r?.takeIf { it > 0 }?.let { "★ %.1f".format(it) }, item.group).joinToString("  •  ")
                 Text(meta, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 4.dp))
                 Text(info?.ov ?: "", color = Color(0xDDFFFFFF), fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp, modifier = Modifier.fillMaxWidth(0.75f))
                 Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     TvButton("▶ Assistir", Pink, 13.sp) { st.playItem(item) }
                     TvButton("ⓘ Detalhes", Btn, 13.sp) { st.openDetail(item) }
+                    TvButton(if (st.favs.contains(item.key)) "★" else "☆", Btn, 13.sp) { st.toggleFav(item.key) }
+                    if (total > 1) {
+                        Spacer(Modifier.width(10.dp))
+                        TvButton("‹", Btn, 14.sp, compact = true, onClick = onPrev)
+                        TvButton("›", Btn, 14.sp, compact = true, onClick = onNext)
+                        Spacer(Modifier.width(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            for (i in 0 until total) Box(Modifier.size(if (i == idx) 18.dp else 6.dp, 6.dp).background(if (i == idx) Pink else Color(0x66FFFFFF), RoundedCornerShape(3.dp)))
+                        }
+                    }
                 }
             }
             if (img.isNotEmpty()) AsyncImage(img, null, Modifier.height(200.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
@@ -700,6 +727,7 @@ fun ListsDialog(st: AppState) {
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     val lists = remember(st.listsVer, st.busy) { st.store.lists() }
+    LaunchedEffect(Unit) { st.refreshAccounts() }
     LaunchedEffect(topic) { Relay.listen(topic, key) { c, n -> st.onRelay(c, n) } }
     Dialog(onDismissRequest = { st.showLists = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxWidth(0.9f).fillMaxHeight(0.9f), shape = RoundedCornerShape(18.dp), color = PanelC) {
@@ -719,13 +747,15 @@ fun ListsDialog(st: AppState) {
                     if (lists.isEmpty()) item { Text("Nenhuma lista ainda.", color = Muted, fontSize = 12.sp) }
                     items(lists, key = { it.id }) { m ->
                         Row(Modifier.fillMaxWidth().background(Color(0x14FFFFFF), RoundedCornerShape(12.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TvButton(if (m.active) "☑ Usar" else "☐ Usar", Btn, 11.sp) { st.toggleList(m.id) }
+                            TvButton(if (m.active) "☑ Usar" else "☐ Usar", Btn, 10.sp, compact = true) { st.toggleList(m.id) }
                             Column(Modifier.weight(1f)) {
                                 Text(m.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${m.count} itens", color = Muted, fontSize = 10.sp)
+                                @Suppress("UNUSED_VARIABLE") val av = st.accVer
+                                val acc = st.accountText(m.id)
+                                Text("${m.count} itens" + if (acc.isNotEmpty()) "  ·  $acc" else "", color = if (acc.startsWith("⚠")) Color(0xFFFF8A8A) else Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
-                            TvButton("↻ Atualizar", Btn, 11.sp) { st.refreshList(m) }
-                            TvButton("🗑 Excluir", Color(0x55FF5A5A), 11.sp) { st.deleteList(m.id) }
+                            TvButton("↻ Atualizar", Btn, 9.sp, compact = true) { st.refreshList(m) }
+                            TvButton("🗑 Excluir", Color(0xFF7A2E3A), 9.sp, compact = true) { st.deleteList(m.id) }
                         }
                     }
                     item { Spacer(Modifier.height(4.dp)); Text("ADICIONAR NOVA LISTA", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
@@ -742,6 +772,7 @@ fun ListsDialog(st: AppState) {
                     item { Spacer(Modifier.height(4.dp)); Text("PREFERÊNCIAS", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     item { TvButton((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAdult(!st.adult) } }
                     item { TvButton((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAutoNext(!st.autoNext) } }
+                    item { TvButton((if (st.subs) "☑" else "☐") + " Mostrar legendas (desmarcado = legendas desligadas em tudo)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeSubs(!st.subs) } }
                 }
             }
         }

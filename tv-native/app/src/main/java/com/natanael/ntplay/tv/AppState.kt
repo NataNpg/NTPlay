@@ -33,6 +33,8 @@ class AppState(val ctx: Context) {
     var favs by mutableStateOf(store.favs)
     var adult by mutableStateOf(store.adult)
     var autoNext by mutableStateOf(store.autoNext)
+    var subs by mutableStateOf(store.subs)
+    var accVer by mutableIntStateOf(0)
     var season by mutableIntStateOf(1)
     var toastMsg by mutableStateOf("")
     var listsVer by mutableIntStateOf(0)
@@ -208,6 +210,33 @@ class AppState(val ctx: Context) {
 
     fun changeAdult(v: Boolean) { adult = v; store.adult = v; scope.launch { reload() } }
     fun changeAutoNext(v: Boolean) { autoNext = v; store.autoNext = v }
+    fun changeSubs(v: Boolean) { subs = v; store.subs = v }
+
+    /** atualiza vencimento das listas Xtream (em segundo plano) */
+    fun refreshAccounts() {
+        scope.launch {
+            for (m in store.lists()) {
+                if (m.url.isEmpty() || Xtream.creds(m.url) == null) continue
+                val acc = withContext(Dispatchers.IO) { try { Xtream.account(m.url) } catch (e: Throwable) { null } } ?: continue
+                store.setAccount(m.id, "${acc.exp}|${acc.status}|${acc.maxCon}|${acc.active}|${System.currentTimeMillis()}")
+                accVer++
+            }
+        }
+    }
+
+    fun accountText(id: String): String {
+        val p = store.account(id).split('|')
+        if (p.size < 5) return ""
+        val exp = p[0].toLongOrNull() ?: 0L
+        val st = p[1]
+        val venc = if (exp <= 0) "Sem data de vencimento" else {
+            val d = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date(exp))
+            val dias = ((exp - System.currentTimeMillis()) / 86_400_000L)
+            if (dias < 0) "⚠ Venceu em $d" else "Vence em $d ($dias dia" + (if (dias == 1L) ")" else "s)")
+        }
+        val stTxt = when { st.equals("Active", true) -> "Ativa"; st.isEmpty() -> ""; else -> st }
+        return listOf(venc, stTxt, if ((p[2].toIntOrNull() ?: 0) > 0) "${p[3]}/${p[2]} telas" else "").filter { it.isNotEmpty() }.joinToString(" · ")
+    }
 
     fun toggleFav(key: String) {
         val s = HashSet(favs); val added = !s.remove(key); if (added) s.add(key)

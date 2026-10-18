@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +45,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -138,7 +140,8 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
         val p = ExoPlayer.Builder(ctx, rf).setLoadControl(lc).setMediaSourceFactory(DefaultMediaSourceFactory(ctx, ex).setDataSourceFactory(ds)).build()
-        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setPreferredAudioLanguage("pt").build()
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setPreferredAudioLanguage("pt")
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !st.subs).apply { if (st.subs) setPreferredTextLanguage("pt") }.build()
         p
     }
 
@@ -182,6 +185,17 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
         val next = (cur + 1) % g.size
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setOverrideForType(TrackSelectionOverride(g[next].mediaTrackGroup, 0)).build()
         audioLabel = langName(g[next].getTrackFormat(0).language)
+    }
+
+    val skipIntroSec = st.store.skipIntro
+    val showSkipIntro = !live && err.isEmpty() && dur > 6 * 60_000 && pos in 5_000L..(5 * 60_000L)
+    val nextReq = remember(req.ep.url) { if (live) null else st.next(req) }
+    val creditsAt = if (dur > 0) maxOf(dur - (if (req.item.kind == 's') 90_000L else 6 * 60_000L), (dur * 0.93).toLong()) else Long.MAX_VALUE
+    val showSkipCredits = !live && err.isEmpty() && dur > 6 * 60_000 && pos >= creditsAt && pos < dur - 3_000
+    fun skipIntro() { player.seekTo(player.currentPosition + skipIntroSec * 1000L) }
+    fun skipCredits() {
+        if (nextReq != null) { st.markDone(req); st.play = nextReq }
+        else { st.markDone(req); close() }
     }
 
     BackHandler(true) { if (ui && err.isEmpty() && playing) ui = false else close() }
@@ -271,7 +285,10 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                 }
                 if (ui) return@onPreviewKeyEvent false
                 when (e.key) {
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { show(); true }
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                        when { showSkipIntro -> skipIntro(); showSkipCredits -> skipCredits(); else -> show() }
+                        true
+                    }
                     Key.DirectionLeft -> { seek(-10_000); show(); true }
                     Key.DirectionRight -> { seek(10_000); show(); true }
                     Key.DirectionUp -> { if (live) zap(false) else show(); true }
@@ -324,13 +341,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xDD000000)))).padding(start = 40.dp, end = 40.dp, top = 30.dp, bottom = 22.dp)
             ) {
-                if (!live && dur > 0) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(Util.fmt(pos), color = Color.White, fontSize = 11.sp)
-                    Box(Modifier.weight(1f).padding(horizontal = 10.dp).height(4.dp).background(Color(0x55FFFFFF), RoundedCornerShape(2.dp))) {
-                        Box(Modifier.fillMaxWidth((pos.toFloat() / dur).coerceIn(0f, 1f)).fillMaxHeight().background(Pink, RoundedCornerShape(2.dp)))
-                    }
-                    Text(Util.fmt(dur), color = Color.White, fontSize = 11.sp)
-                }
+                if (!live && dur > 0) SeekBar(pos, dur, onActivity = { lastAct = System.currentTimeMillis() }) { t -> player.seekTo(t.coerceIn(0, dur)); pos = t }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (live) TvButton("▲ Canal anterior", Btn, 11.sp, compact = true) { zap(false) }
@@ -347,6 +358,18 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                     TvButton("✕ Sair", Btn, 11.sp, compact = true) { close() }
                 }
                 if (live) Text("Dica: ▲/▼ no controle troca de canal com o painel fechado", color = Color(0x99FFFFFF), fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+            }
+        }
+
+        // botões flutuantes: pular abertura / créditos (OK do controle aciona)
+        if ((showSkipIntro || showSkipCredits) && !ui) Box(Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 48.dp)) {
+            TvButton(if (showSkipIntro) "⏭ Pular abertura (OK)" else if (nextReq != null) "⏭ Próximo episódio (OK)" else "⏭ Pular créditos (OK)", Color(0xEE1B1B24), 13.sp) {
+                if (showSkipIntro) skipIntro() else skipCredits()
+            }
+        }
+        if ((showSkipIntro || showSkipCredits) && ui) Box(Modifier.align(Alignment.TopEnd).padding(end = 40.dp, top = 70.dp)) {
+            TvButton(if (showSkipIntro) "⏭ Pular abertura" else if (nextReq != null) "⏭ Próximo episódio" else "⏭ Pular créditos", Pink, 12.sp, compact = true) {
+                if (showSkipIntro) skipIntro() else skipCredits()
             }
         }
 
@@ -368,4 +391,52 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
             }
         }
     }
+}
+
+
+/** barra de tempo: ◀ ▶ avançam/voltam (segurar acelera), clique/arraste do mouse vai direto ao ponto */
+@Composable
+fun SeekBar(pos: Long, dur: Long, onActivity: () -> Unit, onSeek: (Long) -> Unit) {
+    val fi = rememberFocus()
+    var preview by remember { mutableStateOf(-1L) }
+    var w by remember { mutableIntStateOf(1) }
+    val shown = if (preview >= 0) preview else pos
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(Util.fmt(shown), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Box(
+            Modifier.weight(1f).padding(horizontal = 10.dp).height(22.dp)
+                .onSizeChanged { w = maxOf(1, it.width) }
+                .onPreviewKeyEvent { e ->
+                    if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    val rep = e.nativeKeyEvent.repeatCount
+                    val step = when { rep > 20 -> 120_000L; rep > 8 -> 60_000L; rep > 2 -> 30_000L; else -> 10_000L }
+                    when (e.key) {
+                        Key.DirectionLeft -> { onActivity(); onSeek((shown - step).coerceAtLeast(0)); true }
+                        Key.DirectionRight -> { onActivity(); onSeek((shown + step).coerceAtMost(dur)); true }
+                        else -> false
+                    }
+                }
+                .tvClick(fi, RoundedCornerShape(11.dp), 1.0f, border = false) { }
+                .pointerInput(dur) {
+                    detectTapGestures { o -> onActivity(); onSeek((o.x / w * dur).toLong()) }
+                }
+                .pointerInput(dur) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = { if (preview >= 0) onSeek(preview); preview = -1 },
+                        onDragCancel = { preview = -1 }
+                    ) { ch, _ -> onActivity(); preview = (ch.position.x / w * dur).toLong().coerceIn(0, dur) }
+                },
+            contentAlignment = Alignment.CenterStart
+        ) {
+            val f = (shown.toFloat() / dur).coerceIn(0f, 1f)
+            Box(Modifier.fillMaxWidth().height(if (fi.on) 8.dp else 4.dp).background(Color(0x55FFFFFF), RoundedCornerShape(4.dp))) {
+                Box(Modifier.fillMaxWidth(f).fillMaxHeight().background(Pink, RoundedCornerShape(4.dp)))
+            }
+            if (fi.on) Box(Modifier.fillMaxWidth(f).height(22.dp), contentAlignment = Alignment.CenterEnd) {
+                Box(Modifier.size(18.dp).background(Color.White, RoundedCornerShape(9.dp)))
+            }
+        }
+        Text(Util.fmt(dur), color = Color.White, fontSize = 11.sp)
+    }
+    if (fi.focused) Text("◀ ▶ para voltar/avançar (segure para ir mais rápido) · clique/arraste com o mouse", color = Color(0xAAFFFFFF), fontSize = 9.sp)
 }
