@@ -31,7 +31,7 @@ jobs:
           code=$?
           tail -n 40 ../gradle.log
           if [ $code -ne 0 ]; then
-            echo "::error title=gradle falhou::$(grep -E '^e: |error:|What went wrong|Caused by|FAILED' -A1 ../gradle.log | head -c 3500 | tr '\n' '|')"
+            echo "::error title=gradle falhou::$(grep -E '^e: |error:|What went wrong|Caused by|FAILED|Dependency |minSdk|minCompileSdk|requires' -A2 ../gradle.log | head -c 3500 | tr '\n' '|')"
             exit $code
           fi
       - run: cp tv-native/app/build/outputs/apk/release/app-release.apk NTPlay-TV.apk
