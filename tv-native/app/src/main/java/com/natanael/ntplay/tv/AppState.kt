@@ -1,0 +1,275 @@
+package com.natanael.ntplay.tv
+
+import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+class PlayReq(val item: Item, val ep: Ep, val resume: Long)
+
+val TABS = listOf("RECOMENDAÇÕES", "TV AO VIVO", "FILMES", "SÉRIES", "INFANTIL", "ANIMES", "FAVORITOS")
+
+class AppState(val ctx: Context) {
+    val store = Store(ctx)
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    var lib by mutableStateOf<Library?>(null)
+    var status by mutableStateOf("Nenhuma lista carregada")
+    var busy by mutableStateOf(false)
+    var tab by mutableStateOf(store.tab.let { if (it in TABS) it else TABS[0] })
+    var group by mutableStateOf("")
+    var detail by mutableStateOf<Item?>(null)
+    var play by mutableStateOf<PlayReq?>(null)
+    var showLists by mutableStateOf(false)
+    var showSearch by mutableStateOf(false)
+    var favs by mutableStateOf(store.favs)
+    var adult by mutableStateOf(store.adult)
+    var autoNext by mutableStateOf(store.autoNext)
+    var season by mutableIntStateOf(1)
+    var toastMsg by mutableStateOf("")
+    var listsVer by mutableIntStateOf(0)
+    var progVer by mutableIntStateOf(0)
+    var queue: List<Item> = emptyList()
+    private val progMap: HashMap<String, Prog> = store.progress()
+
+    fun toast(m: String) {
+        toastMsg = m
+        scope.launch { delay(4500); if (toastMsg == m) toastMsg = "" }
+    }
+
+    fun setTab(t: String) {
+        tab = t; group = ""; detail = null; store.tab = t
+    }
+
+    val canBack: Boolean get() = play != null || detail != null || group.isNotEmpty()
+
+    fun back() {
+        when {
+            play != null -> closePlayer()
+            detail != null -> detail = null
+            group.isNotEmpty() -> group = ""
+        }
+    }
+
+    fun start() { scope.launch { reload() } }
+
+    suspend fun reload() {
+        val metas = store.lists().filter { it.active }
+        val files = metas.map { store.file(it.id) }.filter { it.exists() }
+        if (files.isEmpty()) {
+            lib = null
+            status = "Nenhuma lista carregada"
+            return
+        }
+        busy = true
+        status = "Carregando lista…"
+        try {
+            val l = withContext(Dispatchers.Default) { Library.build(files, adult) }
+            lib = l
+            group = ""
+            status = "${l.live.size} canais • ${l.movies.size} filmes • ${l.series.size} séries"
+        } catch (e: Throwable) {
+            status = "Erro ao ler a lista"
+            toast("Erro ao ler a lista: " + (e.message ?: e.javaClass.simpleName))
+        }
+        busy = false
+        listsVer++
+    }
+
+    private fun countItems(f: java.io.File): Int {
+        var n = 0
+        f.bufferedReader().use { r -> while (true) { val l = r.readLine() ?: break; if (l.startsWith("#EXTINF")) n++ } }
+        return n
+    }
+
+    fun addUrl(url: String, name: String?) {
+        val u = url.trim()
+        if (u.isEmpty()) { toast("Informe o link da lista M3U."); return }
+        scope.launch {
+            busy = true
+            status = "Baixando lista…"
+            try {
+                val id = java.lang.Long.toString(System.currentTimeMillis(), 36)
+                val n = withContext(Dispatchers.IO) {
+                    val f = store.file(id)
+                    Net.download(u, f) { b -> if (b % (1 shl 20) < 70000) status = "Baixando… ${b / 1048576} MB" }
+                    countItems(f)
+                }
+                val l = store.lists()
+                l.add(ListMeta(id, name?.ifBlank { null } ?: (u.substringAfter("://").substringBefore('/').ifEmpty { "Lista" }), u, n, System.currentTimeMillis(), true))
+                store.saveLists(l)
+                toast("Lista adicionada: $n itens.")
+                reload()
+            } catch (e: Throwable) {
+                busy = false
+                status = "Falha ao baixar a lista"
+                toast("Falha ao baixar a lista: " + (e.message ?: e.javaClass.simpleName))
+            }
+        }
+    }
+
+    fun addText(text: String, name: String?) {
+        scope.launch {
+            busy = true
+            try {
+                val id = java.lang.Long.toString(System.currentTimeMillis(), 36)
+                val n = withContext(Dispatchers.IO) { val f = store.file(id); f.writeText(text); countItems(f) }
+                val l = store.lists()
+                l.add(ListMeta(id, name ?: "Lista do celular", "", n, System.currentTimeMillis(), true))
+                store.saveLists(l)
+                toast("Lista recebida: $n itens.")
+                reload()
+            } catch (e: Throwable) { busy = false; toast("Lista inválida.") }
+        }
+    }
+
+    fun onRelay(content: String, name: String?) {
+        scope.launch {
+            toast("Lista recebida do celular!")
+            if (content.startsWith("http", true)) addUrl(content, name) else addText(content, name)
+        }
+    }
+
+    fun toggleList(id: String) {
+        val l = store.lists(); l.firstOrNull { it.id == id }?.let { it.active = !it.active }
+        store.saveLists(l); scope.launch { reload() }
+    }
+
+    fun deleteList(id: String) {
+        val l = store.lists(); l.removeAll { it.id == id }
+        store.saveLists(l); store.deleteList(id); scope.launch { reload() }
+    }
+
+    fun refreshList(m: ListMeta) {
+        if (m.url.isEmpty()) { toast("Lista enviada como texto: adicione de novo para atualizar."); return }
+        scope.launch {
+            busy = true; status = "Atualizando lista…"
+            try {
+                val n = withContext(Dispatchers.IO) { val f = store.file(m.id); Net.download(m.url, f); countItems(f) }
+                val l = store.lists(); l.firstOrNull { it.id == m.id }?.let { it.count = n; it.date = System.currentTimeMillis() }
+                store.saveLists(l); reload()
+            } catch (e: Throwable) { busy = false; toast("Falha ao atualizar: " + (e.message ?: "erro")) }
+        }
+    }
+
+    fun setAdult(v: Boolean) { adult = v; store.adult = v; scope.launch { reload() } }
+    fun setAutoNext(v: Boolean) { autoNext = v; store.autoNext = v }
+
+    fun toggleFav(key: String) {
+        val s = HashSet(favs); if (!s.remove(key)) s.add(key)
+        favs = s; store.favs = s
+    }
+
+    // ---------- progresso ----------
+    fun progOf(ep: Ep): Prog? = progMap[ep.url]
+
+    fun saveProg(r: PlayReq, pos: Long, dur: Long) {
+        if (r.item.kind == 'l' || pos < 1000) return
+        val d = if (dur > 0) dur else 0
+        progMap[r.ep.url] = Prog(pos, d, System.currentTimeMillis(), d > 0 && pos > d * 0.95, r.item.key, r.item.title)
+        store.saveProgress(progMap)
+    }
+
+    fun markDone(r: PlayReq) {
+        val old = progMap[r.ep.url]
+        progMap[r.ep.url] = Prog(0, old?.d ?: 0, System.currentTimeMillis(), true, r.item.key, r.item.title)
+        store.saveProgress(progMap)
+    }
+
+    fun removeProg(key: String) {
+        progMap.entries.removeAll { it.value.k == key }
+        store.saveProgress(progMap); progVer++
+        toast("Removido de Continuar assistindo.")
+    }
+
+    fun continueList(): List<Pair<Item, Ep>> {
+        val l = lib ?: return emptyList()
+        val seen = HashSet<String>()
+        val out = ArrayList<Pair<Item, Ep>>()
+        for (p in progMap.entries.filter { !it.value.done }.sortedByDescending { it.value.ts }) {
+            val it = l.byKey[p.value.k] ?: continue
+            if (!seen.add(it.key)) continue
+            val ep = it.eps.firstOrNull { e -> e.url == p.key } ?: continue
+            out.add(it to ep)
+            if (out.size >= 24) break
+        }
+        return out
+    }
+
+    fun startEp(it: Item): Ep {
+        if (it.kind != 's') return it.eps[0]
+        var best: Ep? = null; var ts = 0L; var done = false
+        for (e in it.eps) { val p = progMap[e.url] ?: continue; if (p.ts > ts) { ts = p.ts; best = e; done = p.done } }
+        if (best == null) return it.eps[0]
+        if (!done) return best
+        val i = it.eps.indexOf(best)
+        return if (i >= 0 && i < it.eps.size - 1) it.eps[i + 1] else best
+    }
+
+    fun resumeOf(ep: Ep): Long { val p = progMap[ep.url]; return if (p != null && !p.done && p.t > 10000) p.t else 0 }
+
+    fun openDetail(it: Item) {
+        detail = it
+        season = if (it.kind == 's') startEp(it).s else 1
+    }
+
+    fun playItem(it: Item, ep: Ep? = null, q: List<Item>? = null) {
+        val e = ep ?: startEp(it)
+        if (q != null) queue = q
+        play = PlayReq(it, e, if (it.kind == 'l') 0 else resumeOf(e))
+    }
+
+    fun closePlayer() { play = null; progVer++ }
+
+    fun onEnded(r: PlayReq) {
+        if (r.item.kind == 'l') return
+        markDone(r)
+        if (autoNext) {
+            if (r.item.kind == 's') {
+                val i = r.item.eps.indexOf(r.ep)
+                if (i >= 0 && i < r.item.eps.size - 1) {
+                    val n = r.item.eps[i + 1]
+                    toast("Próximo: " + r.item.title + " • T${n.s} E${n.e}")
+                    play = PlayReq(r.item, n, 0); return
+                }
+            }
+            val q = queue.filter { it.kind == r.item.kind }
+            val i = q.indexOfFirst { it.key == r.item.key }
+            if (i >= 0 && i < q.size - 1) {
+                val n = q[i + 1]
+                toast("Próximo: " + n.title)
+                play = PlayReq(n, startEp(n), resumeOf(startEp(n))); return
+            }
+            toast("Fim da lista.")
+        }
+        closePlayer()
+    }
+
+    fun next(r: PlayReq): PlayReq? {
+        if (r.item.kind == 's') { val i = r.item.eps.indexOf(r.ep); if (i >= 0 && i < r.item.eps.size - 1) return PlayReq(r.item, r.item.eps[i + 1], 0) }
+        val q = queue.filter { it.kind == r.item.kind }; val i = q.indexOfFirst { it.key == r.item.key }
+        return if (i >= 0 && i < q.size - 1) PlayReq(q[i + 1], startEp(q[i + 1]), 0) else null
+    }
+
+    fun prev(r: PlayReq): PlayReq? {
+        if (r.item.kind == 's') { val i = r.item.eps.indexOf(r.ep); if (i > 0) return PlayReq(r.item, r.item.eps[i - 1], 0) }
+        val q = queue.filter { it.kind == r.item.kind }; val i = q.indexOfFirst { it.key == r.item.key }
+        return if (i > 0) PlayReq(q[i - 1], startEp(q[i - 1]), 0) else null
+    }
+
+    fun search(q: String): List<Item> {
+        val l = lib ?: return emptyList()
+        val n = Util.norm(q)
+        if (n.length < 2) return emptyList()
+        val out = ArrayList<Item>()
+        for (it in l.every) { if (it.norm.contains(n) || Util.norm(it.group).contains(n)) { out.add(it); if (out.size >= 300) break } }
+        return out
+    }
+}
