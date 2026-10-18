@@ -6,6 +6,9 @@ on:
       - 'tv-native/**'
       - '.github/workflows/android-tv.yml'
 
+permissions:
+  contents: write
+
 jobs:
   tv:
     name: APK Android TV (Kotlin + Compose + Media3)
@@ -36,3 +39,9 @@ jobs:
         with:
           name: NTPlay-TV-nativo
           path: NTPlay-TV.apk
+      - name: Publicar na Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete tv-latest --yes --cleanup-tag || true
+          gh release create tv-latest NTPlay-TV.apk --title "NTPlay TV (Android TV nativo)" --notes "APK para Android TV. Baixe o arquivo NTPlay-TV.apk abaixo." --target ${{ github.sha }}
