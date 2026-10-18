@@ -1,0 +1,11 @@
+name: diag servidor
+on: workflow_dispatch
+jobs:
+  d:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for p in / /player_api.php "/get.php?username=x&password=y&type=m3u_plus"; do
+            r=$(curl -s -o /tmp/b -w "%{http_code} %{time_total}s" -m 60 -A "VLC/3.0.20 LibVLC/3.0.20" "http://teleflixhd.club:80$p")
+            echo "::notice title=$p::$r $(head -c 150 /tmp/b | tr '\n' ' ')"
+          done
