@@ -4,6 +4,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,7 +82,10 @@ fun NtTheme(content: @Composable () -> Unit) {
 @Composable
 fun Modifier.tvFocus(shape: Shape = RoundedCornerShape(10.dp)): Modifier {
     var f by remember { mutableStateOf(false) }
-    return this.onFocusChanged { f = it.isFocused }.then(if (f) Modifier.border(3.dp, Cyan, shape) else Modifier)
+    val src = remember { MutableInteractionSource() }
+    val hov by src.collectIsHoveredAsState()
+    return this.hoverable(src).onFocusChanged { f = it.isFocused }
+        .then(if (f) Modifier.border(3.dp, Cyan, shape) else if (hov) Modifier.border(2.dp, Color(0xAA22D3EE), shape) else Modifier)
 }
 
 private fun tint(s: String): Color = Color.hsv((s.hashCode().toLong().let { Math.floorMod(it, 360L) }).toFloat(), 0.45f, 0.32f)
@@ -391,49 +397,48 @@ fun SearchDialog(st: AppState) {
 fun ListsDialog(st: AppState) {
     val (topic, key) = remember { st.store.relay() }
     val link = Util.SEND_BASE + "#t=" + topic + "&k=" + key
-    val qr = remember(link) { Qr.bitmap(link).asImageBitmap() }
+    val qr = remember(link) { Qr.bitmap(link, 360).asImageBitmap() }
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     val lists = remember(st.listsVer, st.busy) { st.store.lists() }
     LaunchedEffect(topic) { Relay.listen(topic, key) { c, n -> st.onRelay(c, n) } }
     Dialog(onDismissRequest = { st.showLists = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxWidth(0.9f).fillMaxHeight(0.94f), shape = RoundedCornerShape(16.dp), color = PanelC) {
-            LazyColumn(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { Text("Listas M3U", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold) }
-                item { Text("MINHAS LISTAS", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-                if (lists.isEmpty()) item { Text("Nenhuma lista ainda.", color = Color(0x99FFFFFF), fontSize = 12.sp) }
-                items(lists, key = { it.id }) { m ->
-                    Row(Modifier.fillMaxWidth().background(Color(0x14FFFFFF), RoundedCornerShape(10.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(if (m.active) "☑ Usar" else "☐ Usar", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.toggleList(m.id) }.padding(6.dp), color = Color.White, fontSize = 12.sp)
-                        Column(Modifier.weight(1f)) {
-                            Text(m.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${m.count} itens", color = Color(0x88FFFFFF), fontSize = 10.sp)
-                        }
-                        Text("↻ Atualizar", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.refreshList(m) }.padding(6.dp), color = Color.White, fontSize = 11.sp)
-                        Text("🗑 Excluir", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.deleteList(m.id) }.padding(6.dp), color = Color(0xFFFF8A8A), fontSize = 11.sp)
-                    }
+        Surface(Modifier.fillMaxWidth(0.88f).fillMaxHeight(0.84f), shape = RoundedCornerShape(16.dp), color = PanelC) {
+            Row(Modifier.padding(18.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                // coluna esquerda: QR sempre visivel
+                Column(Modifier.width(210.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Listas M3U", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("ENVIAR PELO CELULAR", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Image(qr, "QR code", Modifier.size(170.dp).background(Color.White).padding(6.dp))
+                    Text("Escaneie com a câmera do celular, cole o link da lista e envie. Ela chega aqui sozinha.", color = Color(0xDDFFFFFF), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+                    Text("⏳ Aguardando o celular…", color = Cyan, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
                 }
-                item { Text("ADICIONAR NOVA LISTA", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-                item { OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), placeholder = { Text("Nome da lista (opcional)") }, singleLine = true) }
-                item { OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), placeholder = { Text("Link M3U  http://...") }, singleLine = true) }
-                item {
-                    Button(onClick = { st.addUrl(url, name); url = ""; name = "" }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5A00))) { Text("+ Adicionar lista") }
-                }
-                item { Text("ENVIAR LISTA PELO CELULAR", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-                item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Image(qr, "QR code", Modifier.size(150.dp).background(Color.White).padding(4.dp))
-                        Column {
-                            Text("Escaneie com a câmera do celular, cole o link da sua lista M3U na página e envie. Ela chega aqui sozinha enquanto esta janela estiver aberta.", color = Color(0xDDFFFFFF), fontSize = 11.sp)
-                            Text(link, color = Color(0x88FFFFFF), fontSize = 8.sp, maxLines = 2, modifier = Modifier.padding(top = 6.dp))
-                            Text("⏳ Aguardando lista do celular…", color = Cyan, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
+                // coluna direita: listas, adicionar e preferencias (rola)
+                LazyColumn(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 4.dp)) {
+                    item { Text("MINHAS LISTAS", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                    if (lists.isEmpty()) item { Text("Nenhuma lista ainda.", color = Color(0x99FFFFFF), fontSize = 12.sp) }
+                    items(lists, key = { it.id }) { m ->
+                        Row(Modifier.fillMaxWidth().background(Color(0x14FFFFFF), RoundedCornerShape(10.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(if (m.active) "☑ Usar" else "☐ Usar", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.toggleList(m.id) }.padding(6.dp), color = Color.White, fontSize = 12.sp)
+                            Column(Modifier.weight(1f)) {
+                                Text(m.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${m.count} itens", color = Color(0x88FFFFFF), fontSize = 10.sp)
+                            }
+                            Text("↻ Atualizar", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.refreshList(m) }.padding(6.dp), color = Color.White, fontSize = 11.sp)
+                            Text("🗑 Excluir", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.deleteList(m.id) }.padding(6.dp), color = Color(0xFFFF8A8A), fontSize = 11.sp)
                         }
                     }
+                    item { Text("ADICIONAR NOVA LISTA", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                    item { OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), placeholder = { Text("Nome da lista (opcional)", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp)) }
+                    item { OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), placeholder = { Text("Link M3U  http://...", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp)) }
+                    item { BigBtn("+ Adicionar lista", Color(0xFFFF5A00)) { st.addUrl(url, name); url = ""; name = "" } }
+                    item { Text("PREFERÊNCIAS", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                    item { Text((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.changeAdult(!st.adult) }.padding(8.dp), color = Color.White, fontSize = 12.sp) }
+                    item { Text((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.changeAutoNext(!st.autoNext) }.padding(8.dp), color = Color.White, fontSize = 12.sp) }
+                    item { BigBtn("Fechar", Color(0x33FFFFFF)) { st.showLists = false } }
                 }
-                item { Text("PREFERÊNCIAS", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-                item { Text((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.changeAdult(!st.adult) }.padding(8.dp), color = Color.White, fontSize = 12.sp) }
-                item { Text((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.changeAutoNext(!st.autoNext) }.padding(8.dp), color = Color.White, fontSize = 12.sp) }
-                item { Button(onClick = { st.showLists = false }) { Text("Fechar") } }
             }
         }
     }
