@@ -44,7 +44,7 @@ class AppState(val ctx: Context) {
         scope.launch { delay(4500); if (toastMsg == m) toastMsg = "" }
     }
 
-    fun setTab(t: String) {
+    fun selectTab(t: String) {
         tab = t; group = ""; detail = null; store.tab = t
     }
 
@@ -159,8 +159,8 @@ class AppState(val ctx: Context) {
         }
     }
 
-    fun setAdult(v: Boolean) { adult = v; store.adult = v; scope.launch { reload() } }
-    fun setAutoNext(v: Boolean) { autoNext = v; store.autoNext = v }
+    fun changeAdult(v: Boolean) { adult = v; store.adult = v; scope.launch { reload() } }
+    fun changeAutoNext(v: Boolean) { autoNext = v; store.autoNext = v }
 
     fun toggleFav(key: String) {
         val s = HashSet(favs); if (!s.remove(key)) s.add(key)

@@ -132,7 +132,7 @@ fun Header(st: AppState) {
                 val sel = st.tab == t
                 Text(
                     t, color = if (sel) Pink else Color(0xDDFFFFFF), fontSize = 11.sp, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.Medium, maxLines = 1,
-                    modifier = Modifier.tvFocus(RoundedCornerShape(8.dp)).clickable { st.setTab(t) }.padding(horizontal = 8.dp, vertical = 8.dp)
+                    modifier = Modifier.tvFocus(RoundedCornerShape(8.dp)).clickable { st.selectTab(t) }.padding(horizontal = 8.dp, vertical = 8.dp)
                 )
             }
         }
@@ -301,9 +301,9 @@ fun Recom(st: AppState, lib: Library) {
             }
         }
         if (favs.isNotEmpty()) item { ShelfRow("Minha lista", favs.size, null) { items(favs, key = { it.key }) { it2 -> CardFor(st, it2, favs) } } }
-        if (lib.movies.isNotEmpty()) item { ShelfRow("Filmes", lib.movies.size, { st.setTab("FILMES") }) { items(lib.movies.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.movies) } } }
-        if (lib.series.isNotEmpty()) item { ShelfRow("Séries", lib.series.size, { st.setTab("SÉRIES") }) { items(lib.series.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.series) } } }
-        if (lib.live.isNotEmpty()) item { ShelfRow("TV ao vivo", lib.live.size, { st.setTab("TV AO VIVO") }) { items(lib.live.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.live) } } }
+        if (lib.movies.isNotEmpty()) item { ShelfRow("Filmes", lib.movies.size, { st.selectTab("FILMES") }) { items(lib.movies.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.movies) } } }
+        if (lib.series.isNotEmpty()) item { ShelfRow("Séries", lib.series.size, { st.selectTab("SÉRIES") }) { items(lib.series.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.series) } } }
+        if (lib.live.isNotEmpty()) item { ShelfRow("TV ao vivo", lib.live.size, { st.selectTab("TV AO VIVO") }) { items(lib.live.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.live) } } }
     }
 }
 
@@ -431,8 +431,8 @@ fun ListsDialog(st: AppState) {
                     }
                 }
                 item { Text("PREFERÊNCIAS", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-                item { Text((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.setAdult(!st.adult) }.padding(8.dp), color = Color.White, fontSize = 12.sp) }
-                item { Text((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.setAutoNext(!st.autoNext) }.padding(8.dp), color = Color.White, fontSize = 12.sp) }
+                item { Text((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.changeAdult(!st.adult) }.padding(8.dp), color = Color.White, fontSize = 12.sp) }
+                item { Text((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.changeAutoNext(!st.autoNext) }.padding(8.dp), color = Color.White, fontSize = 12.sp) }
                 item { Button(onClick = { st.showLists = false }) { Text("Fechar") } }
             }
         }
