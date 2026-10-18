@@ -8,7 +8,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.ScrollableState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -69,11 +71,13 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -99,6 +103,9 @@ val Dark = Color(0xFF0D0D12)
 val Btn = Color(0xFF34343F)
 
 /** sem "camada branca" do Material ao focar: o foco é desenhado por nós */
+/** tamanho geral da interface (1.0 = original) */
+const val UI_SCALE = 0.8f
+
 object NoIndication : Indication {
     private object Inst : IndicationInstance {
         override fun ContentDrawScope.drawIndication() { drawContent() }
@@ -110,7 +117,12 @@ object NoIndication : Indication {
 @Composable
 fun NtTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = darkColorScheme(primary = Pink, background = Bg, surface = PanelC)) {
-        CompositionLocalProvider(LocalIndication provides NoIndication, content = content)
+        val d = LocalDensity.current
+        CompositionLocalProvider(
+            LocalIndication provides NoIndication,
+            LocalDensity provides Density(d.density * UI_SCALE, d.fontScale),
+            content = content
+        )
     }
 }
 
@@ -198,7 +210,7 @@ fun showTitle(it: Item): String = if (it.kind == 'l') it.title else Util.cleanT(
 @Composable
 fun App(st: AppState) {
     Box(Modifier.fillMaxSize().background(Bg)) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 26.dp)) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 30.dp)) {
             Header(st)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val d = st.detail
@@ -238,7 +250,7 @@ fun Header(st: AppState) {
         Spacer(Modifier.width(8.dp))
         Text("NTPlay", style = TextStyle(brush = Brush.horizontalGradient(listOf(Cyan, Purple)), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold))
         Spacer(Modifier.width(16.dp))
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             for (t in TABS) {
                 val fi = rememberFocus()
                 val sel = st.tab == t
@@ -520,40 +532,51 @@ fun DetailScreen(st: AppState, item: Item) {
     val needEps = st.needsEps(item)
     val cont = st.startEp(item)
     val pr = st.resumeOf(cont)
+    val serie = item.kind == 's'
     val label = when {
         needEps && st.epsLoading -> "⏳ Carregando episódios…"
         needEps -> "↻ Carregar episódios"
-        item.kind == 's' -> if (st.progOf(cont) != null) "▶ Continuar T${cont.s} E${cont.e}" else "▶ Assistir T${cont.s} E${cont.e}"
+        serie -> if (st.progOf(cont) != null) "▶ Continuar T${cont.s} E${cont.e}" else "▶ Assistir T${cont.s} E${cont.e}"
         pr > 0 -> "▶ Continuar de " + Util.fmt(pr)
         else -> "▶ Assistir"
     }
+    val yr = info?.y?.ifEmpty { null } ?: Util.yearOf(item.title).ifEmpty { null }
+    val meta = listOfNotNull(yr, info?.r?.takeIf { it > 0 }?.let { "★ %.1f".format(it) }, item.group, if (serie && !needEps) "${item.ns} temporada" + (if (item.ns > 1) "s" else "") else null).joinToString("  •  ")
+    val ov = info?.ov ?: ""
+    val ovText = if (ov.isNotEmpty()) ov else if (searching) "Buscando sinopse…" else "Sinopse não disponível para este título."
+
     Box(Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp))) {
-        if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.18f }, contentScale = ContentScale.Crop)
+        if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.16f }, contentScale = ContentScale.Crop)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x660D0D12), Bg))))
-        Row(Modifier.fillMaxSize().padding(20.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-            Box(Modifier.width(160.dp).height(240.dp).clip(RoundedCornerShape(14.dp)).background(tint(item.title))) {
-                if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                else Text(showTitle(item), Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xCCFFFFFF), fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-            }
-            Column(Modifier.weight(1f)) {
-                Text(showTitle(item), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                val yr = info?.y?.ifEmpty { null } ?: Util.yearOf(item.title).ifEmpty { null }
-                val meta = listOfNotNull(yr, info?.r?.takeIf { it > 0 }?.let { "★ %.1f".format(it) }, item.group, if (item.kind == 's' && !needEps) "${item.ns} temporada" + (if (item.ns > 1) "s" else "") else null).joinToString("  •  ")
-                Text(meta, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp))
-                val ov = info?.ov ?: ""
-                Text(
-                    if (ov.isNotEmpty()) ov else if (searching) "Buscando sinopse…" else "Sinopse não disponível para este título.",
-                    color = Color(0xE6FFFFFF), fontSize = 13.sp, maxLines = 5, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.9f)
-                )
-                Row(Modifier.padding(vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TvButton(label, Pink, 13.sp) {
-                        if (needEps) { if (!st.epsLoading) st.loadEps(item) } else st.playItem(item, cont)
+        Row(Modifier.fillMaxSize().padding(18.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+            // coluna de informações
+            Column(if (serie) Modifier.weight(0.42f) else Modifier.weight(1f)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Box(Modifier.width(if (serie) 120.dp else 170.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)).background(tint(item.title))) {
+                        if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                        else Text(showTitle(item), Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xCCFFFFFF), fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     }
-                    TvButton(if (st.favs.contains(item.key)) "★ Na minha lista" else "☆ Minha lista", Btn, 13.sp) { st.toggleFav(item.key) }
+                    Column(Modifier.weight(1f)) {
+                        Text(showTitle(item), color = Color.White, fontSize = if (serie) 22.sp else 28.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(meta, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp))
+                        if (!serie) Text(ovText, color = Color(0xE6FFFFFF), fontSize = 14.sp, maxLines = 7, overflow = TextOverflow.Ellipsis, lineHeight = 20.sp)
+                    }
+                }
+                if (serie) Text(ovText, color = Color(0xE6FFFFFF), fontSize = 13.sp, maxLines = 6, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp, modifier = Modifier.padding(top = 12.dp))
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TvButton(label, Pink, 13.sp) { if (needEps) { if (!st.epsLoading) st.loadEps(item) } else st.playItem(item, cont) }
+                    TvButton(if (st.favs.contains(item.key)) "★ Na lista" else "☆ Minha lista", Btn, 13.sp) { st.toggleFav(item.key) }
                     TvButton("‹ Voltar", Btn, 13.sp) { st.detail = null }
                 }
-                if (needEps && st.epsErr.isNotEmpty()) Text(st.epsErr + " Toque em \"Carregar episódios\" para tentar de novo.", color = Color(0xFFFF9A9A), fontSize = 12.sp)
-                if (item.kind == 's' && !needEps) {
+                if (needEps && st.epsErr.isNotEmpty()) Text(st.epsErr + " Toque em \"Carregar episódios\" para tentar de novo.", color = Color(0xFFFF9A9A), fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+            }
+            // coluna de episódios (altura inteira)
+            if (serie) Column(Modifier.weight(0.58f).fillMaxHeight().background(Color(0xAA17171F), RoundedCornerShape(16.dp)).padding(12.dp)) {
+                Text("EPISÓDIOS", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+                if (needEps) {
+                    Text(if (st.epsLoading) "Carregando episódios…" else "Episódios ainda não carregados.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+                } else {
                     val seasons = item.eps.map { it.s }.distinct().sorted()
                     val ls = rememberLazyListState()
                     LazyRow(Modifier.mouseScroll(ls, true), state = ls, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp)) {
@@ -570,6 +593,14 @@ fun DetailScreen(st: AppState, item: Item) {
     }
 }
 
+/** nome do episódio sem repetir o nome da série */
+fun epTitle(item: Item, e: Ep): String {
+    val c = Util.cleanT(e.name).replace(Regex("(?i)\\bS\\d{1,2}\\s?E\\d{1,3}\\b|\\b\\d{1,2}x\\d{1,3}\\b"), " ").replace(Regex("\\s+"), " ").trim(' ', '-', '–', '|', ':', '.')
+    val base = Util.cleanT(item.title)
+    val rest = if (base.isNotEmpty() && c.startsWith(base, ignoreCase = true)) c.substring(base.length).trim(' ', '-', '–', '|', ':', '.') else c
+    return if (rest.isEmpty() || rest.equals(base, true)) "Episódio ${e.e}" else rest
+}
+
 @Composable
 fun EpisodeRow(st: AppState, item: Item, e: Ep) {
     val p = st.progOf(e)
@@ -581,7 +612,7 @@ fun EpisodeRow(st: AppState, item: Item, e: Ep) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("${e.e}", Modifier.width(34.dp), color = if (fi.on) Pink else Cyan, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
-        Text(e.name, Modifier.weight(1f), color = fg, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(epTitle(item, e), Modifier.weight(1f), color = fg, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(if (p?.done == true) "✓ visto" else if (p != null && p.t > 0) Util.fmt(p.t) else "▶", color = if (fi.on) Dark else Muted, fontSize = 11.sp)
     }
 }
