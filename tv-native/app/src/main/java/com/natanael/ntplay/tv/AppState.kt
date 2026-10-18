@@ -38,6 +38,9 @@ class AppState(val ctx: Context) {
     var listsVer by mutableIntStateOf(0)
     var progVer by mutableIntStateOf(0)
     var epsVer by mutableIntStateOf(0)
+    var epsLoading by mutableStateOf(false)
+    var logoVer by mutableIntStateOf(0)
+    var epsErr by mutableStateOf("")
     var queue: List<Item> = emptyList()
     private val progMap: HashMap<String, Prog> = store.progress()
 
@@ -77,6 +80,7 @@ class AppState(val ctx: Context) {
             lib = l
             group = ""
             status = "${l.live.size} canais • ${l.movies.size} filmes • ${l.series.size} séries"
+            logosLater()
         } catch (e: Throwable) {
             status = "Erro ao ler a lista"
             toast("Erro ao ler a lista: " + (e.message ?: e.javaClass.simpleName))
@@ -260,20 +264,27 @@ class AppState(val ctx: Context) {
     fun openDetail(it: Item) {
         detail = it
         season = if (it.kind == 's') startEp(it).s else 1
-        if (needsEps(it)) scope.launch {
+        if (needsEps(it)) loadEps(it)
+    }
+
+    fun loadEps(it: Item) {
+        if (epsLoading) return
+        epsLoading = true; epsErr = ""
+        scope.launch {
             try {
                 val l = withContext(Dispatchers.IO) { Xtream.episodes(it.eps[0].url) }
                 if (l.isNotEmpty()) {
                     it.eps.clear(); it.eps.addAll(l); it.ns = l.maxOf { e -> e.s }
-                    season = startEp(it).s
+                    if (detail === it) season = startEp(it).s
                     epsVer++
-                } else toast("Esta série não tem episódios no servidor.")
-            } catch (e: Throwable) { toast("Falha ao carregar episódios: " + (e.message ?: "erro")) }
+                } else epsErr = "Esta série não tem episódios no servidor."
+            } catch (e: Throwable) { epsErr = "Não consegui carregar os episódios (" + (e.message ?: "erro") + ")." }
+            epsLoading = false
         }
     }
 
     fun playItem(it: Item, ep: Ep? = null, q: List<Item>? = null) {
-        if (needsEps(it)) { openDetail(it); toast("Carregando episódios…"); return }
+        if (needsEps(it)) { openDetail(it); return }
         val e = ep ?: startEp(it)
         if (q != null) queue = q
         play = PlayReq(it, e, if (it.kind == 'l') 0 else resumeOf(e))
@@ -317,12 +328,33 @@ class AppState(val ctx: Context) {
         return if (i > 0) PlayReq(q[i - 1], startEp(q[i - 1]), 0) else null
     }
 
-    fun search(q: String): List<Item> {
+    suspend fun search(q: String): List<Item> {
         val l = lib ?: return emptyList()
         val n = Util.norm(q)
         if (n.length < 2) return emptyList()
-        val out = ArrayList<Item>()
-        for (it in l.every) { if (it.norm.contains(n) || Util.norm(it.group).contains(n)) { out.add(it); if (out.size >= 300) break } }
-        return out
+        return withContext(Dispatchers.Default) {
+            val first = ArrayList<Item>(); val rest = ArrayList<Item>()
+            for (it in l.every) {
+                val t = it.norm
+                if (t.startsWith(n)) { first.add(it); if (first.size >= 150) break }
+                else if (rest.size < 150) {
+                    val g = synchronized(l.gnorm) { l.gnorm.getOrPut(it.group) { Util.norm(it.group) } }
+                    if (t.contains(n) || g.contains(n)) rest.add(it)
+                }
+            }
+            (first + rest).take(200)
+        }
+    }
+
+    fun logosLater() {
+        val l = lib ?: return
+        if (l.live.none { it.logo.isEmpty() }) return
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) { Logos.ensure(ctx) }
+            if (!ok) return@launch
+            var n = 0
+            withContext(Dispatchers.Default) { for (o in l.live) if (o.logo.isEmpty()) Logos.find(o.title)?.let { o.logo = it; n++ } }
+            if (n > 0) logoVer++
+        }
     }
 }

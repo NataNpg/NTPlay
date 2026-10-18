@@ -152,10 +152,24 @@ object Xtream {
         return total
     }
 
+    private val siCache = object : LinkedHashMap<String, String>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 30
+    }
+
+    /** get_series_info com cache em memória (usado por episódios e sinopse) */
+    fun seriesInfo(c: Creds, id: String): String? {
+        val k = c.base + "|" + id
+        synchronized(siCache) { siCache[k]?.let { return it } }
+        var t: String? = null
+        for (i in 0 until 2) { t = Net.getText(c.api("get_series_info", "&series_id=$id")); if (t != null) break }
+        if (t != null && t.length > 20) synchronized(siCache) { siCache[k] = t }
+        return t
+    }
+
     /** episódios de uma série (carregados só quando a série é aberta) */
     fun episodes(url: String): List<Ep> {
         val (c, id) = credsFromStream(url) ?: return emptyList()
-        val txt = Net.getText(c.api("get_series_info", "&series_id=$id")) ?: throw RuntimeException("não consegui carregar os episódios")
+        val txt = seriesInfo(c, id) ?: throw RuntimeException("o servidor não respondeu")
         val o = JSONObject(txt)
         val eps = o.optJSONObject("episodes") ?: return emptyList()
         val out = ArrayList<Ep>()
@@ -188,7 +202,7 @@ object Xtream {
         val c = Creds(g[1], Uri.decode(g[3]), Uri.decode(g[4]))
         val txt = when {
             g[2] == "movie" -> Net.getText(c.api("get_vod_info", "&vod_id=" + g[5]))
-            g[2] == "series" && g[6] == "xs" -> Net.getText(c.api("get_series_info", "&series_id=" + g[5]))
+            g[2] == "series" && g[6] == "xs" -> seriesInfo(c, g[5])
             else -> null
         } ?: return null
         val o = try { JSONObject(txt).optJSONObject("info") } catch (e: Exception) { null } ?: return null

@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -39,12 +40,26 @@ object Net {
         .readTimeout(30, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
-        .addInterceptor { c -> c.proceed(c.request().newBuilder().header("User-Agent", "Mozilla/5.0 (Linux; Android 10; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36").build()) }
+        .addInterceptor { c ->
+            val resp = c.proceed(c.request().newBuilder().header("User-Agent", "Mozilla/5.0 (Linux; Android 10; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36").build())
+            val u = resp.request.url.toString()
+            if (u.contains("removed.png") || (resp.isSuccessful && resp.body?.contentType()?.type == "text")) {
+                resp.close()
+                okhttp3.Response.Builder().request(resp.request).protocol(okhttp3.Protocol.HTTP_1_1).code(404).message("sem imagem")
+                    .body("".toResponseBody(null)).build()
+            } else resp
+        }
         .build()
 
     val sse: OkHttpClient = client.newBuilder().readTimeout(0, TimeUnit.SECONDS).build()
 
     fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
+
+    val quick: OkHttpClient by lazy { client.newBuilder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build() }
+
+    fun getQuick(url: String): String? = try {
+        quick.newCall(Request.Builder().url(url).header("User-Agent", "Mozilla/5.0 (Linux; Android 10; TV) NTPlay").build()).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
+    } catch (e: Exception) { null }
 
     fun getText(url: String): String? = try {
         client.newCall(Request.Builder().url(url).build()).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
@@ -89,22 +104,28 @@ object Net {
 }
 
 object Meta {
-    private val sem = Semaphore(2)
+    private val semBg = Semaphore(3)
 
-    private fun okT(a: String, b: String): Boolean {
-        val x = Util.norm(a)
-        val y = Util.norm(b)
-        return x.isNotEmpty() && y.isNotEmpty() && (x == y || (x.length > 3 && y.length > 3 && (x.startsWith("$y ") || y.startsWith("$x "))))
+    /** semelhança entre títulos (palavras em comum) */
+    fun sim(a: String, b: String): Double {
+        val x = Util.norm(a).split(' ').filter { it.isNotEmpty() }.toSet()
+        val y = Util.norm(b).split(' ').filter { it.isNotEmpty() }.toSet()
+        if (x.isEmpty() || y.isEmpty()) return 0.0
+        val i = x.intersect(y).size.toDouble()
+        val j = i / (x.size + y.size - i)
+        val cover = i / minOf(x.size, y.size)
+        return if (cover == 1.0 && minOf(x.size, y.size) >= 2) maxOf(j, 0.8) else j
     }
 
     private fun json(url: String): JSONObject? {
-        val t = Net.getText(url) ?: return null
+        val t = Net.getQuick(url) ?: return null
         return try { JSONObject(t) } catch (e: Exception) { null }
     }
 
-    private fun wiki(it: Item, t: String, y: String): Pair<String, String>? {
-        val q = t + (if (it.kind == 's') " série de televisão" else " filme" + (if (y.isNotEmpty()) " $y" else ""))
-        val r = json("https://pt.wikipedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=0&gsrlimit=5&prop=pageimages|extracts&piprop=thumbnail&pithumbsize=500&exintro=1&explaintext=1&exlimit=max&exsentences=4&gsrsearch=" + Net.enc(q))
+    private fun wiki(lang: String, it: Item, t: String, y: String): Pair<String, String>? {
+        val kind = if (lang == "pt") (if (it.kind == 's') " série" else " filme") else (if (it.kind == 's') " TV series" else " film")
+        val q = t + kind + (if (y.isNotEmpty() && it.kind != 's') " $y" else "")
+        val r = json("https://$lang.wikipedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=0&gsrlimit=6&prop=pageimages|extracts&piprop=thumbnail&pithumbsize=500&exintro=1&explaintext=1&exlimit=max&exsentences=4&gsrsearch=" + Net.enc(q))
         val pages = r?.optJSONObject("query")?.optJSONObject("pages") ?: return null
         val list = ArrayList<JSONObject>()
         for (k in pages.keys()) list.add(pages.getJSONObject(k))
@@ -113,7 +134,7 @@ object Meta {
             val title = p.optString("title").replace(Regex("\\s*\\(.*?\\)\\s*"), " ")
             val img = p.optJSONObject("thumbnail")?.optString("source") ?: ""
             val ex = p.optString("extract")
-            if (okT(title, t) && (img.isNotEmpty() || ex.isNotEmpty())) return img to ex
+            if (sim(title, t) >= 0.6 && (img.isNotEmpty() || ex.length > 40)) return img to ex
         }
         return null
     }
@@ -121,7 +142,7 @@ object Meta {
     private fun stripH(s: String) = s.replace(Regex("<[^>]+>"), "").trim()
 
     private suspend fun gtx(c: String): String {
-        val r = withContext(Dispatchers.IO) { Net.getText("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=pt&dt=t&q=" + Net.enc(c)) }
+        val r = withContext(Dispatchers.IO) { Net.getQuick("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=pt&dt=t&q=" + Net.enc(c)) }
         if (r != null) {
             try {
                 val a = JSONArray(r).getJSONArray(0)
@@ -148,56 +169,68 @@ object Meta {
         return out.toString().trim()
     }
 
-    private fun ck(it: Item) = "2|" + it.key
+    private fun ck(it: Item) = "3|" + it.key
     fun cached(store: Store, it: Item): Info? = store.info(ck(it))
 
-    suspend fun get(store: Store, it: Item): Info? {
+    /** priority = tela de detalhes (não espera a fila das capas) */
+    suspend fun get(store: Store, it: Item, priority: Boolean = false): Info? {
         if (it.kind == 'l' || it.adult) return null
         val c = store.info(ck(it))
-        if (c != null && (!c.none || System.currentTimeMillis() - c.ts < 6 * 3600_000L)) {
+        if (c != null && (!c.none || System.currentTimeMillis() - c.ts < 3 * 3600_000L)) {
             if (c.ov.isNotEmpty() && !Util.looksPT(c.ov)) {
                 val x = toPT(c.ov)
                 if (x != c.ov) { val n = Info(c.img, x, c.r, c.y, false, c.ts); store.putInfo(ck(it), n); return n }
             }
-            return c
+            if (!priority || c.ov.isNotEmpty() || c.none) return c
         }
-        return sem.withPermit {
-            withContext(Dispatchers.IO) {
-                val t = Util.cleanT(it.title)
-                val y = Util.yearOf(it.title)
-                var img = ""; var ov = ""; var r = 0.0; var yr = y
-                try { Xtream.info(it)?.let { x -> img = x.img; ov = x.ov; r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
-                if (img.isEmpty() || ov.isEmpty()) try { wiki(it, t, y)?.let { w -> if (img.isEmpty()) img = w.first; if (ov.isEmpty()) ov = w.second } } catch (e: Exception) { }
-                if (img.isEmpty() || ov.isEmpty()) try {
-                    if (it.kind == 's') {
-                        val x = json("https://api.tvmaze.com/singlesearch/shows?q=" + Net.enc(t))
-                        if (x != null && okT(x.optString("name"), t)) {
-                            if (img.isEmpty()) img = x.optJSONObject("image")?.let { i -> i.optString("original").ifEmpty { i.optString("medium") } }?.replace("http:", "https:") ?: ""
-                            if (ov.isEmpty()) ov = stripH(x.optString("summary"))
-                            r = x.optJSONObject("rating")?.optDouble("average", 0.0) ?: 0.0
-                            if (yr.isEmpty()) yr = x.optString("premiered").take(4)
-                        }
-                    } else {
-                        val x = json("https://itunes.apple.com/search?media=movie&country=br&limit=5&term=" + Net.enc(t))?.optJSONArray("results")
-                        if (x != null) for (i in 0 until x.length()) {
-                            val o = x.getJSONObject(i)
-                            if (okT(o.optString("trackName"), t)) {
-                                if (img.isEmpty()) img = o.optString("artworkUrl100").replace("100x100bb", "600x900bb")
-                                if (ov.isEmpty()) ov = o.optString("longDescription").ifEmpty { o.optString("shortDescription") }
-                                if (yr.isEmpty()) yr = o.optString("releaseDate").take(4)
-                                break
-                            }
-                        }
+        return if (priority) fetch(store, it) else semBg.withPermit { fetch(store, it) }
+    }
+
+    private suspend fun fetch(store: Store, it: Item): Info = withContext(Dispatchers.IO) {
+        val t = Util.cleanT(it.title).replace(Regex("\\b(19|20)\\d{2}\\b"), " ").replace(Regex("\\s+"), " ").trim()
+        val y = Util.yearOf(it.title)
+        var img = ""; var ov = ""; var r = 0.0; var yr = y
+        fun take(i: String, o: String) { if (img.isEmpty() && i.isNotEmpty()) img = i; if (ov.isEmpty() && o.length > 30) ov = o }
+        try { Xtream.info(it)?.let { x -> take(x.img, x.ov); r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
+        if (ov.isEmpty() || img.isEmpty()) try {
+            if (it.kind == 's') {
+                val a = Net.getQuick("https://api.tvmaze.com/search/shows?q=" + Net.enc(t))?.let { s -> JSONArray(s) }
+                if (a != null) {
+                    var best: JSONObject? = null; var bs = 0.0
+                    for (i in 0 until a.length()) {
+                        val sh = a.getJSONObject(i).optJSONObject("show") ?: continue
+                        val s = maxOf(sim(sh.optString("name"), t), sim(sh.optString("name"), it.title))
+                        if (s > bs) { bs = s; best = sh }
                     }
-                } catch (e: Exception) { }
-                if (ov.length > 800) ov = ov.take(800)
-                if (ov.isNotEmpty()) ov = toPT(ov)
-                val res = if (img.isEmpty() && ov.isEmpty()) Info("", "", 0.0, "", true, System.currentTimeMillis())
-                else Info(img, ov, r, yr, false, System.currentTimeMillis())
-                store.putInfo(ck(it), res)
-                res
+                    if (best != null && bs >= 0.6) {
+                        take(best.optJSONObject("image")?.let { i -> i.optString("original").ifEmpty { i.optString("medium") } }?.replace("http:", "https:") ?: "", stripH(best.optString("summary")))
+                        if (r == 0.0) r = best.optJSONObject("rating")?.optDouble("average", 0.0) ?: 0.0
+                        if (yr.isEmpty()) yr = best.optString("premiered").take(4)
+                    }
+                }
             }
-        }
+        } catch (e: Exception) { }
+        if (ov.isEmpty() || img.isEmpty()) try {
+            val media = if (it.kind == 's') "media=tvShow&entity=tvSeason" else "media=movie"
+            val x = json("https://itunes.apple.com/search?$media&country=br&lang=pt_br&limit=8&term=" + Net.enc(t))?.optJSONArray("results")
+            if (x != null) for (i in 0 until x.length()) {
+                val o = x.getJSONObject(i)
+                val nm = if (it.kind == 's') o.optString("artistName").ifEmpty { o.optString("collectionName").replace(Regex(",? (Season|Temporada) \\d+.*", RegexOption.IGNORE_CASE), "") } else o.optString("trackName")
+                if (sim(nm, t) >= 0.6) {
+                    take(o.optString("artworkUrl100").replace("100x100bb", "600x900bb"), o.optString("longDescription").ifEmpty { o.optString("description") }.ifEmpty { o.optString("shortDescription") })
+                    if (yr.isEmpty()) yr = o.optString("releaseDate").take(4)
+                    break
+                }
+            }
+        } catch (e: Exception) { }
+        if (ov.isEmpty() || img.isEmpty()) try { wiki("pt", it, t, y)?.let { w -> take(w.first, w.second) } } catch (e: Exception) { }
+        if (ov.isEmpty() || img.isEmpty()) try { wiki("en", it, t, y)?.let { w -> take(w.first, w.second) } } catch (e: Exception) { }
+        if (ov.length > 900) ov = ov.take(900)
+        if (ov.isNotEmpty()) ov = toPT(ov)
+        val res = if (img.isEmpty() && ov.isEmpty()) Info("", "", r, yr, true, System.currentTimeMillis())
+        else Info(img, ov, r, yr, false, System.currentTimeMillis())
+        store.putInfo(ck(it), res)
+        res
     }
 }
 

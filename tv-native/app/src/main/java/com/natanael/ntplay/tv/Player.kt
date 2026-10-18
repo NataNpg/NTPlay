@@ -4,6 +4,16 @@ import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextAlign
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -42,7 +52,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
 
     val player = remember(req.ep.url) {
         val ds = OkHttpDataSource.Factory(Net.client).setUserAgent(Util.UA)
-        val rf = DefaultRenderersFactory(ctx).setEnableDecoderFallback(true)
+        val rf = DefaultRenderersFactory(ctx).setEnableDecoderFallback(true).setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
         val p = ExoPlayer.Builder(ctx, rf).setMediaSourceFactory(DefaultMediaSourceFactory(ctx).setDataSourceFactory(ds)).build()
         val mi = MediaItem.Builder().setUri(req.ep.url).apply { if (req.ep.url.lowercase().contains(".m3u8")) setMimeType(MimeTypes.APPLICATION_M3U8) }.build()
         p.setMediaItem(mi, if (req.resume > 0) req.resume else 0L)
@@ -66,8 +76,13 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                 if (e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                     player.seekToDefaultPosition(); player.prepare(); return
                 }
-                if (retries < 2) { retries++; player.prepare(); return }
-                err = "Não foi possível reproduzir (" + e.errorCodeName + "). Tente outro item."
+                val dec = e.errorCode in listOf(
+                    PlaybackException.ERROR_CODE_DECODER_INIT_FAILED, PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+                    PlaybackException.ERROR_CODE_DECODING_FAILED, PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+                    PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED)
+                if (!dec && retries < 2) { retries++; player.prepare(); return }
+                err = if (dec) "Este aparelho não consegue decodificar este vídeo (comum em 4K / H.265). Tente a versão FHD/HD ou abra em outro player."
+                else "Não foi possível reproduzir (" + e.errorCodeName + "). O servidor pode estar fora do ar para este item."
             }
         }
         player.addListener(l)
@@ -108,6 +123,22 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
             req.item.title + if (req.item.kind == 's') "  •  T${req.ep.s} E${req.ep.e}" else "",
             Modifier.align(Alignment.TopStart).padding(16.dp).background(Color(0x99000000)).padding(horizontal = 8.dp, vertical = 4.dp), color = Color(0xEEFFFFFF), fontSize = 13.sp
         )
-        if (err.isNotEmpty()) Text(err, Modifier.align(Alignment.Center).background(Color(0xCC000000)).padding(16.dp), color = Color.White, fontSize = 14.sp)
+        if (err.isNotEmpty()) Column(
+            Modifier.align(Alignment.Center).fillMaxWidth(0.7f).background(Color(0xE6101522), RoundedCornerShape(16.dp)).padding(22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(err, color = Color.White, fontSize = 15.sp, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvButton("▶ Abrir em outro player (VLC / MX)", Pink) {
+                    try {
+                        val i = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(req.ep.url), "video/*").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        ctx.startActivity(Intent.createChooser(i, "Abrir com").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } catch (x: Exception) { st.toast("Nenhum outro player instalado (instale o VLC pela Play Store).") }
+                }
+                TvButton("↻ Tentar de novo", Color(0x33FFFFFF)) { err = ""; retries = 0; player.prepare(); player.play() }
+                TvButton("‹ Voltar", Color(0x33FFFFFF)) { st.closePlayer() }
+            }
+        }
     }
 }

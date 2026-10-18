@@ -108,17 +108,39 @@ class Store(ctx: Context) {
         return infoMap!![key]
     }
 
+    @Volatile private var saveScheduled = false
+
     @Synchronized
     fun putInfo(key: String, i: Info) {
         info(key)
-        val m = infoMap!!
-        m[key] = i
+        infoMap!![key] = i
+        if (!saveScheduled) {
+            saveScheduled = true
+            Thread {
+                try { Thread.sleep(4000) } catch (e: InterruptedException) { }
+                saveInfo()
+            }.start()
+        }
+    }
+
+    private fun saveInfo() {
+        val e: List<Map.Entry<String, Info>>
+        synchronized(this) {
+            saveScheduled = false
+            var l = infoMap!!.entries.toList()
+            if (l.size > 4000) {
+                l = l.sortedByDescending { it.value.ts }.take(3500)
+                val keep = l.map { it.key }.toHashSet()
+                infoMap!!.keys.retainAll(keep)
+            }
+            e = l.map { java.util.AbstractMap.SimpleEntry(it.key, it.value) }
+        }
         try {
-            var e = m.entries.toList()
-            if (e.size > 2500) e = e.sortedByDescending { it.value.ts }.take(2000)
             val o = JSONObject()
             for ((k, v) in e) o.put(k, JSONObject().put("img", v.img).put("ov", v.ov).put("r", v.r).put("y", v.y).put("none", v.none).put("ts", v.ts))
-            infoFile.writeText(o.toString())
-        } catch (e: Exception) { }
+            val tmp = File(infoFile.parentFile, "info.json.tmp")
+            tmp.writeText(o.toString())
+            tmp.renameTo(infoFile)
+        } catch (x: Exception) { }
     }
 }

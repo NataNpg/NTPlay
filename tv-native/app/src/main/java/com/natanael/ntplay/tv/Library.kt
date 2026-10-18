@@ -19,6 +19,7 @@ class Item(
 
 class Library(val live: List<Item>, val movies: List<Item>, val series: List<Item>) {
     val every: List<Item> by lazy { live + movies + series }
+    val gnorm = HashMap<String, String>()
     val byKey: HashMap<String, Item> by lazy {
         val m = HashMap<String, Item>(every.size * 2)
         for (i in every) m[i.key] = i
@@ -62,6 +63,10 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
                     }
                 }
             }
+            // canais sem logo herdam o logo de outra versão do mesmo canal (FHD/HD/SD...)
+            val lk = HashMap<String, String>()
+            for (o in live) if (o.logo.isNotEmpty()) { val k = Logos.key(o.title); if (!lk.containsKey(k)) lk[k] = o.logo }
+            for (o in live) if (o.logo.isEmpty()) lk[Logos.key(o.title)]?.let { o.logo = it }
             val ser = ArrayList(sm.values)
             for (o in ser) {
                 o.eps.sortWith(compareBy<Ep>({ it.s }, { it.e }))
