@@ -9,16 +9,32 @@ const http = require('http'), https = require('https');
 let proxyPort = 0;
 const prox = (u) => `http://127.0.0.1:${proxyPort}/p?u=${encodeURIComponent(u)}`;
 const keep = { http: new http.Agent({ keepAlive: true, maxSockets: 16 }), https: new https.Agent({ keepAlive: true, maxSockets: 16, rejectUnauthorized: false }) };
-function upstream(u, inHeaders, res, depth = 0) {
+const redir = new Map(); // endereço original -> destino final (servidores lentos no redirecionamento)
+function upstream(u, inHeaders, res, depth = 0, orig = null, useCache = true) {
   let url;
-  try { url = new URL(u); } catch (e) { res.writeHead(400); return res.end(); }
+  const o = orig || u;
+  if (depth === 0 && useCache) {
+    const c = redir.get(u);
+    if (c && Date.now() - c.t < 10 * 60 * 1000) { try { url = new URL(c.u); } catch (e) {} }
+  }
+  const cached = !!url;
+  if (!url) { try { url = new URL(u); } catch (e) { res.writeHead(400); return res.end(); } }
   const isS = url.protocol === 'https:';
   const h = { 'User-Agent': UA, Accept: '*/*', 'Icy-MetaData': '0' };
   if (inHeaders.range) h.Range = inHeaders.range;
-  const req = (isS ? https : http).get(url, { headers: h, agent: isS ? keep.https : keep.http, timeout: 25000 }, (up) => {
+  const retryOrig = () => { redir.delete(o); upstream(o, inHeaders, res, 0, null, false); };
+  const req = (isS ? https : http).get(url, { headers: h, agent: isS ? keep.https : keep.http, timeout: 60000 }, (up) => {
     if ([301, 302, 303, 307, 308].includes(up.statusCode) && up.headers.location && depth < 8) {
       up.resume();
-      return upstream(new URL(up.headers.location, url).href, inHeaders, res, depth + 1);
+      const nx = new URL(up.headers.location, url).href;
+      redir.set(o, { u: nx, t: Date.now() });
+      return upstream(nx, inHeaders, res, depth + 1, o, false);
+    }
+    if (cached && up.statusCode >= 400) { up.resume(); return retryOrig(); }
+    if (inHeaders['x-probe']) {
+      up.destroy();
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      return res.end(JSON.stringify({ status: up.statusCode, ct: String(up.headers['content-type'] || ''), final: url.href }));
     }
     const ct = String(up.headers['content-type'] || '');
     const m3u8 = /mpegurl/i.test(ct) || /\.m3u8$/i.test(url.pathname);
@@ -45,13 +61,19 @@ function upstream(u, inHeaders, res, depth = 0) {
     res.on('close', () => up.destroy());
   });
   req.on('timeout', () => req.destroy(new Error('timeout')));
-  req.on('error', () => { if (!res.headersSent) res.writeHead(502, { 'Access-Control-Allow-Origin': '*' }); res.end(); });
+  req.on('error', () => {
+    if (cached && !res.headersSent) return retryOrig();
+    if (!res.headersSent) res.writeHead(502, { 'Access-Control-Allow-Origin': '*' });
+    res.end();
+  });
   res.on('close', () => req.destroy());
 }
 const proxyServer = http.createServer((q, r) => {
   if (q.method === 'OPTIONS') { r.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }); return r.end(); }
-  const u = new URL(q.url, 'http://x').searchParams.get('u');
+  const p = new URL(q.url, 'http://x');
+  const u = p.searchParams.get('u');
   if (!u) { r.writeHead(400); return r.end(); }
+  if (p.pathname === '/probe') q.headers['x-probe'] = '1';
   upstream(u, q.headers, r);
 });
 proxyServer.listen(0, '127.0.0.1', () => { proxyPort = proxyServer.address().port; });

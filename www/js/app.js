@@ -106,23 +106,31 @@ function play(c,auto){
   const PX=window.NT_PROXY,live=c.cat=='live';
   const viaP=u=>PX&&live?'http://127.0.0.1:'+PX+'/p?u='+encodeURIComponent(u):u;
   const hlsUrl=(live&&/\/live\/[^/]+\/[^/]+\/\d+\.ts(\?|$)/.test(c.url))?c.url.replace(/\.ts(\?|$)/,'.m3u8$1'):(live&&/\/\/[^/]+\/[^/]+\/[^/]+\/\d+$/.test(c.url.split('?')[0])?c.url.split('?')[0]+'.m3u8':c.url);
-  if(live){q.length=0;q.push('mpegts');if(window.Hls)q.push('hls2');q.push('native');if(PX){q.push('mpegtsD','hlsD')}}
+  let pre=null;
+  if(live){q.length=0;
+    if(PX){ph('Conectando ao canal…',x?x.e.title:'',true);
+      // descobre o formato real do canal (HLS ou TS) antes de escolher o player
+      pre=fetch('http://127.0.0.1:'+PX+'/probe?u='+encodeURIComponent(c.url)).then(r=>r.json()).catch(()=>({})).then(j=>{
+        const hls=/mpegurl/i.test(j.ct||'')||/\.m3u8(\?|$)/i.test(c.url);
+        if(hls)q.push('hls','mpegts');else q.push('mpegts','hls2');
+        q.push('native','mpegtsD','hlsD');ph('Carregando…',x?x.e.title:'',true)})}
+    else{q.push('mpegts');if(window.Hls)q.push('hls2');q.push('native')}}
   const next=why=>{if(my!=tok)return;errs.push(why);stop();if(q.length)run();else{ph('Não foi possível reproduzir','Tente outro item ou use o botão VLC.',true);toast('Falha ao reproduzir: '+errs.join(' | ')+(window.bobNative?' — o VLC costuma abrir formatos que o player interno não suporta (4K/H.265).':''),window.bobNative?'Abrir no VLC':'',window.bobNative?()=>$('#vlc').click():null,'er')}};
   v.onerror=()=>next('mídia');
   v.onplaying=()=>{if(my==tok)ph('','',false)};
   v.onloadedmetadata=()=>{if(my==tok&&resumeAt&&isFinite(v.duration)&&resumeAt<v.duration-30){v.currentTime=resumeAt;const t=resumeAt;resumeAt=0;
     toast('Continuando de '+fmt(t),'Do início',()=>{v.currentTime=0})}};
-  function run(){const e=q.shift();
+  function run(){if(my!=tok)return;let e=q.shift();
     const src=e=='hls2'?viaP(hlsUrl):e=='hlsD'?hlsUrl:e=='mpegtsD'?c.url:viaP(c.url);
     if(e=='hlsD')e='hls';if(e=='hls2')e='hls';if(e=='mpegtsD')e='mpegts';
-    if(e=='hls'&&window.Hls&&Hls.isSupported()){const h=eng=new Hls({enableWorker:true,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:3,fragLoadingMaxRetry:4,maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:30,liveSyncDurationCount:5,maxBufferSize:120e6,capLevelToPlayerSize:true});let rec=0;
+    if(e=='hls'&&window.Hls&&Hls.isSupported()){const h=eng=new Hls({enableWorker:true,manifestLoadingTimeOut:60000,levelLoadingTimeOut:30000,fragLoadingTimeOut:60000,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:3,fragLoadingMaxRetry:4,maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:30,liveSyncDurationCount:5,maxBufferSize:120e6,capLevelToPlayerSize:true});let rec=0;
       h.loadSource(src);h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,()=>{v.play().catch(()=>{});fillQ(h)});
       h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type==Hls.ErrorTypes.MEDIA_ERROR&&!rec++)h.recoverMediaError();else next('hls: '+d.details)})}
     else if(e=='mpegts'&&window.mpegts&&mpegts.isSupported()){const live=c.cat=='live';
       const p=eng=mpegts.createPlayer({type:'mpegts',isLive:live,url:src},{enableWorker:true,enableStashBuffer:true,stashInitialSize:1024*1024,liveBufferLatencyChasing:false,lazyLoadMaxDuration:180,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30});
       p.attachMediaElement(v);p.on(mpegts.Events.ERROR,(t,d)=>next('mpegts: '+d));p.load();p.play().catch(()=>{})}
     else if(e=='native'){v.src=src;v.play().catch(()=>{})}else next(e+': indisponível')}
-  run()}
+  if(pre)pre.then(()=>{if(my==tok)run()});else run()}
 const fmt=t=>{t=Math.floor(t);const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0')};
 v.addEventListener('timeupdate',()=>saveProg(false));v.addEventListener('pause',()=>saveProg(true));addEventListener('beforeunload',()=>saveProg(true));
 v.addEventListener('waiting',()=>{clearTimeout(wd);wd=setTimeout(()=>{if(S.cur&&retries++<3&&v.readyState<3){toast('Reconectando…');saveProg(true);play(S.cur.c,true)}},10000)});
