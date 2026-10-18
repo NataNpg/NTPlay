@@ -185,7 +185,7 @@ fun TvButton(label: String, bg: Color, fontSize: TextUnit = 13.sp, selected: Boo
     Text(
         label, color = Color.White, fontSize = fontSize, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
         modifier = modifier.tvClick(fi, shape, 1.08f, border = true, onClick = onClick).background(back, shape)
-            .padding(horizontal = if (compact) 12.dp else 18.dp, vertical = if (compact) 6.dp else 10.dp)
+            .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 5.dp else 9.dp)
     )
 }
 
@@ -255,9 +255,9 @@ fun App(st: AppState) {
 
 @Composable
 fun Footer() {
-    Row(Modifier.fillMaxWidth().padding(top = 6.dp).height(28.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-        Text("NTPlay", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
-        Text("  ·  © Natanael G Silva  ·  djnatan0@live.com", color = Color(0xCCFFFFFF), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp).height(18.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+        Text("NTPlay", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Text("  ·  © Natanael G Silva  ·  djnatan0@live.com", color = Color(0x99FFFFFF), fontSize = 9.sp)
     }
 }
 
@@ -266,30 +266,30 @@ fun Header(st: AppState) {
     val clock by produceState("") {
         while (true) { value = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()); delay(20000) }
     }
-    Row(Modifier.fillMaxWidth().height(58.dp), verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(R.drawable.logo), null, Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)))
-        Spacer(Modifier.width(8.dp))
-        Text("NTPlay", style = TextStyle(brush = Brush.horizontalGradient(listOf(Cyan, Purple)), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold))
-        Spacer(Modifier.width(16.dp))
+    Row(Modifier.fillMaxWidth().height(46.dp), verticalAlignment = Alignment.CenterVertically) {
+        Image(painterResource(R.drawable.logo), null, Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)))
+        Spacer(Modifier.width(6.dp))
+        Text("NTPlay", style = TextStyle(brush = Brush.horizontalGradient(listOf(Cyan, Purple)), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold))
+        Spacer(Modifier.width(12.dp))
         Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             for (t in TABS) {
                 val fi = rememberFocus()
                 val sel = st.tab == t
                 Text(
-                    t, maxLines = 1, fontSize = 12.sp, fontWeight = if (sel || fi.on) FontWeight.ExtraBold else FontWeight.Medium,
+                    t, maxLines = 1, fontSize = 10.sp, fontWeight = if (sel || fi.on) FontWeight.ExtraBold else FontWeight.Medium,
                     color = if (sel || fi.on) Color.White else Color(0xCCFFFFFF),
                     modifier = Modifier.tvClick(fi, RoundedCornerShape(50), 1.08f, border = true) { st.selectTab(t) }
                         .background(if (sel) Pink else if (fi.on) FocusBg else Color.Transparent, RoundedCornerShape(50))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
         }
-        TvButton("🔍 Buscar", Btn, 12.sp) { st.showSearch = true }
-        Spacer(Modifier.width(8.dp))
-        TvButton("☰ Listas", Color(0xFFFF5A00), 12.sp) { st.showLists = true }
+        TvButton("🔍 Buscar", Btn, 10.sp, compact = true) { st.showSearch = true }
+        Spacer(Modifier.width(6.dp))
+        TvButton("☰ Listas", Color(0xFFFF5A00), 10.sp, compact = true) { st.showLists = true }
         Spacer(Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End) {
-            Text(clock, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(clock, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Text(if (st.busy) "⏳ " + st.status else st.status, color = Muted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(170.dp), textAlign = TextAlign.End)
         }
     }
@@ -548,21 +548,21 @@ fun Hero(st: AppState, item: Item, idx: Int = 0, total: Int = 1, onPrev: () -> U
     var info by remember(item.key) { mutableStateOf(Meta.cached(st.store, item)) }
     LaunchedEffect(item.key) { val i = Meta.get(st.store, item); if (i != null) info = i }
     val img = item.logo.ifEmpty { info?.img ?: "" }
-    Box(Modifier.fillMaxWidth().height(240.dp).padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(18.dp)).background(tint(item.title))) {
+    Box(Modifier.fillMaxWidth().height(230.dp).padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(18.dp)).background(tint(item.title))) {
         if (img.isNotEmpty()) AsyncImage(img, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f }, contentScale = ContentScale.Crop)
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Bg, Color(0xCC0D0D12), Color.Transparent))))
-        Row(Modifier.fillMaxSize().padding(22.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+        Row(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
                 Text(if (item.kind == 's') "SÉRIE EM DESTAQUE" else "FILME EM DESTAQUE", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
-                Text(showTitle(item), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(showTitle(item), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val meta = listOfNotNull(info?.y?.ifEmpty { null } ?: Util.yearOf(item.title).ifEmpty { null }, info?.r?.takeIf { it > 0 }?.let { "★ %.1f".format(it) }, item.group).joinToString("  •  ")
-                Text(meta, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(vertical = 4.dp))
-                Text(info?.ov ?: "", color = Color(0xDDFFFFFF), fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp, modifier = Modifier.fillMaxWidth(0.75f))
-                Spacer(Modifier.height(12.dp))
+                Text(meta, color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(vertical = 3.dp))
+                Text(info?.ov ?: "", color = Color(0xDDFFFFFF), fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 15.sp, modifier = Modifier.fillMaxWidth(0.8f))
+                Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TvButton("▶ Assistir", Pink, 13.sp) { st.playItem(item) }
-                    TvButton("ⓘ Detalhes", Btn, 13.sp) { st.openDetail(item) }
-                    TvButton(if (st.favs.contains(item.key)) "★" else "☆", Btn, 13.sp) { st.toggleFav(item.key) }
+                    TvButton("▶ Assistir", Pink, 11.sp, compact = true) { st.playItem(item) }
+                    TvButton("ⓘ Detalhes", Btn, 11.sp, compact = true) { st.openDetail(item) }
+                    TvButton(if (st.favs.contains(item.key)) "★" else "☆", Btn, 11.sp, compact = true) { st.toggleFav(item.key) }
                     if (total > 1) {
                         Spacer(Modifier.width(10.dp))
                         TvButton("‹", Btn, 14.sp, compact = true, onClick = onPrev)
@@ -574,7 +574,7 @@ fun Hero(st: AppState, item: Item, idx: Int = 0, total: Int = 1, onPrev: () -> U
                     }
                 }
             }
-            if (img.isNotEmpty()) AsyncImage(img, null, Modifier.height(200.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
+            if (img.isNotEmpty()) AsyncImage(img, null, Modifier.height(190.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
         }
     }
 }

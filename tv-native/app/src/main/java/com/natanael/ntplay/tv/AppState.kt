@@ -79,7 +79,12 @@ class AppState(val ctx: Context) {
         busy = true
         status = "Carregando lista…"
         try {
-            val l = withContext(Dispatchers.Default) { Library.build(files, adult) }
+            val l = withContext(Dispatchers.Default) {
+                val b = Library.build(files, adult)
+                // pré-calcula agrupamentos fora da tela (evita travar ao trocar de aba)
+                b.every; b.byKey; b.liveGroups; b.movieGroups; b.serieGroups; b.kids; b.anime
+                b
+            }
             lib = l
             group = ""
             status = "${l.live.size} canais • ${l.movies.size} filmes • ${l.series.size} séries"

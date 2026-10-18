@@ -192,6 +192,15 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     val nextReq = remember(req.ep.url) { if (live) null else st.next(req) }
     val creditsAt = if (dur > 0) maxOf(dur - (if (req.item.kind == 's') 90_000L else 6 * 60_000L), (dur * 0.93).toLong()) else Long.MAX_VALUE
     val showSkipCredits = !live && err.isEmpty() && dur > 6 * 60_000 && pos >= creditsAt && pos < dur - 3_000
+    // aviso flutuante aparece por 5 s quando entra na abertura / créditos
+    var introAt by remember(req.ep.url) { mutableLongStateOf(0L) }
+    var creditsAt2 by remember(req.ep.url) { mutableLongStateOf(0L) }
+    LaunchedEffect(showSkipIntro) { if (showSkipIntro) introAt = System.currentTimeMillis() }
+    LaunchedEffect(showSkipCredits) { if (showSkipCredits) creditsAt2 = System.currentTimeMillis() }
+    val nowMs = System.currentTimeMillis() + (pos and 0L)
+    val floatIntro = showSkipIntro && introAt > 0 && nowMs - introAt < 5_000
+    val floatCredits = showSkipCredits && creditsAt2 > 0 && nowMs - creditsAt2 < 5_000
+
     fun skipIntro() { player.seekTo(player.currentPosition + skipIntroSec * 1000L) }
     fun skipCredits() {
         if (nextReq != null) { st.markDone(req); st.play = nextReq }
@@ -286,7 +295,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                 if (ui) return@onPreviewKeyEvent false
                 when (e.key) {
                     Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                        when { showSkipIntro -> skipIntro(); showSkipCredits -> skipCredits(); else -> show() }
+                        when { floatIntro -> skipIntro(); floatCredits -> skipCredits(); else -> show() }
                         true
                     }
                     Key.DirectionLeft -> { seek(-10_000); show(); true }
@@ -344,25 +353,25 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                 if (!live && dur > 0) SeekBar(pos, dur, onActivity = { lastAct = System.currentTimeMillis() }) { t -> player.seekTo(t.coerceIn(0, dur)); pos = t }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (live) TvButton("▲ Canal anterior", Btn, 11.sp, compact = true) { zap(false) }
-                    else TvButton("⏪ 10s", Btn, 11.sp, compact = true) { seek(-10_000); show() }
-                    TvButton(if (playing) "⏸ Pausar" else "▶ Continuar", Pink, 11.sp, compact = true, modifier = Modifier.focusRequester(playFocus)) { toggle(); show() }
-                    if (live) TvButton("▼ Próximo canal", Btn, 11.sp, compact = true) { zap(true) }
+                    if (live) TvButton("▲ Canal anterior", Btn, 10.sp, compact = true) { zap(false) }
+                    else TvButton("⏪ 10s", Btn, 10.sp, compact = true) { seek(-10_000); show() }
+                    TvButton(if (playing) "⏸ Pausar" else "▶ Continuar", Pink, 10.sp, compact = true, modifier = Modifier.focusRequester(playFocus)) { toggle(); show() }
+                    if (live) TvButton("▼ Próximo canal", Btn, 10.sp, compact = true) { zap(true) }
                     else {
-                        TvButton("10s ⏩", Btn, 11.sp, compact = true) { seek(10_000); show() }
-                        if (st.next(req) != null) TvButton("⏭ Próximo", Btn, 11.sp, compact = true) { zap(true) }
+                        TvButton("10s ⏩", Btn, 10.sp, compact = true) { seek(10_000); show() }
+                        if (st.next(req) != null) TvButton("⏭ Próximo", Btn, 10.sp, compact = true) { zap(true) }
                     }
-                    TvButton("CC Legenda: $subLabel" + if (nSubs > 0) "" else " (—)", Btn, 11.sp, compact = true) { cycleSub(); show() }
-                    if (nAudio > 1) TvButton("🔊 Áudio: $audioLabel", Btn, 11.sp, compact = true) { cycleAudio(); show() }
-                    TvButton(if (st.favs.contains(req.item.key)) "★ Favorito" else "☆ Favoritar", Btn, 11.sp, compact = true) { st.toggleFav(req.item.key) }
-                    TvButton("✕ Sair", Btn, 11.sp, compact = true) { close() }
+                    TvButton("CC Legenda: $subLabel" + if (nSubs > 0) "" else " (—)", Btn, 10.sp, compact = true) { cycleSub(); show() }
+                    if (nAudio > 1) TvButton("🔊 Áudio: $audioLabel", Btn, 10.sp, compact = true) { cycleAudio(); show() }
+                    TvButton(if (st.favs.contains(req.item.key)) "★ Favorito" else "☆ Favoritar", Btn, 10.sp, compact = true) { st.toggleFav(req.item.key) }
+                    TvButton("✕ Sair", Btn, 10.sp, compact = true) { close() }
                 }
                 if (live) Text("Dica: ▲/▼ no controle troca de canal com o painel fechado", color = Color(0x99FFFFFF), fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
             }
         }
 
         // botões flutuantes: pular abertura / créditos (OK do controle aciona)
-        if ((showSkipIntro || showSkipCredits) && !ui) Box(Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 48.dp)) {
+        if ((floatIntro || floatCredits) && !ui) Box(Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 48.dp)) {
             TvButton(if (showSkipIntro) "⏭ Pular abertura (OK)" else if (nextReq != null) "⏭ Próximo episódio (OK)" else "⏭ Pular créditos (OK)", Color(0xEE1B1B24), 13.sp) {
                 if (showSkipIntro) skipIntro() else skipCredits()
             }

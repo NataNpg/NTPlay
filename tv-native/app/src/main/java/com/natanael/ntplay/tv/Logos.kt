@@ -45,6 +45,8 @@ object Logos {
         if (map != null) return true
         if (loading) return false
         loading = true
+        val prio = android.os.Process.getThreadPriority(android.os.Process.myTid())
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_LOWEST)
         try {
             val f = File(ctx.filesDir, "logos.tsv")
             if (f.exists() && System.currentTimeMillis() - f.lastModified() < 30L * 86400_000L) {
@@ -101,7 +103,7 @@ object Logos {
             return true
         } catch (e: Throwable) {
             return false
-        } finally { loading = false }
+        } finally { loading = false; try { android.os.Process.setThreadPriority(prio) } catch (e: Exception) { } }
     }
 
     private fun read(f: File): HashMap<String, String> {
