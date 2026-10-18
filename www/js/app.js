@@ -102,19 +102,26 @@ function play(c,auto){
   if(window.ntNative&&ntNative.ok&&ntNative.play(c,x?x.e.title:'',resumeAt,my)){ph('Tocando em tela cheia','Use Voltar para retornar à lista.',true);return}
   ph('Carregando…',x?x.e.title:'',true);
   const q=order(c.url,c.cat),errs=[];
+  // PC: canais ao vivo passam pelo repasse local (cara de VLC) e ganham a alternativa HLS (.m3u8)
+  const PX=window.NT_PROXY,live=c.cat=='live';
+  const viaP=u=>PX&&live?'http://127.0.0.1:'+PX+'/p?u='+encodeURIComponent(u):u;
+  const hlsUrl=(live&&/\/live\/[^/]+\/[^/]+\/\d+\.ts(\?|$)/.test(c.url))?c.url.replace(/\.ts(\?|$)/,'.m3u8$1'):(live&&/\/\/[^/]+\/[^/]+\/[^/]+\/\d+$/.test(c.url.split('?')[0])?c.url.split('?')[0]+'.m3u8':c.url);
+  if(live){q.length=0;q.push('mpegts');if(window.Hls)q.push('hls2');q.push('native');if(PX){q.push('mpegtsD','hlsD')}}
   const next=why=>{if(my!=tok)return;errs.push(why);stop();if(q.length)run();else{ph('Não foi possível reproduzir','Tente outro item ou use o botão VLC.',true);toast('Falha ao reproduzir: '+errs.join(' | ')+(window.bobNative?' — o VLC costuma abrir formatos que o player interno não suporta (4K/H.265).':''),window.bobNative?'Abrir no VLC':'',window.bobNative?()=>$('#vlc').click():null,'er')}};
   v.onerror=()=>next('mídia');
   v.onplaying=()=>{if(my==tok)ph('','',false)};
   v.onloadedmetadata=()=>{if(my==tok&&resumeAt&&isFinite(v.duration)&&resumeAt<v.duration-30){v.currentTime=resumeAt;const t=resumeAt;resumeAt=0;
     toast('Continuando de '+fmt(t),'Do início',()=>{v.currentTime=0})}};
   function run(){const e=q.shift();
+    const src=e=='hls2'?viaP(hlsUrl):e=='hlsD'?hlsUrl:e=='mpegtsD'?c.url:viaP(c.url);
+    if(e=='hlsD')e='hls';if(e=='hls2')e='hls';if(e=='mpegtsD')e='mpegts';
     if(e=='hls'&&window.Hls&&Hls.isSupported()){const h=eng=new Hls({enableWorker:true,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:3,fragLoadingMaxRetry:4,maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:30,liveSyncDurationCount:5,maxBufferSize:120e6,capLevelToPlayerSize:true});let rec=0;
-      h.loadSource(c.url);h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,()=>{v.play().catch(()=>{});fillQ(h)});
+      h.loadSource(src);h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,()=>{v.play().catch(()=>{});fillQ(h)});
       h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type==Hls.ErrorTypes.MEDIA_ERROR&&!rec++)h.recoverMediaError();else next('hls: '+d.details)})}
     else if(e=='mpegts'&&window.mpegts&&mpegts.isSupported()){const live=c.cat=='live';
-      const p=eng=mpegts.createPlayer({type:'mpegts',isLive:live,url:c.url},{enableWorker:true,enableStashBuffer:true,stashInitialSize:1024*1024,liveBufferLatencyChasing:false,lazyLoadMaxDuration:180,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30});
+      const p=eng=mpegts.createPlayer({type:'mpegts',isLive:live,url:src},{enableWorker:true,enableStashBuffer:true,stashInitialSize:1024*1024,liveBufferLatencyChasing:false,lazyLoadMaxDuration:180,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30});
       p.attachMediaElement(v);p.on(mpegts.Events.ERROR,(t,d)=>next('mpegts: '+d));p.load();p.play().catch(()=>{})}
-    else if(e=='native'){v.src=c.url;v.play().catch(()=>{})}else next(e+': indisponível')}
+    else if(e=='native'){v.src=src;v.play().catch(()=>{})}else next(e+': indisponível')}
   run()}
 const fmt=t=>{t=Math.floor(t);const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0')};
 v.addEventListener('timeupdate',()=>saveProg(false));v.addEventListener('pause',()=>saveProg(true));addEventListener('beforeunload',()=>saveProg(true));
@@ -425,6 +432,7 @@ $('#bf').onclick=()=>S.cur&&toggleFav(S.cur.e.key);
 $('#an').checked=S.autoNext;$('#an').onchange=e=>{S.autoNext=e.target.checked;LS.ntAuto=S.autoNext?'1':'0'};
 $('#rx').addEventListener('input',e=>{if(e.target.id=='pq'){S.pq=e.target.value;panelList()}});
 $('#rx').addEventListener('change',e=>{if(e.target.id=='pg2'){S.pg2=e.target.value;panelList()}});
+if(window.bobNative&&bobNative.proxyPort)bobNative.proxyPort().then(p=>{window.NT_PROXY=p||0}).catch(()=>{});
 if(window.bobNative){$('#vlc').hidden=false;$('#vlcl').hidden=false;$('#vlca').checked=LS.bobVlc=='1';$('#vlca').onchange=e=>{LS.bobVlc=e.target.checked?'1':'0'};
   $('#vlc').onclick=()=>{if(!S.cur)return;stop();bobNative.openVlc(S.cur.c.url,S.cur.e.title).then(r=>{if(r&&r.error)toast(r.error,'',null,'er');else ph('Tocando no VLC','',true)})};bobNative.onOpen(f=>loadText(f.text,f.name))}
 $('#padult').checked=showAdult();$('#padult').onchange=e=>{LS.ntAdult=e.target.checked?'1':'0';build();S.group='';renderAll()};

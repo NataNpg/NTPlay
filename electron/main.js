@@ -3,6 +3,59 @@ const fs = require('fs'), path = require('path');
 const { spawn } = require('child_process');
 const UA = 'VLC/3.0.20 LibVLC/3.0.20';
 let win;
+const http = require('http'), https = require('https');
+// ---- repasse local de vídeo: o app busca o canal como "VLC" (sem cabeçalhos de navegador
+// que muitos servidores IPTV bloqueiam), segue redirecionamentos e reescreve listas HLS.
+let proxyPort = 0;
+const prox = (u) => `http://127.0.0.1:${proxyPort}/p?u=${encodeURIComponent(u)}`;
+const keep = { http: new http.Agent({ keepAlive: true, maxSockets: 16 }), https: new https.Agent({ keepAlive: true, maxSockets: 16, rejectUnauthorized: false }) };
+function upstream(u, inHeaders, res, depth = 0) {
+  let url;
+  try { url = new URL(u); } catch (e) { res.writeHead(400); return res.end(); }
+  const isS = url.protocol === 'https:';
+  const h = { 'User-Agent': UA, Accept: '*/*', 'Icy-MetaData': '0' };
+  if (inHeaders.range) h.Range = inHeaders.range;
+  const req = (isS ? https : http).get(url, { headers: h, agent: isS ? keep.https : keep.http, timeout: 25000 }, (up) => {
+    if ([301, 302, 303, 307, 308].includes(up.statusCode) && up.headers.location && depth < 8) {
+      up.resume();
+      return upstream(new URL(up.headers.location, url).href, inHeaders, res, depth + 1);
+    }
+    const ct = String(up.headers['content-type'] || '');
+    const m3u8 = /mpegurl/i.test(ct) || /\.m3u8$/i.test(url.pathname);
+    if (m3u8 && up.statusCode < 400) {
+      let b = '';
+      up.setEncoding('utf8');
+      up.on('data', (d) => (b += d));
+      up.on('end', () => {
+        const out = b.split(/\r?\n/).map((l) => {
+          const t = l.trim();
+          if (!t) return l;
+          if (t.startsWith('#')) return l.replace(/URI="([^"]+)"/g, (_, x) => 'URI="' + prox(new URL(x, url).href) + '"');
+          return prox(new URL(t, url).href);
+        }).join('\n');
+        res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });
+        res.end(out);
+      });
+      return;
+    }
+    const oh = { 'Access-Control-Allow-Origin': '*', 'Content-Type': ct || 'video/mp2t', 'Cache-Control': 'no-cache' };
+    for (const k of ['content-length', 'content-range', 'accept-ranges']) if (up.headers[k]) oh[k] = up.headers[k];
+    res.writeHead(up.statusCode, oh);
+    up.pipe(res);
+    res.on('close', () => up.destroy());
+  });
+  req.on('timeout', () => req.destroy(new Error('timeout')));
+  req.on('error', () => { if (!res.headersSent) res.writeHead(502, { 'Access-Control-Allow-Origin': '*' }); res.end(); });
+  res.on('close', () => req.destroy());
+}
+const proxyServer = http.createServer((q, r) => {
+  if (q.method === 'OPTIONS') { r.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }); return r.end(); }
+  const u = new URL(q.url, 'http://x').searchParams.get('u');
+  if (!u) { r.writeHead(400); return r.end(); }
+  upstream(u, q.headers, r);
+});
+proxyServer.listen(0, '127.0.0.1', () => { proxyPort = proxyServer.address().port; });
+ipcMain.handle('proxy-port', () => proxyPort);
 const fileArg = (argv) => argv.find((a) => /\.m3u8?$/i.test(a) && fs.existsSync(a));
 function send(file) {
   if (win && file) win.webContents.send('open-m3u', { name: path.basename(file), text: fs.readFileSync(file, 'utf8') });
@@ -23,7 +76,11 @@ app.on('second-instance', (_, argv) => { if (win) { win.focus(); send(fileArg(ar
 app.whenReady().then(() => {
   // Streams IPTV costumam exigir User-Agent de player (VLC) e não aceitam CORS de navegador
   session.defaultSession.webRequest.onBeforeSendHeaders((d, cb) => {
-    if (!d.url.startsWith('file:') && d.resourceType !== 'image') d.requestHeaders['User-Agent'] = UA;
+    if (!d.url.startsWith('file:') && d.resourceType !== 'image') {
+      d.requestHeaders['User-Agent'] = UA;
+      // servidores IPTV costumam recusar pedidos com cara de navegador
+      for (const k of Object.keys(d.requestHeaders)) if (/^(origin|referer|sec-fetch-|sec-ch-)/i.test(k)) delete d.requestHeaders[k];
+    }
     cb({ requestHeaders: d.requestHeaders });
   });
   win = new BrowserWindow({
