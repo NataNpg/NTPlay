@@ -93,3 +93,19 @@ jobs:
         with: { path: out, merge-multiple: true }
       - uses: softprops/action-gh-release@v2
         with: { files: out/* }
+
+  pc-latest:
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    needs: [windows]
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: NTPlay-Windows, path: out }
+      - name: Publicar versão de PC
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la out
+          gh release delete pc-latest -R ${{ github.repository }} --yes --cleanup-tag || true
+          gh release create pc-latest out/*.exe -R ${{ github.repository }} --target ${{ github.sha }} --title "NTPlay para PC (Windows)" --notes "Instalador e versão portátil do NTPlay para Windows."
