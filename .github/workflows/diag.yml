@@ -5,7 +5,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          for p in / /player_api.php "/get.php?username=x&password=y&type=m3u_plus"; do
-            r=$(curl -s -o /tmp/b -w "%{http_code} %{time_total}s" -m 60 -A "VLC/3.0.20 LibVLC/3.0.20" "http://teleflixhd.club:80$p")
-            echo "::notice title=$p::$r $(head -c 150 /tmp/b | tr '\n' ' ')"
-          done
+          echo "::notice title=dns::$(getent ahosts teleflixhd.club | awk '{print $1}' | sort -u | tr '\n' ' ') | 1.1.1.1: $(dig +short teleflixhd.club @1.1.1.1 | tr '\n' ' ') | 8.8.8.8: $(dig +short teleflixhd.club @8.8.8.8 | tr '\n' ' ')"
+          echo "::notice title=headers::$(curl -sI -m 30 http://teleflixhd.club/ | tr '\r\n' '  ' | head -c 600)"
+          echo "::notice title=whois-ns::$(dig +short NS teleflixhd.club | tr '\n' ' ')"
