@@ -34,6 +34,14 @@ object Net {
         .addInterceptor { c -> val r = c.request(); c.proceed(if (r.header("User-Agent") == null) r.newBuilder().header("User-Agent", Util.UA).build() else r) }
         .build()
 
+    val img: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .addInterceptor { c -> c.proceed(c.request().newBuilder().header("User-Agent", "Mozilla/5.0 (Linux; Android 10; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36").build()) }
+        .build()
+
     val sse: OkHttpClient = client.newBuilder().readTimeout(0, TimeUnit.SECONDS).build()
 
     fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
@@ -140,13 +148,16 @@ object Meta {
         return out.toString().trim()
     }
 
+    private fun ck(it: Item) = "2|" + it.key
+    fun cached(store: Store, it: Item): Info? = store.info(ck(it))
+
     suspend fun get(store: Store, it: Item): Info? {
         if (it.kind == 'l' || it.adult) return null
-        val c = store.info(it.key)
+        val c = store.info(ck(it))
         if (c != null && (!c.none || System.currentTimeMillis() - c.ts < 6 * 3600_000L)) {
             if (c.ov.isNotEmpty() && !Util.looksPT(c.ov)) {
                 val x = toPT(c.ov)
-                if (x != c.ov) { val n = Info(c.img, x, c.r, c.y, false, c.ts); store.putInfo(it.key, n); return n }
+                if (x != c.ov) { val n = Info(c.img, x, c.r, c.y, false, c.ts); store.putInfo(ck(it), n); return n }
             }
             return c
         }
@@ -155,8 +166,9 @@ object Meta {
                 val t = Util.cleanT(it.title)
                 val y = Util.yearOf(it.title)
                 var img = ""; var ov = ""; var r = 0.0; var yr = y
-                try { wiki(it, t, y)?.let { w -> img = w.first; ov = w.second } } catch (e: Exception) { }
-                try {
+                try { Xtream.info(it)?.let { x -> img = x.img; ov = x.ov; r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
+                if (img.isEmpty() || ov.isEmpty()) try { wiki(it, t, y)?.let { w -> if (img.isEmpty()) img = w.first; if (ov.isEmpty()) ov = w.second } } catch (e: Exception) { }
+                if (img.isEmpty() || ov.isEmpty()) try {
                     if (it.kind == 's') {
                         val x = json("https://api.tvmaze.com/singlesearch/shows?q=" + Net.enc(t))
                         if (x != null && okT(x.optString("name"), t)) {
@@ -182,7 +194,7 @@ object Meta {
                 if (ov.isNotEmpty()) ov = toPT(ov)
                 val res = if (img.isEmpty() && ov.isEmpty()) Info("", "", 0.0, "", true, System.currentTimeMillis())
                 else Info(img, ov, r, yr, false, System.currentTimeMillis())
-                store.putInfo(it.key, res)
+                store.putInfo(ck(it), res)
                 res
             }
         }

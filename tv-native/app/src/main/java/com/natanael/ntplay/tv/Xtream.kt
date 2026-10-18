@@ -175,4 +175,28 @@ object Xtream {
         out.sortWith(compareBy<Ep>({ it.s }, { it.e }))
         return out
     }
+
+    private val streamRe = Regex("^(https?://[^/]+)/(movie|series)/([^/]+)/([^/]+)/(\\d+)\\.([A-Za-z0-9]+)$")
+
+    private fun s(o: JSONObject, k: String): String { val v = o.optString(k); return if (v == "null") "" else v.trim() }
+
+    /** capa, sinopse, nota e ano direto do servidor da lista (já em português na maioria) */
+    fun info(item: Item): Info? {
+        val url = item.eps.firstOrNull()?.url ?: return null
+        val m = streamRe.find(url) ?: return null
+        val g = m.groupValues
+        val c = Creds(g[1], Uri.decode(g[3]), Uri.decode(g[4]))
+        val txt = when {
+            g[2] == "movie" -> Net.getText(c.api("get_vod_info", "&vod_id=" + g[5]))
+            g[2] == "series" && g[6] == "xs" -> Net.getText(c.api("get_series_info", "&series_id=" + g[5]))
+            else -> null
+        } ?: return null
+        val o = try { JSONObject(txt).optJSONObject("info") } catch (e: Exception) { null } ?: return null
+        val img = s(o, "movie_image").ifEmpty { s(o, "cover_big") }.ifEmpty { s(o, "cover") }
+        val ov = s(o, "plot").ifEmpty { s(o, "description") }
+        val r = s(o, "rating").replace(',', '.').toDoubleOrNull() ?: 0.0
+        val y = s(o, "releasedate").ifEmpty { s(o, "releaseDate") }.take(4).filter { it.isDigit() }
+        if (img.isEmpty() && ov.isEmpty()) return null
+        return Info(img, ov, if (r > 10) r / 10 else r, y, false, System.currentTimeMillis())
+    }
 }

@@ -12,6 +12,13 @@ class MainActivity : ComponentActivity() {
     private var state: AppState? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        coil.Coil.setImageLoader(
+            coil.ImageLoader.Builder(this)
+                .okHttpClient(Net.img)
+                .crossfade(false)
+                .respectCacheHeaders(false)
+                .build()
+        )
         setContent {
             NtTheme {
                 val st = remember { AppState(applicationContext).also { state = it } }

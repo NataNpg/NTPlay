@@ -37,6 +37,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     val ctx = LocalContext.current
     var err by remember(req.ep.url) { mutableStateOf("") }
     var retries by remember(req.ep.url) { mutableStateOf(0) }
+    var showTitle by remember(req.ep.url) { mutableStateOf(true) }
     val live = req.item.kind == 'l'
 
     val player = remember(req.ep.url) {
@@ -77,6 +78,8 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
         }
     }
 
+    LaunchedEffect(req.ep.url) { delay(4500); showTitle = false }
+
     LaunchedEffect(player) {
         while (true) {
             delay(5000)
@@ -93,6 +96,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                     this.player = player
                     useController = true
                     controllerShowTimeoutMs = 4000
+                    setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { v -> showTitle = v == android.view.View.VISIBLE })
                     keepScreenOn = true
                     isFocusable = true
                     isFocusableInTouchMode = true
@@ -100,9 +104,9 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                 }
             }
         )
-        Text(
+        if (showTitle) Text(
             req.item.title + if (req.item.kind == 's') "  •  T${req.ep.s} E${req.ep.e}" else "",
-            Modifier.align(Alignment.TopStart).padding(16.dp), color = Color(0xCCFFFFFF), fontSize = 13.sp
+            Modifier.align(Alignment.TopStart).padding(16.dp).background(Color(0x99000000)).padding(horizontal = 8.dp, vertical = 4.dp), color = Color(0xEEFFFFFF), fontSize = 13.sp
         )
         if (err.isNotEmpty()) Text(err, Modifier.align(Alignment.Center).background(Color(0xCC000000)).padding(16.dp), color = Color.White, fontSize = 14.sp)
     }

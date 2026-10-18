@@ -62,6 +62,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import androidx.compose.foundation.gestures.ScrollableState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.isPrimaryPressed
+import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -88,13 +97,46 @@ fun Modifier.tvFocus(shape: Shape = RoundedCornerShape(10.dp)): Modifier {
         .then(if (f) Modifier.border(3.dp, Cyan, shape) else if (hov) Modifier.border(2.dp, Color(0xAA22D3EE), shape) else Modifier)
 }
 
+/** rolagem com mouse: roda do mouse e arrastar com o botão pressionado */
+fun Modifier.mouseScroll(state: ScrollableState, horizontal: Boolean = false): Modifier = this.pointerInput(state, horizontal) {
+    awaitPointerEventScope {
+        var last: Offset? = null
+        var moved = 0f
+        while (true) {
+            val ev = awaitPointerEvent(PointerEventPass.Main)
+            val ch = ev.changes.firstOrNull() ?: continue
+            if (ch.type != PointerType.Mouse) { last = null; continue }
+            when (ev.type) {
+                PointerEventType.Scroll -> if (!ch.isConsumed) {
+                    val d = ch.scrollDelta
+                    val v = if (horizontal) (if (d.x != 0f) d.x else d.y) else d.y
+                    if (v != 0f && (horizontal || d.y != 0f)) { state.dispatchRawDelta(v * 90f); ch.consume() }
+                }
+                PointerEventType.Press -> { last = ch.position; moved = 0f }
+                PointerEventType.Move -> {
+                    val l = last
+                    if (l != null && ev.buttons.isPrimaryPressed) {
+                        val dd = ch.position - l
+                        val v = if (horizontal) dd.x else dd.y
+                        moved += kotlin.math.abs(v)
+                        if (moved > 12f) { state.dispatchRawDelta(-v); ch.consume() }
+                        last = ch.position
+                    }
+                }
+                PointerEventType.Release -> last = null
+                else -> {}
+            }
+        }
+    }
+}
+
 private fun tint(s: String): Color = Color.hsv((s.hashCode().toLong().let { Math.floorMod(it, 360L) }).toFloat(), 0.45f, 0.32f)
 
 // ---------------------------------------------------------------- app
 @Composable
 fun App(st: AppState) {
     Box(Modifier.fillMaxSize().background(Bg)) {
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 14.dp)) {
             Header(st)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val d = st.detail
@@ -118,8 +160,8 @@ fun App(st: AppState) {
 
 @Composable
 fun Footer() {
-    Box(Modifier.fillMaxWidth().height(22.dp).background(Color(0xFF081426)), contentAlignment = Alignment.Center) {
-        Text("NTPlay · © Natanael G Silva · djnatan0@live.com", color = Color(0x99FFFFFF), fontSize = 10.sp)
+    Box(Modifier.fillMaxWidth().height(28.dp).background(Color(0xFF081426), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+        Text("NTPlay  ·  © Natanael G Silva  ·  djnatan0@live.com", color = Color(0xDDFFFFFF), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -156,7 +198,7 @@ fun Header(st: AppState) {
 fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() -> Unit)? = null, onClick: () -> Unit) {
     val wide = item.kind == 'l'
     val h = if (wide) w * 0.58f else w * 1.5f
-    var img by remember(item.key) { mutableStateOf(item.logo.ifEmpty { st.store.info(item.key)?.img ?: "" }) }
+    var img by remember(item.key) { mutableStateOf(item.logo.ifEmpty { Meta.cached(st.store, item)?.img ?: "" }) }
     var tried by remember(item.key) { mutableStateOf(false) }
     LaunchedEffect(item.key, img) {
         if (img.isEmpty() && !tried && !wide && !item.adult) {
@@ -175,6 +217,8 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
                     modifier = Modifier.fillMaxSize().padding(if (wide) 10.dp else 0.dp),
                     onError = { if (!tried && !wide) { img = "" } else if (img == item.logo) img = "" }
                 )
+            } else if (wide) {
+                Text(item.title, Modifier.align(Alignment.Center).padding(horizontal = 10.dp), color = Color(0xEEFFFFFF), fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
             } else {
                 Text(item.title.take(1).uppercase(), Modifier.align(Alignment.Center), color = Color(0x55FFFFFF), fontSize = 30.sp, fontWeight = FontWeight.Black)
             }
@@ -199,7 +243,8 @@ fun ShelfRow(title: String, count: Int, onAll: (() -> Unit)?, content: LazyListS
             Spacer(Modifier.weight(1f))
             if (onAll != null) Text("Ver tudo ›", color = Color(0xCCFFFFFF), fontSize = 11.sp, modifier = Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable(onClick = onAll).padding(horizontal = 8.dp, vertical = 4.dp))
         }
-        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), content = content)
+        val ls1 = rememberLazyListState()
+        LazyRow(modifier = Modifier.mouseScroll(ls1, true), state = ls1, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), content = content)
     }
 }
 
@@ -224,7 +269,8 @@ fun Browse(st: AppState) {
         Box(Modifier.weight(1f).fillMaxHeight()) {
             if (groups != null) {
                 if (st.group.isEmpty()) {
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 20.dp)) {
+                    val ls2 = rememberLazyListState()
+                    LazyColumn(Modifier.fillMaxSize().mouseScroll(ls2), state = ls2, contentPadding = PaddingValues(top = 8.dp, bottom = 20.dp)) {
                         items(groups.take(60), key = { it.first }) { g ->
                             ShelfRow(g.first, g.second.size, { st.group = g.first }) {
                                 items(g.second.take(30), key = { it.key }) { it2 -> CardFor(st, it2, g.second) }
@@ -258,8 +304,9 @@ fun GridOf(st: AppState, l: List<Item>, title: String) {
     val live = l.firstOrNull()?.kind == 'l'
     Column(Modifier.fillMaxSize()) {
         Text(title.uppercase() + "  ·  ${l.size}", Modifier.padding(16.dp, 10.dp, 16.dp, 4.dp), color = Pink, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+        val gs3 = rememberLazyGridState()
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(if (live) 150.dp else 104.dp), modifier = Modifier.fillMaxSize(),
+            columns = GridCells.Adaptive(if (live) 150.dp else 104.dp), modifier = Modifier.fillMaxSize().mouseScroll(gs3), state = gs3,
             contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(l, key = { it.key }) { it2 -> CardFor(st, it2, l) }
@@ -271,7 +318,8 @@ fun GridOf(st: AppState, l: List<Item>, title: String) {
 fun Sidebar(st: AppState, groups: List<Pair<String, List<Item>>>, total: Int, tab: String) {
     Column(Modifier.width(210.dp).fillMaxHeight().background(PanelC)) {
         Text((if (tab == "TV AO VIVO") "TV AO VIVO" else tab) + " › CATEGORIAS", Modifier.padding(14.dp, 14.dp, 14.dp, 8.dp), color = Color(0xCCFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
+        val ls4 = rememberLazyListState()
+        LazyColumn(Modifier.weight(1f).mouseScroll(ls4), state = ls4, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
             item { CatBtn("Todas", total, st.group.isEmpty()) { st.group = "" } }
             items(groups, key = { it.first }) { g -> CatBtn(g.first, g.second.size, st.group == g.first) { st.group = g.first } }
         }
@@ -295,7 +343,8 @@ fun Recom(st: AppState, lib: Library) {
     val ver = st.progVer
     val cw = remember(ver, lib) { st.continueList() }
     val favs = remember(st.favs, lib) { lib.every.filter { st.favs.contains(it.key) }.take(30) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 10.dp, bottom = 20.dp)) {
+    val ls5 = rememberLazyListState()
+    LazyColumn(Modifier.fillMaxSize().mouseScroll(ls5), state = ls5, contentPadding = PaddingValues(top = 10.dp, bottom = 20.dp)) {
         if (cw.isNotEmpty()) item {
             ShelfRow("Continuar assistindo", cw.size, null) {
                 items(cw, key = { it.first.key }) { (it2, ep) ->
@@ -316,7 +365,7 @@ fun Recom(st: AppState, lib: Library) {
 // ---------------------------------------------------------------- detalhes
 @Composable
 fun DetailScreen(st: AppState, item: Item) {
-    var info by remember(item.key) { mutableStateOf(st.store.info(item.key)) }
+    var info by remember(item.key) { mutableStateOf(Meta.cached(st.store, item)) }
     LaunchedEffect(item.key) { val i = Meta.get(st.store, item); if (i != null) info = i }
     val poster = item.logo.ifEmpty { info?.img ?: "" }
     @Suppress("UNUSED_VARIABLE") val ev = st.epsVer
@@ -342,13 +391,15 @@ fun DetailScreen(st: AppState, item: Item) {
             }
             if (item.kind == 's') {
                 val seasons = if (loadingEps) emptyList() else item.eps.map { it.s }.distinct().sorted()
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
+                val ls6 = rememberLazyListState()
+                LazyRow(modifier = Modifier.mouseScroll(ls6, true), state = ls6, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
                     items(seasons) { s ->
                         Text("Temporada $s", Modifier.tvFocus(RoundedCornerShape(99.dp)).background(if (st.season == s) Pink else Color(0x22FFFFFF), RoundedCornerShape(99.dp)).clickable { st.season = s }.padding(horizontal = 12.dp, vertical = 6.dp), color = Color.White, fontSize = 11.sp)
                     }
                 }
                 val eps = if (loadingEps) emptyList() else item.eps.filter { it.s == st.season }
-                LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                val ls7 = rememberLazyListState()
+                LazyColumn(Modifier.weight(1f).mouseScroll(ls7), state = ls7, contentPadding = PaddingValues(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(eps, key = { it.url }) { e ->
                         val p = st.progOf(e)
                         Row(Modifier.fillMaxWidth().tvFocus(RoundedCornerShape(8.dp)).clip(RoundedCornerShape(8.dp)).background(Color(0x14FFFFFF)).clickable { st.playItem(item, e) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -381,7 +432,8 @@ fun SearchDialog(st: AppState) {
                 Spacer(Modifier.height(8.dp))
                 if (q.length < 2) Text("Digite pelo menos 2 letras.", color = Color(0x99FFFFFF), fontSize = 12.sp)
                 else if (res.isEmpty()) Text("Nada encontrado.", color = Color(0x99FFFFFF), fontSize = 12.sp)
-                LazyVerticalGrid(columns = GridCells.Adaptive(104.dp), contentPadding = PaddingValues(4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                val gs8 = rememberLazyGridState()
+                LazyVerticalGrid(modifier = Modifier.mouseScroll(gs8), state = gs8, columns = GridCells.Adaptive(104.dp), contentPadding = PaddingValues(4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(res, key = { it.key }) { it2 ->
                         PosterCard(st, it2, if (it2.kind == 'l') 150.dp else 104.dp) {
                             st.showSearch = false
@@ -405,7 +457,7 @@ fun ListsDialog(st: AppState) {
     val lists = remember(st.listsVer, st.busy) { st.store.lists() }
     LaunchedEffect(topic) { Relay.listen(topic, key) { c, n -> st.onRelay(c, n) } }
     Dialog(onDismissRequest = { st.showLists = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxWidth(0.88f).fillMaxHeight(0.84f), shape = RoundedCornerShape(16.dp), color = PanelC) {
+        Surface(Modifier.fillMaxWidth(0.9f).fillMaxHeight(0.9f), shape = RoundedCornerShape(16.dp), color = PanelC) {
             Row(Modifier.padding(18.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 // coluna esquerda: QR sempre visivel
                 Column(Modifier.width(210.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -413,12 +465,13 @@ fun ListsDialog(st: AppState) {
                     Spacer(Modifier.height(8.dp))
                     Text("ENVIAR PELO CELULAR", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
-                    Image(qr, "QR code", Modifier.size(170.dp).background(Color.White).padding(6.dp))
+                    Image(qr, "QR code", Modifier.size(150.dp).background(Color.White).padding(6.dp))
                     Text("Escaneie com a câmera do celular, cole o link da lista e envie. Ela chega aqui sozinha.", color = Color(0xDDFFFFFF), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
                     Text("⏳ Aguardando o celular…", color = Cyan, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
                 }
                 // coluna direita: listas, adicionar e preferencias (rola)
-                LazyColumn(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 4.dp)) {
+                val ls9 = rememberLazyListState()
+                LazyColumn(Modifier.weight(1f).fillMaxHeight().mouseScroll(ls9), state = ls9, verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(end = 4.dp, bottom = 24.dp)) {
                     item { Text("MINHAS LISTAS", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     if (lists.isEmpty()) item { Text("Nenhuma lista ainda.", color = Color(0x99FFFFFF), fontSize = 12.sp) }
                     items(lists, key = { it.id }) { m ->
