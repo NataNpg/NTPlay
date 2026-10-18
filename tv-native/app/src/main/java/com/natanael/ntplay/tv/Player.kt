@@ -136,8 +136,8 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                         ctx.startActivity(Intent.createChooser(i, "Abrir com").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     } catch (x: Exception) { st.toast("Nenhum outro player instalado (instale o VLC pela Play Store).") }
                 }
-                TvButton("↻ Tentar de novo", Color(0x33FFFFFF)) { err = ""; retries = 0; player.prepare(); player.play() }
-                TvButton("‹ Voltar", Color(0x33FFFFFF)) { st.closePlayer() }
+                TvButton("↻ Tentar de novo", Btn) { err = ""; retries = 0; player.prepare(); player.play() }
+                TvButton("‹ Voltar", Btn) { st.closePlayer() }
             }
         }
     }

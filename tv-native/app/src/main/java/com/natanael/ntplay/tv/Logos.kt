@@ -19,7 +19,7 @@ object Logos {
     @Volatile private var loading = false
 
     private val tags = Regex("\\b(fhd|hd|sd|uhd|4k|8k|fhdr|hdr|h\\.?265|hevc|h\\.?264|leg|legendado|dub|dublado|alt|backup|br|bra|brasil|24h|24 horas|1080p|720p|60fps|50fps|tv)\\b")
-    private val brk = Regex("\\[.*?]|\\(.*?\\)|\\{.*?}")
+    private val brk = Regex("\\[.*?\\]|\\(.*?\\)|\\{.*?\\}")
     private val diac = Regex("\\p{InCombiningDiacriticalMarks}+")
 
     fun key(name: String): String {

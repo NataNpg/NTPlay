@@ -87,15 +87,16 @@ import java.util.Date
 import java.util.Locale
 
 // ---------------------------------------------------------------- tema
-val Bg = Color(0xFF0B0F1A)
-val Bg2 = Color(0xFF121826)
-val PanelC = Color(0xFF161D2E)
-val CardC = Color(0xFF1C2438)
+val Bg = Color(0xFF0D0D12)
+val Bg2 = Color(0xFF17171F)
+val PanelC = Color(0xFF1B1B24)
+val CardC = Color(0xFF24242F)
 val Pink = Color(0xFFE93A7D)
 val Cyan = Color(0xFF22D3EE)
 val Purple = Color(0xFFA855F7)
 val Muted = Color(0xFF9AA4B8)
-val Dark = Color(0xFF0B0F1A)
+val Dark = Color(0xFF0D0D12)
+val Btn = Color(0xFF34343F)
 
 /** sem "camada branca" do Material ao focar: o foco é desenhado por nós */
 object NoIndication : Indication {
@@ -197,7 +198,7 @@ fun showTitle(it: Item): String = if (it.kind == 'l') it.title else Util.cleanT(
 @Composable
 fun App(st: AppState) {
     Box(Modifier.fillMaxSize().background(Bg)) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 14.dp)) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 26.dp)) {
             Header(st)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val d = st.detail
@@ -250,7 +251,7 @@ fun Header(st: AppState) {
                 )
             }
         }
-        TvButton("🔍 Buscar", Color(0x22FFFFFF), 12.sp) { st.showSearch = true }
+        TvButton("🔍 Buscar", Btn, 12.sp) { st.showSearch = true }
         Spacer(Modifier.width(8.dp))
         TvButton("☰ Listas", Color(0xFFFF5A00), 12.sp) { st.showLists = true }
         Spacer(Modifier.width(12.dp))
@@ -296,7 +297,7 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
         Text(showTitle(item), Modifier.padding(top = 6.dp, start = 2.dp), color = if (fi.on) Color.White else Color(0xDDFFFFFF), fontSize = 11.sp, fontWeight = if (fi.on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         val y = Util.yearOf(item.title)
         if (y.isNotEmpty() || item.kind == 's') Text(listOfNotNull(y.ifEmpty { null }, if (item.kind == 's') "Série" else null).joinToString(" · "), Modifier.padding(start = 2.dp), color = Muted, fontSize = 9.sp)
-        if (onRemove != null) TvButton("✕ Remover", Color(0x22FFFFFF), 9.sp, modifier = Modifier.padding(top = 4.dp), onClick = onRemove)
+        if (onRemove != null) TvButton("✕ Remover", Btn, 9.sp, modifier = Modifier.padding(top = 4.dp), onClick = onRemove)
     }
 }
 
@@ -308,7 +309,7 @@ fun LiveCard(st: AppState, item: Item, w: Dp, onClick: () -> Unit) {
     Column(Modifier.width(w)) {
         Box(
             Modifier.tvClick(fi, RoundedCornerShape(12.dp), onClick = onClick).clip(RoundedCornerShape(12.dp))
-                .background(Brush.linearGradient(listOf(CardC, Color(0xFF252F48)))).aspectRatio(16f / 10f).fillMaxWidth()
+                .background(Brush.linearGradient(listOf(CardC, Color(0xFF2E2E3B)))).aspectRatio(16f / 10f).fillMaxWidth()
         ) {
             if (img.isNotEmpty()) {
                 AsyncImage(
@@ -345,7 +346,7 @@ fun ShelfRow(title: String, count: Int, onAll: (() -> Unit)?, content: LazyListS
             Spacer(Modifier.width(8.dp))
             Text("$count", color = Muted, fontSize = 11.sp)
             Spacer(Modifier.weight(1f))
-            if (onAll != null) TvButton("Ver tudo ›", Color(0x18FFFFFF), 11.sp, onClick = onAll)
+            if (onAll != null) TvButton("Ver tudo ›", Btn, 11.sp, onClick = onAll)
         }
         val ls = rememberLazyListState()
         LazyRow(modifier = Modifier.mouseScroll(ls, true), state = ls, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), content = content)
@@ -489,7 +490,7 @@ fun Hero(st: AppState, item: Item) {
     val img = item.logo.ifEmpty { info?.img ?: "" }
     Box(Modifier.fillMaxWidth().height(240.dp).padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(18.dp)).background(tint(item.title))) {
         if (img.isNotEmpty()) AsyncImage(img, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f }, contentScale = ContentScale.Crop)
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Bg, Color(0xCC0B0F1A), Color.Transparent))))
+        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Bg, Color(0xCC0D0D12), Color.Transparent))))
         Row(Modifier.fillMaxSize().padding(22.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("EM DESTAQUE", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
@@ -500,7 +501,7 @@ fun Hero(st: AppState, item: Item) {
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     TvButton("▶ Assistir", Pink, 13.sp) { st.playItem(item) }
-                    TvButton("ⓘ Detalhes", Color(0x33FFFFFF), 13.sp) { st.openDetail(item) }
+                    TvButton("ⓘ Detalhes", Btn, 13.sp) { st.openDetail(item) }
                 }
             }
             if (img.isNotEmpty()) AsyncImage(img, null, Modifier.height(200.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
@@ -528,7 +529,7 @@ fun DetailScreen(st: AppState, item: Item) {
     }
     Box(Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp))) {
         if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.18f }, contentScale = ContentScale.Crop)
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x660B0F1A), Bg))))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x660D0D12), Bg))))
         Row(Modifier.fillMaxSize().padding(20.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
             Box(Modifier.width(160.dp).height(240.dp).clip(RoundedCornerShape(14.dp)).background(tint(item.title))) {
                 if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -548,15 +549,15 @@ fun DetailScreen(st: AppState, item: Item) {
                     TvButton(label, Pink, 13.sp) {
                         if (needEps) { if (!st.epsLoading) st.loadEps(item) } else st.playItem(item, cont)
                     }
-                    TvButton(if (st.favs.contains(item.key)) "★ Na minha lista" else "☆ Minha lista", Color(0x33FFFFFF), 13.sp) { st.toggleFav(item.key) }
-                    TvButton("‹ Voltar", Color(0x33FFFFFF), 13.sp) { st.detail = null }
+                    TvButton(if (st.favs.contains(item.key)) "★ Na minha lista" else "☆ Minha lista", Btn, 13.sp) { st.toggleFav(item.key) }
+                    TvButton("‹ Voltar", Btn, 13.sp) { st.detail = null }
                 }
                 if (needEps && st.epsErr.isNotEmpty()) Text(st.epsErr + " Toque em \"Carregar episódios\" para tentar de novo.", color = Color(0xFFFF9A9A), fontSize = 12.sp)
                 if (item.kind == 's' && !needEps) {
                     val seasons = item.eps.map { it.s }.distinct().sorted()
                     val ls = rememberLazyListState()
                     LazyRow(Modifier.mouseScroll(ls, true), state = ls, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp)) {
-                        items(seasons) { s -> TvButton("Temporada $s", Color(0x22FFFFFF), 11.sp, selected = st.season == s) { st.season = s } }
+                        items(seasons) { s -> TvButton("Temporada $s", Btn, 11.sp, selected = st.season == s) { st.season = s } }
                     }
                     val eps = item.eps.filter { it.s == st.season }
                     val ls2 = rememberLazyListState()
@@ -601,7 +602,7 @@ fun SearchDialog(st: AppState) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(q, { q = it }, Modifier.weight(1f), placeholder = { Text("Buscar canais, filmes e séries…") }, singleLine = true, colors = fieldColors())
                     Spacer(Modifier.width(10.dp))
-                    TvButton("Fechar", Color(0x33FFFFFF)) { st.showSearch = false }
+                    TvButton("Fechar", Btn) { st.showSearch = false }
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -656,12 +657,12 @@ fun ListsDialog(st: AppState) {
                     if (lists.isEmpty()) item { Text("Nenhuma lista ainda.", color = Muted, fontSize = 12.sp) }
                     items(lists, key = { it.id }) { m ->
                         Row(Modifier.fillMaxWidth().background(Color(0x14FFFFFF), RoundedCornerShape(12.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TvButton(if (m.active) "☑ Usar" else "☐ Usar", Color(0x22FFFFFF), 11.sp) { st.toggleList(m.id) }
+                            TvButton(if (m.active) "☑ Usar" else "☐ Usar", Btn, 11.sp) { st.toggleList(m.id) }
                             Column(Modifier.weight(1f)) {
                                 Text(m.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text("${m.count} itens", color = Muted, fontSize = 10.sp)
                             }
-                            TvButton("↻ Atualizar", Color(0x22FFFFFF), 11.sp) { st.refreshList(m) }
+                            TvButton("↻ Atualizar", Btn, 11.sp) { st.refreshList(m) }
                             TvButton("🗑 Excluir", Color(0x55FF5A5A), 11.sp) { st.deleteList(m.id) }
                         }
                     }
@@ -671,14 +672,14 @@ fun ListsDialog(st: AppState) {
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             TvButton(if (st.busy) "⏳ Baixando…" else "+ Adicionar lista", Color(0xFFFF5A00)) { if (!st.busy) st.addUrl(url, name) }
-                            TvButton("Fechar", Color(0x33FFFFFF)) { st.showLists = false }
+                            TvButton("Fechar", Btn) { st.showLists = false }
                         }
                     }
                     if (st.busy) item { Text(st.status, color = Cyan, fontSize = 11.sp) }
                     if (st.lastErr.isNotEmpty()) item { Text(st.lastErr, color = Color(0xFFFF8A8A), fontSize = 11.sp, lineHeight = 15.sp) }
                     item { Spacer(Modifier.height(4.dp)); Text("PREFERÊNCIAS", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-                    item { TvButton((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Color(0x14FFFFFF), 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAdult(!st.adult) } }
-                    item { TvButton((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Color(0x14FFFFFF), 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAutoNext(!st.autoNext) } }
+                    item { TvButton((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAdult(!st.adult) } }
+                    item { TvButton((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAutoNext(!st.autoNext) } }
                 }
             }
         }
