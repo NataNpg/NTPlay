@@ -433,7 +433,9 @@ fun ListsDialog(st: AppState) {
                     item { Text("ADICIONAR NOVA LISTA", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     item { OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), placeholder = { Text("Nome da lista (opcional)", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp)) }
                     item { OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), placeholder = { Text("Link M3U  http://...", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp)) }
-                    item { BigBtn("+ Adicionar lista", Color(0xFFFF5A00)) { st.addUrl(url, name); url = ""; name = "" } }
+                    item { BigBtn(if (st.busy) "⏳ Baixando…" else "+ Adicionar lista", Color(0xFFFF5A00)) { if (!st.busy) st.addUrl(url, name) } }
+                    if (st.busy) item { Text(st.status, color = Cyan, fontSize = 11.sp) }
+                    if (st.lastErr.isNotEmpty()) item { Text(st.lastErr, color = Color(0xFFFF8A8A), fontSize = 11.sp, lineHeight = 15.sp) }
                     item { Text("PREFERÊNCIAS", color = Color(0xAAFFFFFF), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     item { Text((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.changeAdult(!st.adult) }.padding(8.dp), color = Color.White, fontSize = 12.sp) }
                     item { Text((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Modifier.tvFocus(RoundedCornerShape(6.dp)).clickable { st.changeAutoNext(!st.autoNext) }.padding(8.dp), color = Color.White, fontSize = 12.sp) }

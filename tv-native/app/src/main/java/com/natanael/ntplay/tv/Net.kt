@@ -31,7 +31,7 @@ object Net {
         .readTimeout(120, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
-        .addInterceptor { c -> c.proceed(c.request().newBuilder().header("User-Agent", Util.UA).build()) }
+        .addInterceptor { c -> val r = c.request(); c.proceed(if (r.header("User-Agent") == null) r.newBuilder().header("User-Agent", Util.UA).build() else r) }
         .build()
 
     val sse: OkHttpClient = client.newBuilder().readTimeout(0, TimeUnit.SECONDS).build()
@@ -43,9 +43,22 @@ object Net {
     } catch (e: Exception) { null }
 
     /** baixa direto para arquivo (listas grandes não passam pela memória) */
-    fun download(url: String, out: File, onProgress: (Long) -> Unit = {}) {
+    val UAS = listOf(Util.UA, "Mozilla/5.0 (Linux; Android 9; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0 Safari/537.36", "okhttp/4.12.0", "")
+
+    /** tenta varios User-Agents; devolve o motivo exato se todos falharem */
+    fun downloadAny(url: String, out: File, onProgress: (Long) -> Unit = {}) {
+        var last: Throwable? = null
+        for (ua in UAS) {
+            try { download(url, out, ua, onProgress); return } catch (e: Throwable) { last = e }
+        }
+        throw last ?: RuntimeException("falha desconhecida")
+    }
+
+    fun download(url: String, out: File, ua: String = Util.UA, onProgress: (Long) -> Unit = {}) {
         val tmp = File(out.parentFile, out.name + ".part")
-        client.newCall(Request.Builder().url(url).build()).execute().use { r ->
+        val rb = Request.Builder().url(url)
+        rb.header("User-Agent", ua.ifEmpty { "NTPlay" })
+        client.newCall(rb.build()).execute().use { r ->
             if (!r.isSuccessful) throw RuntimeException("HTTP " + r.code)
             val body = r.body ?: throw RuntimeException("sem dados")
             tmp.outputStream().use { o ->

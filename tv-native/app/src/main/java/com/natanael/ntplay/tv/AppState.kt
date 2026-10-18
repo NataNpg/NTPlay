@@ -27,6 +27,7 @@ class AppState(val ctx: Context) {
     var group by mutableStateOf("")
     var detail by mutableStateOf<Item?>(null)
     var play by mutableStateOf<PlayReq?>(null)
+    var lastErr by mutableStateOf("")
     var showLists by mutableStateOf(false)
     var showSearch by mutableStateOf(false)
     var favs by mutableStateOf(store.favs)
@@ -90,8 +91,10 @@ class AppState(val ctx: Context) {
     }
 
     fun addUrl(url: String, name: String?) {
-        val u = url.trim()
-        if (u.isEmpty()) { toast("Informe o link da lista M3U."); return }
+        var u = url.trim().replace(" ", "").replace("\n", "")
+        if (u.isEmpty()) { lastErr = "Informe o link da lista M3U."; toast(lastErr); return }
+        if (!u.contains("://")) u = "http://$u"
+        lastErr = ""
         scope.launch {
             busy = true
             status = "Baixando lista…"
@@ -99,8 +102,14 @@ class AppState(val ctx: Context) {
                 val id = java.lang.Long.toString(System.currentTimeMillis(), 36)
                 val n = withContext(Dispatchers.IO) {
                     val f = store.file(id)
-                    Net.download(u, f) { b -> if (b % (1 shl 20) < 70000) status = "Baixando… ${b / 1048576} MB" }
-                    countItems(f)
+                    Net.downloadAny(u, f) { b -> if (b % (1 shl 20) < 70000) status = "Baixando… ${b / 1048576} MB" }
+                    val c = countItems(f)
+                    if (c == 0) {
+                        val head = try { f.inputStream().use { i -> val b = ByteArray(120); val k = i.read(b); if (k > 0) String(b, 0, k, Charsets.UTF_8) else "(vazia)" } } catch (x: Throwable) { "" }
+                        f.delete()
+                        throw RuntimeException("o link respondeu, mas não é uma lista M3U (resposta: " + head.replace("\n", " ").trim() + ")")
+                    }
+                    c
                 }
                 val l = store.lists()
                 l.add(ListMeta(id, name?.ifBlank { null } ?: (u.substringAfter("://").substringBefore('/').ifEmpty { "Lista" }), u, n, System.currentTimeMillis(), true))
@@ -110,7 +119,15 @@ class AppState(val ctx: Context) {
             } catch (e: Throwable) {
                 busy = false
                 status = "Falha ao baixar a lista"
-                toast("Falha ao baixar a lista: " + (e.message ?: e.javaClass.simpleName))
+                val why = when (e) {
+                    is java.net.UnknownHostException -> "não achei o servidor (sem internet/DNS?): " + e.message
+                    is java.net.SocketTimeoutException -> "o servidor demorou demais para responder"
+                    is javax.net.ssl.SSLException -> "erro de conexão segura (https). Confira a data/hora da TV. " + e.message
+                    is OutOfMemoryError -> "lista grande demais para a memória da TV"
+                    else -> (e.message ?: e.javaClass.simpleName)
+                }
+                lastErr = "Falha ao baixar a lista: $why"
+                toast(lastErr)
             }
         }
     }
@@ -152,7 +169,7 @@ class AppState(val ctx: Context) {
         scope.launch {
             busy = true; status = "Atualizando lista…"
             try {
-                val n = withContext(Dispatchers.IO) { val f = store.file(m.id); Net.download(m.url, f); countItems(f) }
+                val n = withContext(Dispatchers.IO) { val f = store.file(m.id); Net.downloadAny(m.url, f); countItems(f) }
                 val l = store.lists(); l.firstOrNull { it.id == m.id }?.let { it.count = n; it.date = System.currentTimeMillis() }
                 store.saveLists(l); reload()
             } catch (e: Throwable) { busy = false; toast("Falha ao atualizar: " + (e.message ?: "erro")) }
