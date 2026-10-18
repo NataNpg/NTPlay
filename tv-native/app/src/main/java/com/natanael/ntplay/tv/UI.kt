@@ -319,6 +319,8 @@ fun DetailScreen(st: AppState, item: Item) {
     var info by remember(item.key) { mutableStateOf(st.store.info(item.key)) }
     LaunchedEffect(item.key) { val i = Meta.get(st.store, item); if (i != null) info = i }
     val poster = item.logo.ifEmpty { info?.img ?: "" }
+    @Suppress("UNUSED_VARIABLE") val ev = st.epsVer
+    val loadingEps = st.needsEps(item)
     val cont = st.startEp(item)
     val pr = st.resumeOf(cont)
     val label = if (item.kind == 's') (if (st.progOf(cont) != null) "▶ Continuar T${cont.s} E${cont.e}" else "▶ Assistir T1 E1") else if (pr > 0) "▶ Continuar de " + Util.fmt(pr) else "▶ Assistir"
@@ -334,18 +336,18 @@ fun DetailScreen(st: AppState, item: Item) {
             val ov = info?.ov ?: ""
             Text(if (ov.isNotEmpty()) ov else if (info == null) "Buscando sinopse…" else "Sinopse não encontrada.", color = Color(0xDDFFFFFF), fontSize = 12.sp, maxLines = 6, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)
             Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                BigBtn(label, Pink) { st.playItem(item, cont) }
+                BigBtn(if (loadingEps) "⏳ Carregando episódios…" else label, Pink) { if (!loadingEps) st.playItem(item, cont) }
                 BigBtn(if (st.favs.contains(item.key)) "★ Na minha lista" else "☆ Minha lista", Color(0x33FFFFFF)) { st.toggleFav(item.key) }
                 BigBtn("‹ Voltar", Color(0x33FFFFFF)) { st.detail = null }
             }
             if (item.kind == 's') {
-                val seasons = item.eps.map { it.s }.distinct().sorted()
+                val seasons = if (loadingEps) emptyList() else item.eps.map { it.s }.distinct().sorted()
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
                     items(seasons) { s ->
                         Text("Temporada $s", Modifier.tvFocus(RoundedCornerShape(99.dp)).background(if (st.season == s) Pink else Color(0x22FFFFFF), RoundedCornerShape(99.dp)).clickable { st.season = s }.padding(horizontal = 12.dp, vertical = 6.dp), color = Color.White, fontSize = 11.sp)
                     }
                 }
-                val eps = item.eps.filter { it.s == st.season }
+                val eps = if (loadingEps) emptyList() else item.eps.filter { it.s == st.season }
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(eps, key = { it.url }) { e ->
                         val p = st.progOf(e)

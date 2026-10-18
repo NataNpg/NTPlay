@@ -37,6 +37,7 @@ class AppState(val ctx: Context) {
     var toastMsg by mutableStateOf("")
     var listsVer by mutableIntStateOf(0)
     var progVer by mutableIntStateOf(0)
+    var epsVer by mutableIntStateOf(0)
     var queue: List<Item> = emptyList()
     private val progMap: HashMap<String, Prog> = store.progress()
 
@@ -102,7 +103,19 @@ class AppState(val ctx: Context) {
                 val id = java.lang.Long.toString(System.currentTimeMillis(), 36)
                 val n = withContext(Dispatchers.IO) {
                     val f = store.file(id)
-                    Net.downloadAny(u, f) { b -> if (b % (1 shl 20) < 70000) status = "Baixando… ${b / 1048576} MB" }
+                    val cr = Xtream.creds(u)
+                    var viaApi = false
+                    var apiErr = ""
+                    if (cr != null) {
+                        try { Xtream.buildM3u(cr, f) { m -> status = m }; viaApi = true }
+                        catch (x: Throwable) { if (x.message?.contains("recusados") == true || x.message?.startsWith("conta ") == true) throw x; apiErr = x.message ?: x.javaClass.simpleName }
+                    }
+                    if (!viaApi) try {
+                        Net.downloadAny(u, f) { b -> if (b % (1 shl 20) < 70000) status = "Baixando… ${b / 1048576} MB" }
+                    } catch (x: Throwable) {
+                        if (apiErr.isNotEmpty()) throw RuntimeException("API: $apiErr | M3U: " + (x.message ?: x.javaClass.simpleName))
+                        throw x
+                    }
                     val c = countItems(f)
                     if (c == 0) {
                         val head = try { f.inputStream().use { i -> val b = ByteArray(120); val k = i.read(b); if (k > 0) String(b, 0, k, Charsets.UTF_8) else "(vazia)" } } catch (x: Throwable) { "" }
@@ -124,7 +137,10 @@ class AppState(val ctx: Context) {
                     is java.net.SocketTimeoutException -> "o servidor demorou demais para responder"
                     is javax.net.ssl.SSLException -> "erro de conexão segura (https). Confira a data/hora da TV. " + e.message
                     is OutOfMemoryError -> "lista grande demais para a memória da TV"
-                    else -> (e.message ?: e.javaClass.simpleName)
+                    else -> (e.message ?: e.javaClass.simpleName).let { m ->
+                        if (Regex("HTTP 5(2[0-9]|0[234])").containsMatchIn(m)) "$m — o servidor da sua lista não respondeu (fora do ar ou sobrecarregado). Não é erro do app: tente de novo mais tarde ou peça ao fornecedor um link novo."
+                        else m
+                    }
                 }
                 lastErr = "Falha ao baixar a lista: $why"
                 toast(lastErr)
@@ -169,7 +185,14 @@ class AppState(val ctx: Context) {
         scope.launch {
             busy = true; status = "Atualizando lista…"
             try {
-                val n = withContext(Dispatchers.IO) { val f = store.file(m.id); Net.downloadAny(m.url, f); countItems(f) }
+                val n = withContext(Dispatchers.IO) {
+                    val f = store.file(m.id)
+                    val cr = Xtream.creds(m.url)
+                    var ok = false
+                    if (cr != null) try { Xtream.buildM3u(cr, f) { s -> status = s }; ok = true } catch (x: Throwable) { }
+                    if (!ok) Net.downloadAny(m.url, f)
+                    countItems(f)
+                }
                 val l = store.lists(); l.firstOrNull { it.id == m.id }?.let { it.count = n; it.date = System.currentTimeMillis() }
                 store.saveLists(l); reload()
             } catch (e: Throwable) { busy = false; toast("Falha ao atualizar: " + (e.message ?: "erro")) }
@@ -213,7 +236,7 @@ class AppState(val ctx: Context) {
         for (p in progMap.entries.filter { !it.value.done }.sortedByDescending { it.value.ts }) {
             val it = l.byKey[p.value.k] ?: continue
             if (!seen.add(it.key)) continue
-            val ep = it.eps.firstOrNull { e -> e.url == p.key } ?: continue
+            val ep = it.eps.firstOrNull { e -> e.url == p.key } ?: (if (needsEps(it)) it.eps[0] else null) ?: continue
             out.add(it to ep)
             if (out.size >= 24) break
         }
@@ -232,12 +255,25 @@ class AppState(val ctx: Context) {
 
     fun resumeOf(ep: Ep): Long { val p = progMap[ep.url]; return if (p != null && !p.done && p.t > 10000) p.t else 0 }
 
+    fun needsEps(it: Item) = it.kind == 's' && it.eps.size == 1 && it.eps[0].url.endsWith(Xtream.SERIES_EXT)
+
     fun openDetail(it: Item) {
         detail = it
         season = if (it.kind == 's') startEp(it).s else 1
+        if (needsEps(it)) scope.launch {
+            try {
+                val l = withContext(Dispatchers.IO) { Xtream.episodes(it.eps[0].url) }
+                if (l.isNotEmpty()) {
+                    it.eps.clear(); it.eps.addAll(l); it.ns = l.maxOf { e -> e.s }
+                    season = startEp(it).s
+                    epsVer++
+                } else toast("Esta série não tem episódios no servidor.")
+            } catch (e: Throwable) { toast("Falha ao carregar episódios: " + (e.message ?: "erro")) }
+        }
     }
 
     fun playItem(it: Item, ep: Ep? = null, q: List<Item>? = null) {
+        if (needsEps(it)) { openDetail(it); toast("Carregando episódios…"); return }
         val e = ep ?: startEp(it)
         if (q != null) queue = q
         play = PlayReq(it, e, if (it.kind == 'l') 0 else resumeOf(e))
