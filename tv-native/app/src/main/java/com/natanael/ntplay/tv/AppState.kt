@@ -40,6 +40,7 @@ class AppState(val ctx: Context) {
     var epsVer by mutableIntStateOf(0)
     var epsLoading by mutableStateOf(false)
     var logoVer by mutableIntStateOf(0)
+    var trend by mutableStateOf<List<Trending.Row>>(emptyList())
     var epsErr by mutableStateOf("")
     var queue: List<Item> = emptyList()
     private val progMap: HashMap<String, Prog> = store.progress()
@@ -81,6 +82,8 @@ class AppState(val ctx: Context) {
             group = ""
             status = "${l.live.size} canais • ${l.movies.size} filmes • ${l.series.size} séries"
             logosLater()
+            trend = emptyList()
+            scope.launch { try { trend = withContext(Dispatchers.IO) { Trending.load(ctx, l) } } catch (e: Throwable) { } }
         } catch (e: Throwable) {
             status = "Erro ao ler a lista"
             toast("Erro ao ler a lista: " + (e.message ?: e.javaClass.simpleName))
@@ -207,8 +210,9 @@ class AppState(val ctx: Context) {
     fun changeAutoNext(v: Boolean) { autoNext = v; store.autoNext = v }
 
     fun toggleFav(key: String) {
-        val s = HashSet(favs); if (!s.remove(key)) s.add(key)
+        val s = HashSet(favs); val added = !s.remove(key); if (added) s.add(key)
         favs = s; store.favs = s
+        toast(if (added) "★ Adicionado à Minha lista" else "Removido da Minha lista")
     }
 
     // ---------- progresso ----------

@@ -65,6 +65,11 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
@@ -101,6 +106,7 @@ val Purple = Color(0xFFA855F7)
 val Muted = Color(0xFF9AA4B8)
 val Dark = Color(0xFF0D0D12)
 val Btn = Color(0xFF34343F)
+val FocusBg = Color(0xFF4C4C60)
 
 /** sem "camada branca" do Material ao focar: o foco é desenhado por nós */
 /** tamanho geral da interface (1.0 = original) */
@@ -142,15 +148,29 @@ fun Modifier.tvClick(
     shape: Shape = RoundedCornerShape(12.dp),
     scale: Float = 1.06f,
     border: Boolean = true,
+    onLong: (() -> Unit)? = null,
     onClick: () -> Unit
 ): Modifier {
     val src = remember { MutableInteractionSource() }
+    val longFired = remember { booleanArrayOf(false) }
     val hov by src.collectIsHoveredAsState()
     SideEffect { fi.hovered = hov }
     val s = if (fi.on) scale else 1f
     return this
         .hoverable(src)
         .onFocusChanged { fi.focused = it.isFocused }
+        .then(if (onLong == null) Modifier else Modifier.onPreviewKeyEvent { e ->
+            val k = e.key
+            if (k == Key.Menu || k == Key.Bookmark) { if (e.type == KeyEventType.KeyDown) onLong(); return@onPreviewKeyEvent true }
+            if (k != Key.DirectionCenter && k != Key.Enter && k != Key.NumPadEnter) return@onPreviewKeyEvent false
+            val rep = e.nativeKeyEvent.repeatCount
+            when {
+                e.type == KeyEventType.KeyDown && rep == 1 -> { longFired[0] = true; onLong(); true }
+                e.type == KeyEventType.KeyDown && rep > 1 -> true
+                e.type == KeyEventType.KeyUp && longFired[0] -> { longFired[0] = false; true }
+                else -> false
+            }
+        })
         .graphicsLayer { scaleX = s; scaleY = s }
         .then(if (border && fi.focused) Modifier.border(3.dp, Color.White, shape) else if (border && hov) Modifier.border(2.dp, Color(0xAAFFFFFF), shape) else Modifier)
         .clickable(interactionSource = src, indication = null, onClick = onClick)
@@ -158,13 +178,14 @@ fun Modifier.tvClick(
 
 /** botão de TV: focado = fundo branco com texto escuro (sempre legível) */
 @Composable
-fun TvButton(label: String, bg: Color, fontSize: TextUnit = 13.sp, selected: Boolean = false, shape: Shape = RoundedCornerShape(50), modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun TvButton(label: String, bg: Color, fontSize: TextUnit = 13.sp, selected: Boolean = false, shape: Shape = RoundedCornerShape(50), compact: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val fi = rememberFocus()
-    val back = if (fi.on) Color.White else if (selected) Pink else bg
-    val fg = if (fi.on) Dark else Color.White
+    val base = if (selected) Pink else bg
+    val back = if (fi.on && (base == Btn || base.alpha < 1f)) FocusBg else base
     Text(
-        label, color = fg, fontSize = fontSize, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-        modifier = modifier.tvClick(fi, shape, 1.05f, border = false, onClick = onClick).background(back, shape).padding(horizontal = 18.dp, vertical = 10.dp)
+        label, color = Color.White, fontSize = fontSize, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        modifier = modifier.tvClick(fi, shape, 1.08f, border = true, onClick = onClick).background(back, shape)
+            .padding(horizontal = if (compact) 12.dp else 18.dp, vertical = if (compact) 6.dp else 10.dp)
     )
 }
 
@@ -256,9 +277,9 @@ fun Header(st: AppState) {
                 val sel = st.tab == t
                 Text(
                     t, maxLines = 1, fontSize = 12.sp, fontWeight = if (sel || fi.on) FontWeight.ExtraBold else FontWeight.Medium,
-                    color = if (fi.on) Dark else if (sel) Color.White else Color(0xCCFFFFFF),
-                    modifier = Modifier.tvClick(fi, RoundedCornerShape(50), 1.05f, border = false) { st.selectTab(t) }
-                        .background(if (fi.on) Color.White else if (sel) Pink else Color.Transparent, RoundedCornerShape(50))
+                    color = if (sel || fi.on) Color.White else Color(0xCCFFFFFF),
+                    modifier = Modifier.tvClick(fi, RoundedCornerShape(50), 1.08f, border = true) { st.selectTab(t) }
+                        .background(if (sel) Pink else if (fi.on) FocusBg else Color.Transparent, RoundedCornerShape(50))
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 )
             }
@@ -278,6 +299,7 @@ fun Header(st: AppState) {
 @Composable
 fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() -> Unit)? = null, onClick: () -> Unit) {
     if (item.kind == 'l') { LiveCard(st, item, w, onClick); return }
+    val onLong = { st.toggleFav(item.key) }
     val h = w * 1.5f
     @Suppress("UNUSED_VARIABLE") val lv = st.logoVer
     var img by remember(item.key, item.logo) { mutableStateOf(item.logo.ifEmpty { Meta.cached(st.store, item)?.img ?: "" }) }
@@ -292,7 +314,7 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     }
     val fi = rememberFocus()
     Column(Modifier.width(w)) {
-        Box(Modifier.tvClick(fi, RoundedCornerShape(12.dp), onClick = onClick).clip(RoundedCornerShape(12.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
+        Box(Modifier.tvClick(fi, RoundedCornerShape(12.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(12.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
             if (img.isNotEmpty()) {
                 AsyncImage(
                     model = img, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
@@ -308,8 +330,10 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
         }
         Text(showTitle(item), Modifier.padding(top = 6.dp, start = 2.dp), color = if (fi.on) Color.White else Color(0xDDFFFFFF), fontSize = 11.sp, fontWeight = if (fi.on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         val y = Util.yearOf(item.title)
-        if (y.isNotEmpty() || item.kind == 's') Text(listOfNotNull(y.ifEmpty { null }, if (item.kind == 's') "Série" else null).joinToString(" · "), Modifier.padding(start = 2.dp), color = Muted, fontSize = 9.sp)
-        if (onRemove != null) TvButton("✕ Remover", Btn, 9.sp, modifier = Modifier.padding(top = 4.dp), onClick = onRemove)
+        val q = Util.quality(item.title)
+        val sub = listOfNotNull(y.ifEmpty { null }, if (item.kind == 's') "Série" else null, q.ifEmpty { null }).joinToString(" · ")
+        if (sub.isNotEmpty()) Text(sub, Modifier.padding(start = 2.dp), color = Muted, fontSize = 9.sp, maxLines = 1)
+        if (onRemove != null) TvButton("✕ Remover", Btn, 8.sp, compact = true, modifier = Modifier.padding(top = 3.dp), onClick = onRemove)
     }
 }
 
@@ -320,7 +344,7 @@ fun LiveCard(st: AppState, item: Item, w: Dp, onClick: () -> Unit) {
     val fi = rememberFocus()
     Column(Modifier.width(w)) {
         Box(
-            Modifier.tvClick(fi, RoundedCornerShape(12.dp), onClick = onClick).clip(RoundedCornerShape(12.dp))
+            Modifier.tvClick(fi, RoundedCornerShape(12.dp), onLong = { st.toggleFav(item.key) }, onClick = onClick).clip(RoundedCornerShape(12.dp))
                 .background(Brush.linearGradient(listOf(CardC, Color(0xFF2E2E3B)))).aspectRatio(16f / 10f).fillMaxWidth()
         ) {
             if (img.isNotEmpty()) {
@@ -454,14 +478,14 @@ fun Sidebar(st: AppState, groups: List<Pair<String, List<Item>>>, total: Int, ta
 @Composable
 fun CatBtn(name: String, n: Int, sel: Boolean, onClick: () -> Unit) {
     val fi = rememberFocus()
-    val bg = if (fi.on) Color.White else if (sel) Pink else Color.Transparent
-    val fg = if (fi.on) Dark else if (sel) Color.White else Color(0xCCFFFFFF)
+    val bg = if (sel) Pink else if (fi.on) FocusBg else Color.Transparent
+    val fg = if (sel || fi.on) Color.White else Color(0xCCFFFFFF)
     Row(
-        Modifier.fillMaxWidth().tvClick(fi, RoundedCornerShape(10.dp), 1.03f, border = false, onClick = onClick).background(bg, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 7.dp),
+        Modifier.fillMaxWidth().tvClick(fi, RoundedCornerShape(10.dp), 1.03f, border = true, onClick = onClick).background(bg, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(name, Modifier.weight(1f), color = fg, fontSize = 12.sp, fontWeight = if (sel || fi.on) FontWeight.Bold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text("$n", color = if (fi.on) Dark else Muted, fontSize = 9.sp)
+        Text("$n", color = if (sel || fi.on) Color(0xDDFFFFFF) else Muted, fontSize = 9.sp)
     }
 }
 
@@ -470,9 +494,12 @@ fun CatBtn(name: String, n: Int, sel: Boolean, onClick: () -> Unit) {
 fun Recom(st: AppState, lib: Library) {
     val ver = st.progVer
     val cw = remember(ver, lib) { st.continueList() }
-    val favs = remember(st.favs, lib) { lib.every.filter { st.favs.contains(it.key) }.take(30) }
-    val hero = remember(lib) {
-        cw.firstOrNull { it.first.kind != 'l' }?.first
+    val favs = remember(st.favs, lib) { lib.every.filter { st.favs.contains(it.key) } }
+    val favL = favs.filter { it.kind == 'l' }; val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
+    val trend = st.trend
+    val hero = remember(lib, trend) {
+        trend.firstOrNull()?.items?.firstOrNull()
+            ?: cw.firstOrNull { it.first.kind != 'l' }?.first
             ?: lib.movies.take(60).filter { it.logo.isNotEmpty() && !it.adult }.let { if (it.isEmpty()) null else it[(System.currentTimeMillis() / 60000 % it.size).toInt()] }
     }
     val ls = rememberLazyListState()
@@ -488,7 +515,11 @@ fun Recom(st: AppState, lib: Library) {
                 }
             }
         }
-        if (favs.isNotEmpty()) item { ShelfRow("Minha lista", favs.size, null) { items(favs, key = { it.key }) { it2 -> CardFor(st, it2, favs) } } }
+        for (r in trend) item { ShelfRow(r.title, r.items.size, null) { items(r.items.take(40), key = { it.key }) { it2 -> CardFor(st, it2, r.items) } } }
+        if (favL.isNotEmpty()) item { ShelfRow("★ Canais favoritos", favL.size, null) { items(favL, key = { it.key }) { it2 -> CardFor(st, it2, favL) } } }
+        if (favM.isNotEmpty()) item { ShelfRow("★ Filmes favoritos", favM.size, null) { items(favM, key = { it.key }) { it2 -> CardFor(st, it2, favM) } } }
+        if (favS.isNotEmpty()) item { ShelfRow("★ Séries favoritas", favS.size, null) { items(favS, key = { it.key }) { it2 -> CardFor(st, it2, favS) } } }
+        if (favs.isEmpty()) item { Text("Dica: segure o botão OK (ou aperte Menu) em qualquer canal, filme ou série para adicionar aos favoritos.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
         if (lib.movies.isNotEmpty()) item { ShelfRow("Filmes", lib.movies.size, { st.selectTab("FILMES") }) { items(lib.movies.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.movies) } } }
         if (lib.series.isNotEmpty()) item { ShelfRow("Séries", lib.series.size, { st.selectTab("SÉRIES") }) { items(lib.series.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.series) } } }
         if (lib.live.isNotEmpty()) item { ShelfRow("TV ao vivo", lib.live.size, { st.selectTab("TV AO VIVO") }) { items(lib.live.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.live) } } }
@@ -605,15 +636,15 @@ fun epTitle(item: Item, e: Ep): String {
 fun EpisodeRow(st: AppState, item: Item, e: Ep) {
     val p = st.progOf(e)
     val fi = rememberFocus()
-    val fg = if (fi.on) Dark else Color.White
+    val fg = Color.White
     Row(
-        Modifier.fillMaxWidth().tvClick(fi, RoundedCornerShape(10.dp), 1.02f, border = false) { st.playItem(item, e) }
-            .background(if (fi.on) Color.White else Color(0x14FFFFFF), RoundedCornerShape(10.dp)).padding(horizontal = 14.dp, vertical = 9.dp),
+        Modifier.fillMaxWidth().tvClick(fi, RoundedCornerShape(10.dp), 1.02f, border = true) { st.playItem(item, e) }
+            .background(if (fi.on) FocusBg else Color(0x14FFFFFF), RoundedCornerShape(10.dp)).padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("${e.e}", Modifier.width(34.dp), color = if (fi.on) Pink else Cyan, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+        Text("${e.e}", Modifier.width(34.dp), color = Cyan, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
         Text(epTitle(item, e), Modifier.weight(1f), color = fg, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(if (p?.done == true) "✓ visto" else if (p != null && p.t > 0) Util.fmt(p.t) else "▶", color = if (fi.on) Dark else Muted, fontSize = 11.sp)
+        Text(if (p?.done == true) "✓ visto" else if (p != null && p.t > 0) Util.fmt(p.t) else "▶", color = Muted, fontSize = 11.sp)
     }
 }
 

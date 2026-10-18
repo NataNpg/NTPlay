@@ -32,6 +32,16 @@ object Util {
 
     fun yearOf(s: String): String = Regex("\\((\\d{4})\\)").find(s)?.groupValues?.get(1) ?: ""
 
+    private val qR = Regex("\\b(4k|uhd|2160p|fhd|1080p|hd|720p|sd|h\\.?265|hevc)\\b", RegexOption.IGNORE_CASE)
+
+    /** qualidade escrita no nome (4K, FHD, HD, H265...) */
+    fun quality(s: String): String {
+        val f = qR.findAll(s).map { it.value.lowercase().replace(".", "") }.toSet()
+        val res = when { f.any { it == "4k" || it == "uhd" || it == "2160p" } -> "4K"; f.any { it == "fhd" || it == "1080p" } -> "Full HD"; f.any { it == "hd" || it == "720p" } -> "HD"; f.contains("sd") -> "SD"; else -> "" }
+        val c = if (f.any { it == "h265" || it == "hevc" }) "H.265" else ""
+        return listOf(res, c).filter { it.isNotEmpty() }.joinToString(" · ")
+    }
+
     fun isAdult(s: String) = adr.containsMatchIn(s)
 
     fun cleanG(g: String): String {

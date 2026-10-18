@@ -43,7 +43,7 @@ object Net {
         .addInterceptor { c ->
             val resp = c.proceed(c.request().newBuilder().header("User-Agent", "Mozilla/5.0 (Linux; Android 10; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36").build())
             val u = resp.request.url.toString()
-            if (u.contains("removed.png") || (resp.isSuccessful && resp.body?.contentType()?.type == "text")) {
+            if (u.contains("removed.png")) {
                 resp.close()
                 okhttp3.Response.Builder().request(resp.request).protocol(okhttp3.Protocol.HTTP_1_1).code(404).message("sem imagem")
                     .body("".toResponseBody(null)).build()
