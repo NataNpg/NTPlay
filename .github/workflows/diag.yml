@@ -1,0 +1,14 @@
+name: diag servidor
+on: workflow_dispatch
+jobs:
+  d:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          t() { r=$(curl -sL -o /tmp/b -w "%{http_code} %{content_type} %{size_download}" -m 40 -A "Mozilla/5.0" "$1"); echo "::notice title=$2::$r $(head -c 300 /tmp/b | tr '\n\t' '  ')"; }
+          t "https://itunes.apple.com/br/rss/topmovies/limit=5/json" itmov
+          t "https://itunes.apple.com/br/rss/toptvseasons/limit=5/json" ittv
+          t "https://api.tvmaze.com/schedule/web?country=BR" tvmazeBR
+          t "https://api.tvmaze.com/schedule/web" tvmaze
+          t "https://www.netflix.com/tudum/top10/data/all-weeks-global.tsv" nfglobal
+          t "https://www.netflix.com/tudum/top10/data/all-weeks-countries.tsv" nfcountries
