@@ -70,7 +70,7 @@ function upstream(u, inHeaders, res, depth = 0, orig = null, useCache = true) {
       // falha ao pedir o próximo pedaço de um canal ao vivo: tenta de novo
       up.resume();
       res._ntFails = (res._ntFails || 0) + 1;
-      if (live && !res._ntClosed && res._ntFails < 12) return setTimeout(() => upstream(o, inHeaders, res, 0, null, res._ntFails < 3), 800);
+      if (live && !res._ntClosed && res._ntFails < 12) return setTimeout(() => upstream(o, inHeaders, res, 0, null, false), 800);
       return res.end();
     }
     if (!res.headersSent) {
@@ -80,16 +80,32 @@ function upstream(u, inHeaders, res, depth = 0, orig = null, useCache = true) {
     }
     res._ntUp = up;
     let bytes = 0;
+    // MPEG-TS: pacotes de 188 bytes começando com 0x47. Cada pedaço do servidor pode terminar
+    // no meio de um pacote; só repassamos pacotes inteiros e realinhamos no início do próximo pedaço.
+    const ts = live && !/mpegurl|text|json/i.test(ct);
+    let carry = null, synced = false;
+    const out = (b) => { if (b.length && !res.write(b)) { up.pause(); res.once('drain', () => up.resume()); } };
     up.on('data', (d) => {
       bytes += d.length;
-      if (!res.write(d)) { up.pause(); res.once('drain', () => up.resume()); }
+      if (!ts) return out(d);
+      let buf = carry ? Buffer.concat([carry, d]) : d;
+      carry = null;
+      if (!synced) {
+        let i = 0;
+        while (i + 376 < buf.length && !(buf[i] === 0x47 && buf[i + 188] === 0x47 && buf[i + 376] === 0x47)) i++;
+        if (i + 376 >= buf.length) { carry = buf.slice(Math.max(0, i - 1)); return; }
+        buf = buf.slice(i); synced = true;
+      }
+      const whole = buf.length - (buf.length % 188);
+      if (whole < buf.length) carry = Buffer.from(buf.slice(whole));
+      out(buf.slice(0, whole));
     });
     up.on('end', () => {
       if (live && !res._ntClosed) {
         // o servidor entrega o canal em pedaços (~20 s): pede o próximo e emenda sem o player perceber
         res._ntFails = bytes > 0 ? 0 : (res._ntFails || 0) + 1;
         logp('  pedaço terminou (' + Math.round(bytes / 1024) + ' KB) — emendando o próximo');
-        if (res._ntFails < 12) return upstream(o, inHeaders, res, 0, null, true);
+        if (res._ntFails < 12) return upstream(o, inHeaders, res, 0, null, false);
       }
       res.end();
     });
@@ -100,7 +116,7 @@ function upstream(u, inHeaders, res, depth = 0, orig = null, useCache = true) {
     logp('ERRO ' + (Date.now() - t0) + 'ms ' + url.host + mask(url.pathname) + ' ' + (er && er.message));
     if (inHeaders['x-live'] && res.headersSent && !res._ntClosed) {
       res._ntFails = (res._ntFails || 0) + 1;
-      if (res._ntFails < 12) return setTimeout(() => upstream(o, inHeaders, res, 0, null, res._ntFails < 3), 1000);
+      if (res._ntFails < 12) return setTimeout(() => upstream(o, inHeaders, res, 0, null, false), 1000);
     }
     if (cached && !res.headersSent) return retryOrig();
     if (!res.headersSent) res.writeHead(502, { 'Access-Control-Allow-Origin': '*' });
