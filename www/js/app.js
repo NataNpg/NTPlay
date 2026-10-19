@@ -104,20 +104,17 @@ function play(c,auto){
   const q=order(c.url,c.cat),errs=[];
   // PC: canais ao vivo passam pelo repasse local (cara de VLC) e ganham a alternativa HLS (.m3u8)
   const PX=window.NT_PROXY,live=c.cat=='live';
-  const viaP=u=>PX&&live?'http://127.0.0.1:'+PX+'/p?u='+encodeURIComponent(u):u;
+  const viaP=(u,ts)=>PX&&live?'http://127.0.0.1:'+PX+'/p?'+(ts?'live=1&':'')+'u='+encodeURIComponent(u):u;
   const hlsUrl=(live&&/\/live\/[^/]+\/[^/]+\/\d+\.ts(\?|$)/.test(c.url))?c.url.replace(/\.ts(\?|$)/,'.m3u8$1'):(live&&/\/\/[^/]+\/[^/]+\/[^/]+\/\d+$/.test(c.url.split('?')[0])?c.url.split('?')[0]+'.m3u8':c.url);
   const tsUrl=/\/live\//.test(c.url)&&/\.m3u8(\?|$)/i.test(c.url)?c.url.replace(/\.m3u8(\?|$)/i,'.ts$1'):(/\/live\//.test(c.url)&&!/\.[a-z0-9]{2,4}(\?|$)/i.test(c.url.split('/').pop())?c.url+'.ts':'');
   let pre=null;dbgReset(c);
   if(live){q.length=0;
-    if(PX){ph('Conectando ao canal…',x?x.e.title:'',true);
-      // descobre o formato real do canal (HLS ou TS) antes de escolher o player
-      pre=fetch('http://127.0.0.1:'+PX+'/probe?u='+encodeURIComponent(c.url)).then(r=>r.json()).catch(()=>({})).then(j=>{
-        const hls=/mpegurl/i.test(j.ct||'')||/\.m3u8(\?|$)/i.test(c.url);
-        dbg('sonda: '+(j.status||'?')+' '+(j.ct||'sem resposta'));
-        // canal em HLS: tenta antes a versão contínua (.ts) do mesmo canal — não depende de atualizar a lista a cada 6 s
-        if(hls&&tsUrl)q.push('mpegtsT');
-        if(hls)q.push('hls','mpegts');else q.push('mpegts','hls2');
-        q.push('native','mpegtsD','hlsD');ph('Carregando…',x?x.e.title:'',true)})}
+    if(PX){
+      // sem consulta prévia: a conta pode permitir só 1 conexão (uma consulta extra derruba o vídeo).
+      // TS contínuo primeiro; se o servidor responder com lista HLS, o mpegts falha na hora e o HLS assume.
+      dbg('conexão única (sem sonda)');
+      if(tsUrl&&/\.m3u8(\?|$)/i.test(c.url))q.push('mpegtsT');
+      q.push('mpegts','hls','native')}
     else{q.push('mpegts');if(window.Hls)q.push('hls2');q.push('native')}}
   const next=why=>{if(my!=tok)return;errs.push(why);dbg('falhou: '+why);stop();if(q.length)run();else{ph('Não foi possível reproduzir','Tente outro item ou use o botão VLC.',true);toast('Falha ao reproduzir: '+errs.join(' | ')+(window.bobNative?' — o VLC costuma abrir formatos que o player interno não suporta (4K/H.265).':''),window.bobNative?'Abrir no VLC':'',window.bobNative?()=>$('#vlc').click():null,'er')}};
   v.onerror=()=>next('mídia');
@@ -125,7 +122,7 @@ function play(c,auto){
   v.onloadedmetadata=()=>{if(my==tok&&resumeAt&&isFinite(v.duration)&&resumeAt<v.duration-30){v.currentTime=resumeAt;const t=resumeAt;resumeAt=0;
     toast('Continuando de '+fmt(t),'Do início',()=>{v.currentTime=0})}};
   function run(){if(my!=tok)return;let e=q.shift();
-    const src=e=='hls2'?viaP(hlsUrl):e=='hlsD'?hlsUrl:e=='mpegtsD'?c.url:e=='mpegtsT'?viaP(tsUrl):viaP(c.url);
+    const src=e=='hls2'?viaP(hlsUrl):e=='hlsD'?hlsUrl:e=='mpegtsD'?c.url:e=='mpegtsT'?viaP(tsUrl,1):viaP(c.url,e=='mpegts'||e=='native');
     dbg('tentando: '+e);
     if(e=='hlsD')e='hls';if(e=='hls2')e='hls';if(e=='mpegtsD'||e=='mpegtsT')e='mpegts';
     if(e=='hls'&&window.Hls&&Hls.isSupported()){const h=eng=new Hls({enableWorker:true,manifestLoadingTimeOut:60000,levelLoadingTimeOut:30000,fragLoadingTimeOut:60000,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:3,fragLoadingMaxRetry:4,maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:30,liveSyncDurationCount:5,maxBufferSize:120e6,capLevelToPlayerSize:true});let rec=0;
@@ -140,7 +137,7 @@ const fmt=t=>{t=Math.floor(t);const h=Math.floor(t/3600),m=Math.floor(t%3600/60)
 v.addEventListener('timeupdate',()=>saveProg(false));v.addEventListener('pause',()=>saveProg(true));addEventListener('beforeunload',()=>saveProg(true));
 v.addEventListener('waiting',()=>{clearTimeout(wd);wd=setTimeout(()=>{if(S.cur&&retries++<3&&v.readyState<3){toast('Reconectando…');saveProg(true);play(S.cur.c,true)}},10000)});
 v.addEventListener('playing',()=>clearTimeout(wd));
-v.addEventListener('ended',()=>{if(!S.cur||S.cur.c.cat=='live')return;const u=S.cur.c.url;P[u]={t:0,d:Math.floor(v.duration)||0,ts:Date.now(),done:true};try{LS.ntProg=JSON.stringify(P)}catch(e){}
+v.addEventListener('ended',()=>{if(S.cur&&S.cur.c.cat=='live'){dbg('fluxo encerrado pelo servidor — reconectando');setTimeout(()=>{if(S.cur&&S.cur.c.cat=='live')play(S.cur.c,true)},400);return}if(!S.cur)return;const u=S.cur.c.url;P[u]={t:0,d:Math.floor(v.duration)||0,ts:Date.now(),done:true};try{LS.ntProg=JSON.stringify(P)}catch(e){}
   if(S.autoNext){const n=nextOf();if(n){toast('Próximo: '+n.e.title+(n.e.kind=='s'?' • T'+n.c.s+' E'+n.c.e:''));switchTo(n.e,n.c)}else toast('Fim da lista. Nada mais para reproduzir.')}});
 function nextOf(){const x=S.cur;if(!x)return null;const e=x.e;
   if(e.kind=='s'){const i=e.ch.indexOf(x.c);if(i>=0&&i<e.ch.length-1)return{e,c:e.ch[i+1]}}

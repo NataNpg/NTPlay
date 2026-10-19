@@ -129,7 +129,8 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     val playFocus = remember { FocusRequester() }
 
     val player = remember(req.ep.url) {
-        val ds = OkHttpDataSource.Factory(Net.client).setUserAgent(Util.UA)
+        val okF = OkHttpDataSource.Factory(Net.client).setUserAgent(Util.UA)
+        val ds: androidx.media3.datasource.DataSource.Factory = if (live) androidx.media3.datasource.DataSource.Factory { LiveLoopDataSource(okF.createDataSource(), req.ep.url) } else okF
         val ex = DefaultExtractorsFactory()
             .setConstantBitrateSeekingEnabled(true)
             .setTsExtractorFlags(DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS)

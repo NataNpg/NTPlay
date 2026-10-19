@@ -8,12 +8,17 @@ const http = require('http'), https = require('https');
 // que muitos servidores IPTV bloqueiam), segue redirecionamentos e reescreve listas HLS.
 let proxyPort = 0;
 const prox = (u) => `http://127.0.0.1:${proxyPort}/p?u=${encodeURIComponent(u)}`;
-const keep = { http: new http.Agent({ keepAlive: true, maxSockets: 16 }), https: new https.Agent({ keepAlive: true, maxSockets: 16, rejectUnauthorized: false }) };
+const keep = { http: new http.Agent({ keepAlive: false }), https: new https.Agent({ keepAlive: false, rejectUnauthorized: false }) };
 const plog = [];
 const mask = (s) => String(s).replace(/(\/(?:live|movie|series|hls)?\/?)([^/?#]{3,})\/([^/?#]{3,})\//i, (a, p) => p + '***/***/').slice(0, 160);
 function logp(s) { plog.push(new Date().toISOString().slice(11, 19) + ' ' + s); if (plog.length > 200) plog.shift(); }
 const redir = new Map(); // endereço original -> destino final (servidores lentos no redirecionamento)
 function upstream(u, inHeaders, res, depth = 0, orig = null, useCache = true) {
+  if (!res._ntHook) {
+    res._ntHook = true;
+    res.on('close', () => { res._ntClosed = true; try { res._ntReq && res._ntReq.destroy(); } catch (e) {} try { res._ntUp && res._ntUp.destroy(); } catch (e) {} });
+  }
+  if (res._ntClosed) return;
   let url;
   const o = orig || u;
   if (depth === 0 && useCache) {
@@ -60,28 +65,58 @@ function upstream(u, inHeaders, res, depth = 0, orig = null, useCache = true) {
       });
       return;
     }
-    const oh = { 'Access-Control-Allow-Origin': '*', 'Content-Type': ct || 'video/mp2t', 'Cache-Control': 'no-cache' };
-    for (const k of ['content-length', 'content-range', 'accept-ranges']) if (up.headers[k]) oh[k] = up.headers[k];
-    res.writeHead(up.statusCode, oh);
-    up.pipe(res);
-    res.on('close', () => up.destroy());
+    const live = !!inHeaders['x-live'];
+    if (up.statusCode >= 400 && res.headersSent) {
+      // falha ao pedir o próximo pedaço de um canal ao vivo: tenta de novo
+      up.resume();
+      res._ntFails = (res._ntFails || 0) + 1;
+      if (live && !res._ntClosed && res._ntFails < 12) return setTimeout(() => upstream(o, inHeaders, res, 0, null, res._ntFails < 3), 800);
+      return res.end();
+    }
+    if (!res.headersSent) {
+      const oh = { 'Access-Control-Allow-Origin': '*', 'Content-Type': ct || 'video/mp2t', 'Cache-Control': 'no-cache' };
+      for (const k of (live ? [] : ['content-length', 'content-range', 'accept-ranges'])) if (up.headers[k]) oh[k] = up.headers[k];
+      res.writeHead(up.statusCode, oh);
+    }
+    res._ntUp = up;
+    let bytes = 0;
+    up.on('data', (d) => {
+      bytes += d.length;
+      if (!res.write(d)) { up.pause(); res.once('drain', () => up.resume()); }
+    });
+    up.on('end', () => {
+      if (live && !res._ntClosed) {
+        // o servidor entrega o canal em pedaços (~20 s): pede o próximo e emenda sem o player perceber
+        res._ntFails = bytes > 0 ? 0 : (res._ntFails || 0) + 1;
+        logp('  pedaço terminou (' + Math.round(bytes / 1024) + ' KB) — emendando o próximo');
+        if (res._ntFails < 12) return upstream(o, inHeaders, res, 0, null, true);
+      }
+      res.end();
+    });
+    up.on('error', () => { if (!live) res.end(); });
   });
   req.on('timeout', () => req.destroy(new Error('timeout')));
   req.on('error', (er) => {
     logp('ERRO ' + (Date.now() - t0) + 'ms ' + url.host + mask(url.pathname) + ' ' + (er && er.message));
+    if (inHeaders['x-live'] && res.headersSent && !res._ntClosed) {
+      res._ntFails = (res._ntFails || 0) + 1;
+      if (res._ntFails < 12) return setTimeout(() => upstream(o, inHeaders, res, 0, null, res._ntFails < 3), 1000);
+    }
     if (cached && !res.headersSent) return retryOrig();
     if (!res.headersSent) res.writeHead(502, { 'Access-Control-Allow-Origin': '*' });
     res.end();
   });
-  res.on('close', () => req.destroy());
+  res._ntReq = req;
 }
 const proxyServer = http.createServer((q, r) => {
   if (q.method === 'OPTIONS') { r.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }); return r.end(); }
   const p = new URL(q.url, 'http://x');
+  if (p.pathname === '/log') { r.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*' }); return r.end(plog.slice(-40).join('\n')); }
   const u = p.searchParams.get('u');
   if (!u) { r.writeHead(400); return r.end(); }
-  if (p.pathname === '/log') { r.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*' }); return r.end(plog.slice(-40).join('\n')); }
+  if (p.pathname === '/log0') { r.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*' }); return r.end(plog.slice(-40).join('\n')); }
   if (p.pathname === '/probe') q.headers['x-probe'] = '1';
+  if (p.searchParams.get('live') === '1') q.headers['x-live'] = '1';
   upstream(u, q.headers, r);
 });
 proxyServer.listen(0, '127.0.0.1', () => { proxyPort = proxyServer.address().port; });
