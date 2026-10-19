@@ -9,6 +9,9 @@ const http = require('http'), https = require('https');
 let proxyPort = 0;
 const prox = (u) => `http://127.0.0.1:${proxyPort}/p?u=${encodeURIComponent(u)}`;
 const keep = { http: new http.Agent({ keepAlive: true, maxSockets: 16 }), https: new https.Agent({ keepAlive: true, maxSockets: 16, rejectUnauthorized: false }) };
+const plog = [];
+const mask = (s) => String(s).replace(/(\/(?:live|movie|series|hls)?\/?)([^/?#]{3,})\/([^/?#]{3,})\//i, (a, p) => p + '***/***/').slice(0, 160);
+function logp(s) { plog.push(new Date().toISOString().slice(11, 19) + ' ' + s); if (plog.length > 200) plog.shift(); }
 const redir = new Map(); // endereço original -> destino final (servidores lentos no redirecionamento)
 function upstream(u, inHeaders, res, depth = 0, orig = null, useCache = true) {
   let url;
@@ -23,7 +26,9 @@ function upstream(u, inHeaders, res, depth = 0, orig = null, useCache = true) {
   const h = { 'User-Agent': UA, Accept: '*/*', 'Icy-MetaData': '0' };
   if (inHeaders.range) h.Range = inHeaders.range;
   const retryOrig = () => { redir.delete(o); upstream(o, inHeaders, res, 0, null, false); };
+  const t0 = Date.now();
   const req = (isS ? https : http).get(url, { headers: h, agent: isS ? keep.https : keep.http, timeout: 60000 }, (up) => {
+    logp(up.statusCode + ' ' + (Date.now() - t0) + 'ms ' + (cached ? '[cache] ' : '') + url.host + mask(url.pathname) + ' ' + String(up.headers['content-type'] || '') + (up.headers.location ? ' -> ' + new URL(up.headers.location, url).host : ''));
     if ([301, 302, 303, 307, 308].includes(up.statusCode) && up.headers.location && depth < 8) {
       up.resume();
       const nx = new URL(up.headers.location, url).href;
@@ -49,6 +54,7 @@ function upstream(u, inHeaders, res, depth = 0, orig = null, useCache = true) {
           if (t.startsWith('#')) return l.replace(/URI="([^"]+)"/g, (_, x) => 'URI="' + prox(new URL(x, url).href) + '"');
           return prox(new URL(t, url).href);
         }).join('\n');
+        logp('  m3u8: ' + (b.match(/#EXTINF/g) || []).length + ' seg' + (/#EXT-X-ENDLIST/.test(b) ? ' ENDLIST' : '') + ' seq=' + ((b.match(/MEDIA-SEQUENCE:(\d+)/) || [])[1] || '-') + (/#EXT-X-STREAM-INF/.test(b) ? ' MASTER' : ''));
         res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });
         res.end(out);
       });
@@ -61,7 +67,8 @@ function upstream(u, inHeaders, res, depth = 0, orig = null, useCache = true) {
     res.on('close', () => up.destroy());
   });
   req.on('timeout', () => req.destroy(new Error('timeout')));
-  req.on('error', () => {
+  req.on('error', (er) => {
+    logp('ERRO ' + (Date.now() - t0) + 'ms ' + url.host + mask(url.pathname) + ' ' + (er && er.message));
     if (cached && !res.headersSent) return retryOrig();
     if (!res.headersSent) res.writeHead(502, { 'Access-Control-Allow-Origin': '*' });
     res.end();
@@ -73,6 +80,7 @@ const proxyServer = http.createServer((q, r) => {
   const p = new URL(q.url, 'http://x');
   const u = p.searchParams.get('u');
   if (!u) { r.writeHead(400); return r.end(); }
+  if (p.pathname === '/log') { r.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*' }); return r.end(plog.slice(-40).join('\n')); }
   if (p.pathname === '/probe') q.headers['x-probe'] = '1';
   upstream(u, q.headers, r);
 });
@@ -98,7 +106,7 @@ app.on('second-instance', (_, argv) => { if (win) { win.focus(); send(fileArg(ar
 app.whenReady().then(() => {
   // Streams IPTV costumam exigir User-Agent de player (VLC) e não aceitam CORS de navegador
   session.defaultSession.webRequest.onBeforeSendHeaders((d, cb) => {
-    if (!d.url.startsWith('file:') && d.resourceType !== 'image') {
+    if (/^https?:/i.test(d.url) && d.resourceType !== 'image') {
       d.requestHeaders['User-Agent'] = UA;
       // servidores IPTV costumam recusar pedidos com cara de navegador
       for (const k of Object.keys(d.requestHeaders)) if (/^(origin|referer|sec-fetch-|sec-ch-)/i.test(k)) delete d.requestHeaders[k];

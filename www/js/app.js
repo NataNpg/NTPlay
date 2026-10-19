@@ -106,26 +106,31 @@ function play(c,auto){
   const PX=window.NT_PROXY,live=c.cat=='live';
   const viaP=u=>PX&&live?'http://127.0.0.1:'+PX+'/p?u='+encodeURIComponent(u):u;
   const hlsUrl=(live&&/\/live\/[^/]+\/[^/]+\/\d+\.ts(\?|$)/.test(c.url))?c.url.replace(/\.ts(\?|$)/,'.m3u8$1'):(live&&/\/\/[^/]+\/[^/]+\/[^/]+\/\d+$/.test(c.url.split('?')[0])?c.url.split('?')[0]+'.m3u8':c.url);
-  let pre=null;
+  const tsUrl=/\/live\//.test(c.url)&&/\.m3u8(\?|$)/i.test(c.url)?c.url.replace(/\.m3u8(\?|$)/i,'.ts$1'):(/\/live\//.test(c.url)&&!/\.[a-z0-9]{2,4}(\?|$)/i.test(c.url.split('/').pop())?c.url+'.ts':'');
+  let pre=null;dbgReset(c);
   if(live){q.length=0;
     if(PX){ph('Conectando ao canal…',x?x.e.title:'',true);
       // descobre o formato real do canal (HLS ou TS) antes de escolher o player
       pre=fetch('http://127.0.0.1:'+PX+'/probe?u='+encodeURIComponent(c.url)).then(r=>r.json()).catch(()=>({})).then(j=>{
         const hls=/mpegurl/i.test(j.ct||'')||/\.m3u8(\?|$)/i.test(c.url);
+        dbg('sonda: '+(j.status||'?')+' '+(j.ct||'sem resposta'));
+        // canal em HLS: tenta antes a versão contínua (.ts) do mesmo canal — não depende de atualizar a lista a cada 6 s
+        if(hls&&tsUrl)q.push('mpegtsT');
         if(hls)q.push('hls','mpegts');else q.push('mpegts','hls2');
         q.push('native','mpegtsD','hlsD');ph('Carregando…',x?x.e.title:'',true)})}
     else{q.push('mpegts');if(window.Hls)q.push('hls2');q.push('native')}}
-  const next=why=>{if(my!=tok)return;errs.push(why);stop();if(q.length)run();else{ph('Não foi possível reproduzir','Tente outro item ou use o botão VLC.',true);toast('Falha ao reproduzir: '+errs.join(' | ')+(window.bobNative?' — o VLC costuma abrir formatos que o player interno não suporta (4K/H.265).':''),window.bobNative?'Abrir no VLC':'',window.bobNative?()=>$('#vlc').click():null,'er')}};
+  const next=why=>{if(my!=tok)return;errs.push(why);dbg('falhou: '+why);stop();if(q.length)run();else{ph('Não foi possível reproduzir','Tente outro item ou use o botão VLC.',true);toast('Falha ao reproduzir: '+errs.join(' | ')+(window.bobNative?' — o VLC costuma abrir formatos que o player interno não suporta (4K/H.265).':''),window.bobNative?'Abrir no VLC':'',window.bobNative?()=>$('#vlc').click():null,'er')}};
   v.onerror=()=>next('mídia');
-  v.onplaying=()=>{if(my==tok)ph('','',false)};
+  v.onplaying=()=>{if(my==tok){ph('','',false);dbg('tocando ('+(isFinite(v.duration)?Math.round(v.duration)+'s':'ao vivo')+')')}};
   v.onloadedmetadata=()=>{if(my==tok&&resumeAt&&isFinite(v.duration)&&resumeAt<v.duration-30){v.currentTime=resumeAt;const t=resumeAt;resumeAt=0;
     toast('Continuando de '+fmt(t),'Do início',()=>{v.currentTime=0})}};
   function run(){if(my!=tok)return;let e=q.shift();
-    const src=e=='hls2'?viaP(hlsUrl):e=='hlsD'?hlsUrl:e=='mpegtsD'?c.url:viaP(c.url);
-    if(e=='hlsD')e='hls';if(e=='hls2')e='hls';if(e=='mpegtsD')e='mpegts';
+    const src=e=='hls2'?viaP(hlsUrl):e=='hlsD'?hlsUrl:e=='mpegtsD'?c.url:e=='mpegtsT'?viaP(tsUrl):viaP(c.url);
+    dbg('tentando: '+e);
+    if(e=='hlsD')e='hls';if(e=='hls2')e='hls';if(e=='mpegtsD'||e=='mpegtsT')e='mpegts';
     if(e=='hls'&&window.Hls&&Hls.isSupported()){const h=eng=new Hls({enableWorker:true,manifestLoadingTimeOut:60000,levelLoadingTimeOut:30000,fragLoadingTimeOut:60000,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:3,fragLoadingMaxRetry:4,maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:30,liveSyncDurationCount:5,maxBufferSize:120e6,capLevelToPlayerSize:true});let rec=0;
       h.loadSource(src);h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,()=>{v.play().catch(()=>{});fillQ(h)});
-      h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type==Hls.ErrorTypes.MEDIA_ERROR&&!rec++)h.recoverMediaError();else next('hls: '+d.details)})}
+      h.on(Hls.Events.LEVEL_LOADED,(_,d)=>dbg('hls lista: '+(d.details.live?'AO VIVO':'VOD')+' '+d.details.fragments.length+' seg')) ;h.on(Hls.Events.ERROR,(_,d)=>{dbg('hls erro: '+d.details+(d.fatal?' (fatal)':''));if(!d.fatal)return;if(d.type==Hls.ErrorTypes.MEDIA_ERROR&&!rec++)h.recoverMediaError();else next('hls: '+d.details)})}
     else if(e=='mpegts'&&window.mpegts&&mpegts.isSupported()){const live=c.cat=='live';
       const p=eng=mpegts.createPlayer({type:'mpegts',isLive:live,url:src},{enableWorker:true,enableStashBuffer:true,stashInitialSize:1024*1024,liveBufferLatencyChasing:false,lazyLoadMaxDuration:180,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30});
       p.attachMediaElement(v);p.on(mpegts.Events.ERROR,(t,d)=>next('mpegts: '+d));p.load();p.play().catch(()=>{})}
@@ -491,3 +496,14 @@ if(window.ntNative&&ntNative.ok){const H=ntNative.hooks;
 setView('browse');renderAll();renderPls();
 (async()=>{await applyLists();if(!S.all.length&&window.NT_DEFAULT_M3U)loadUrl(window.NT_DEFAULT_M3U,window.NT_DEFAULT_NAME);else refreshStale()})();
 loadHL(false);
+
+/* ---------- diagnóstico (Ctrl+D) ---------- */
+const DBG=[];let dbgOn=false,dbgT=0;
+function dbgReset(c){DBG.length=0;dbg('canal: '+(c.name||'')+' | tipo do link: '+((c.url.split('?')[0].split('/').pop().match(/\.[a-z0-9]{2,4}$/i)||['sem extensão'])[0]))}
+function dbg(s){DBG.push(new Date().toTimeString().slice(0,8)+' '+s);if(DBG.length>60)DBG.shift();if(dbgOn)dbgDraw()}
+function dbgDraw(){let el=document.getElementById('dbgp');if(!el){el=document.createElement('pre');el.id='dbgp';el.style.cssText='position:fixed;right:8px;bottom:8px;width:46vw;max-height:60vh;overflow:auto;z-index:99999;background:rgba(0,0,0,.88);color:#9ef;font:11px/1.35 monospace;padding:10px;border:1px solid #2ad;border-radius:8px;white-space:pre-wrap;margin:0';document.body.appendChild(el)}
+  el.hidden=!dbgOn;if(!dbgOn)return;const PX=window.NT_PROXY;
+  const v2=document.getElementById('v');const st='video: t='+(v2?v2.currentTime.toFixed(1):'-')+' dur='+(v2?(isFinite(v2.duration)?v2.duration.toFixed(1):'inf'):'-')+' pronto='+(v2?v2.readyState:'-')+(v2&&v2.paused?' PAUSADO':'')+(v2&&v2.ended?' FIM':'');
+  const head='== NTPlay diagnóstico (Ctrl+D fecha) ==\n'+st+'\n'+DBG.join('\n');
+  if(PX)fetch('http://127.0.0.1:'+PX+'/log').then(r=>r.text()).then(t=>{el.textContent=head+'\n\n== repasse ==\n'+t;el.scrollTop=el.scrollHeight}).catch(()=>{el.textContent=head});else el.textContent=head}
+addEventListener('keydown',e=>{if(e.ctrlKey&&(e.key=='d'||e.key=='D')){e.preventDefault();dbgOn=!dbgOn;clearInterval(dbgT);if(dbgOn)dbgT=setInterval(dbgDraw,2000);dbgDraw()}});
