@@ -23,12 +23,13 @@
     <div id="vid"><video id="v" controls playsinline></video>
      <div id="ph"><div class="ci" data-ic="tv"></div><h2 id="ph1">Carregando…</h2><p id="ph2"></p></div>
      <div id="tags"></div>
+     <div id="ffb" hidden><button class="ib" id="ffpp" title="Pausar / continuar (espaço)">⏯</button><span id="fft1">0:00</span><input type="range" id="ffr" min="0" max="0" value="0" step="1"><span id="fft2">--:--</span><span id="ffseek"><button class="ib" data-ffs="-30" title="Voltar 30 s">−30s</button><button class="ib" data-ffs="30" title="Avançar 30 s">+30s</button></span><span class="tg d" id="ffm">FFmpeg</span></div>
      <div id="ptop"><button class="ib" id="bk" title="Voltar (Esc)" data-ic="back"></button><span id="pt2"></span><span class="sp"></span><span class="tg d" id="rsb" hidden></span><select id="qsel" class="in qs" hidden title="Qualidade"></select></div></div>
     <div id="bar">
      <div class="l"><b id="bt">—</b><span class="chip" id="bg" hidden></span><button class="ib fv" id="bf" title="Favoritar" hidden>★</button></div>
      <div class="r"><label class="ck"><input type="checkbox" id="an"> Próximo automático</label>
       <button class="ib" id="pv" title="Anterior (PgUp)">⏮</button><button class="ib" id="nx" title="Próximo (PgDn)">⏭</button><button class="ib" id="fs" title="Tela cheia (F)">⛶</button>
-      <button class="pk" id="vlc" hidden>▶ VLC</button><label class="ck" id="vlcl" hidden><input type="checkbox" id="vlca"> Sempre no VLC</label><span class="lv" id="lvb" hidden><i></i>AO VIVO</span></div>
+      <button class="pk" id="vlc" hidden title="Abrir em outro player ou no modo compatibilidade">▶ Outros players</button><label class="ck" id="vlcl" hidden><input type="checkbox" id="vlca"> Sempre no player externo</label><span class="lv" id="lvb" hidden><i></i>AO VIVO</span></div>
     </div>
    </div>
    <aside id="rside"><div class="hd" id="rx"></div><div id="rl"></div><div class="ft" id="rf"></div></aside>
@@ -46,7 +47,8 @@
   <div><h4>Enviar lista pelo celular</h4><p class="small">Escaneie o QR code com o celular (ou abra o link) e cole a lista numa página web. Ela chega aqui automaticamente.</p>
    <div id="qrbox"></div><div class="btns" style="margin-top:8px"><input type="text" id="slink" readonly placeholder="Link de envio"><button class="bt" id="scopy">Copiar link</button></div>
    <input type="text" id="sbase" placeholder="Endereço da página enviar.html (ex.: https://usuario.github.io/NTPlay/)" style="margin-top:8px"></div>
-  <div><h4>Preferências</h4><label class="ck" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="padult"> Mostrar conteúdo adulto (fica no fim da lista)</label><label class="ck" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="plite"> Modo leve (menos imagens e efeitos, mais rápido)</label></div>
+  <div><h4>Preferências</h4><label class="ck" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="padult"> Mostrar conteúdo adulto (fica no fim da lista)</label><label class="ck" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="plite"> Modo leve (menos imagens e efeitos, mais rápido)</label>
+   <div id="pmodew" hidden style="margin-top:8px"><label class="small" for="pmode">Reprodução no PC</label><select id="pmode" class="in" style="margin-top:4px"><option value="auto">Automática (tenta todos os players e usa o FFmpeg se precisar)</option><option value="ff">Sempre modo compatibilidade (FFmpeg: converte o áudio AC3/DTS)</option><option value="ffenc">Sempre converter o vídeo (4K/H.265 em PCs sem suporte)</option></select><p class="small" id="pmodei" style="margin-top:6px"></p></div></div>
   <div><h4>Destaques e capas da internet</h4><input type="text" id="tkey" placeholder="Chave TMDB (opcional, grátis em themoviedb.org)"><div class="btns" style="margin-top:8px"><button class="bt" id="mhl">↻ Atualizar destaques</button></div>
    <p class="small" style="margin-top:8px">Sem chave o app usa Wikipédia (em português), TVMaze e iTunes. Com a chave TMDB as capas, notas e banners ficam mais completos.</p></div>
  </div>
@@ -60,6 +62,7 @@
 <script src="config.js"></script>
 <script src="js/platform.js"></script>
 <script src="js/native.js"></script>
+<script src="js/futebol.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
