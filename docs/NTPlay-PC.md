@@ -9,7 +9,7 @@ Situação em 20/10/2026 · repositório `natanpg/NTPlay` (raiz, `electron/` + `
 
 Player IPTV (M3U / Xtream) para Windows, feito em **Electron**. A interface web (`www/`) é a mesma base das versões navegador, celular (Capacitor) e iOS.
 
-- **Versão atual:** **3.3.0** (`package.json`)
+- **Versão atual:** **3.4.0** (`package.json`)
 - **Downloads (sempre a última versão):**
   - Instalador: `https://github.com/NataNpg/NTPlay/releases/download/pc-latest/NTPlay.Setup.<versão>.exe`
   - Portátil: `https://github.com/NataNpg/NTPlay/releases/download/pc-latest/NTPlay.<versão>.exe`
@@ -83,6 +83,15 @@ Servidor HTTP em `127.0.0.1:<porta aleatória>`, informada ao app via IPC `proxy
 - **F12:** DevTools. Ficaram quebradas na 3.0.1–3.0.2 porque os cabeçalhos eram alterados também em `devtools://`; corrigido para alterar só `http(s)`.
 - Pelo console: `S.cur.c.url` (canal atual), `NT_PROXY`, `mpegts`, `Hls`.
 
+## 6a. Séries e capas pela API Xtream (3.4.0)
+
+Em listas Xtream (link `get.php`/`player_api.php` com usuário e senha), a M3U do `get.php` lista **um item por episódio**, então séries cujos episódios se chamam "Nome Subtítulo" (sem SxxEyy) viravam vários cards, sem agrupar, e a capa era o print do episódio. Agora:
+
+- `loadXtreamSeries()` (em `applyLists`) chama `get_series` de cada lista Xtream e monta `XSERMAP` = nome oficial da série → {nome, capa (pôster), id}. Cache 6 h em memória e `LS.ntXser`.
+- `build()` agrupa os episódios pela série: tenta `epInfo` (SxxEyy); senão `serMatch(nome)` casa o **maior prefixo** do nome do episódio com um nome de série do `get_series`. O card recebe o nome oficial e a **capa oficial** (`o.cov=true`).
+- A capa oficial nunca é removida pela regra de "capa genérica", e no `pcard` as séries sem capa oficial preferem o pôster buscado (`inf.img`) ao `tvg-logo` do episódio (que costuma ser uma cena).
+- A lista é montada na hora com a M3U; quando o `get_series` chega (logo depois), `build()` roda de novo e reagrupa. Episódios continuam vindo das URLs reais da M3U (playback inalterado). Testado: "House of Ninjas A proposta/A pista/A flor" e "Uma Dose Diária de Sol …" viram um card só com a capa certa.
+
 ## 6b. Biblioteca, capas e abas (3.1.0)
 
 - **Séries:** o nome é limpo por `serT()` ("Colony S03 Colony" → "Colony") e a chave é o nome normalizado (+ `|L` para legendado), então as temporadas que vinham separadas se juntam. Episódio repetido (mesmo S/E) é ignorado. O título do episódio aparece sem o prefixo (`epName`). O botão mostra o primeiro episódio real (T3 E1 quando só existe a T3).
@@ -117,6 +126,7 @@ Servidor HTTP em `127.0.0.1:<porta aleatória>`, informada ao app via IPC `proxy
 | 3.0.3 | Prefere `.ts` contínuo, painel Ctrl+D, DevTools corrigido. |
 | 3.0.4 | Conexão única (sem consulta) e emenda dos pedaços. *Congelava: pacotes TS desalinhados.* |
 | 3.0.5 | Emenda alinhada em pacotes de 188 bytes, sem cache de token. |
+| 3.4.0 | Capas e agrupamento de séries pela API Xtream (`get_series`): episódios "Nome Subtítulo" viram um card só com a capa oficial, não a cena. **Aguardando teste do usuário.** |
 | 3.3.0 | Presença virou contagem anônima (id diário, sem lista/nome/conteúdo) e o aviso saiu do app; painel com médias por dia, horário de pico e gráficos; player ao vivo mais suave (pulador de buracos só em travada real + buffer no FFmpeg); Futebol mostra o canal que vai passar (horário pela EPG) e o que está passando (● AGORA). **Aguardando teste do usuário.** |
 | 3.2.0 | Ao vivo pelo FFmpeg por padrão (fim das travadas por salto de tempo), pulador de buracos, séries EP01/Capítulo agrupadas (capas), Futebol só com canais passando jogo (EPG), presença + painel `admin.html`. **Aguardando teste do usuário.** |
 | 3.1.0 | Repasse espera a conexão única liberar e mostra o motivo da falha; modo FFmpeg (áudio AC3/DTS, vídeo 4K/H.265 com placa de vídeo) e players externos (VLC, mpv, PotPlayer, MPC-HC); séries com temporadas juntas; capas/sinopses do Xtream + TMDB; animes; aba FUTEBOL; selo de vencimento das listas. |

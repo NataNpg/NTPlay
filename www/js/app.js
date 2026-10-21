@@ -40,17 +40,36 @@ const ANI_T=new RegExp('\\b('+['naruto','boruto','one piece','dragon ball','blea
 function theme(e,g){const t=e.kind=='l'?g+' '+e.title:g,inf=INFO[e.key];
   if(ANI_G.test(g)||ANI_T.test(e.title)||(e.kind=='l'&&ANI_G.test(e.title))||(inf&&inf.an))return'ANIMES';
   if(/(kids|infantil|desenho|cartoon|baby|junior|gloob|nick|disney jr|gloobinho)/i.test(t))return'INFANTIL';return''}
+/* séries do Xtream (get_series): uma entrada por série, com a CAPA certa (pôster) e o nome oficial.
+   Usado para juntar episódios nomeados "Nome Subtítulo" (sem SxxEyy) e dar a capa, em vez do print do episódio. */
+let XSERMAP=new Map();const XSCACHE={};
+const xCover=o=>{const c=(o&&(o.cover||o.cover_big||o.stream_icon))||'';return /^https?:\/\//.test(c)?c:''};
+async function xSeriesList(c){const key=c.base+'|'+c.u,now=Date.now();
+  if(XSCACHE[key]&&now-XSCACHE[key].ts<6*36e5)return XSCACHE[key].a;
+  let cache={};try{cache=JSON.parse(LS.ntXser||'{}')}catch(e){}
+  if(cache[key]&&now-cache[key].ts<6*36e5){XSCACHE[key]={a:cache[key].a,ts:cache[key].ts};return cache[key].a}
+  let a=[];try{const j=await(await fetch(api(c,'get_series'),{cache:'no-store'})).json();if(Array.isArray(j))a=j.map(s=>[String(s.name||'').trim(),xCover(s),String(s.series_id||'')]).filter(x=>x[0])}catch(e){return(XSCACHE[key]&&XSCACHE[key].a)||[]}
+  XSCACHE[key]={a,ts:now};try{cache[key]={a,ts:now};const ks=Object.keys(cache);while(ks.length>6)delete cache[ks.shift()];LS.ntXser=JSON.stringify(cache)}catch(e){}return a}
+async function loadXtreamSeries(lists){const map=new Map();
+  for(const o of lists){const c=credsOf(o.url);if(!c)continue;const a=await xSeriesList(c);
+    for(const x of a){const key=norm(serT(x[0]));if(key&&!map.has(key))map.set(key,{name:serT(x[0]),cover:x[1],id:x[2]})}}
+  XSERMAP=map;return map.size}
+function serMatch(name){if(!XSERMAP.size)return null;const w=norm(name).split(' ').filter(Boolean);
+  for(let k=Math.min(w.length,12);k>=2;k--){const s=XSERMAP.get(w.slice(0,k).join(' '));if(s)return s}return null}
 function build(){
   const live=[],mv=[],sm=new Map();S.byUrl=new Map();const hideA=!showAdult();
   for(const c of S.all){if(hideA&&ADR.test(c.name+' '+c.group))continue;
     if(c.cat=='movies'){const e={kind:'m',key:'m:'+c.url,title:c.name,group:cleanG(c.group),logo:c.logo,ch:[c]};mv.push(e);S.byUrl.set(c.url,{e,c})}
-    else if(c.cat=='series'){const i=epInfo(c.name)||(()=>{const z=c.name.match(/^(.+?)[\s\-–|:#]+(\d{1,4})\s*$/);return z?{t:z[1],s:1,e:+z[2]}:null})(),t=serT(i?i.t:c.name),leg=/legendad|\[l\]|\(l\)|\bleg\b/i.test(c.name+' '+c.group)?'|L':'',k='s:'+(norm(t)||t.toLowerCase())+leg;let o=sm.get(k);
-      if(!o){o={kind:'s',key:k,title:t+(leg?' (Legendado)':''),group:cleanG(c.group),logo:c.logo,ch:[],se:new Set()};sm.set(k,o)}
+    else if(c.cat=='series'){const i=epInfo(c.name)||(()=>{const z=c.name.match(/^(.+?)[\s\-–|:#]+(\d{1,4})\s*$/);return z?{t:z[1],s:1,e:+z[2]}:null})();
+      let t,xm;if(i){t=serT(i.t);xm=XSERMAP.get(norm(t))}else{xm=serMatch(c.name);t=xm?xm.name:serT(c.name)}
+      const leg=/legendad|\[l\]|\(l\)|\bleg\b/i.test(c.name+' '+c.group)?'|L':'',k='s:'+(norm(t)||t.toLowerCase())+leg,cov=(xm&&xm.cover)||'';let o=sm.get(k);
+      if(!o){o={kind:'s',key:k,title:t+(leg?' (Legendado)':''),group:cleanG(c.group),logo:cov||c.logo,ch:[],se:new Set(),cov:!!cov};sm.set(k,o)}
+      if(cov&&!o.cov){o.logo=cov;o.cov=true}
       c.s=i?i.s:1;c.e=i?i.e:o.ch.length+1;const se=c.s+'x'+c.e;if(i&&o.se.has(se))continue;o.se.add(se);if(!o.logo)o.logo=c.logo;o.ch.push(c);S.byUrl.set(c.url,{e:o,c})}
     else{const e={kind:'l',key:'l:'+c.url,title:c.name,group:cleanG(c.group),logo:c.logo,ch:[c]};live.push(e);S.byUrl.set(c.url,{e,c})}}
   const adl=a=>a.sort((x,y)=>isAdult(x)-isAdult(y));adl(live);adl(mv);const ser=adl([...sm.values()]);for(const o of ser){o.ch.sort((a,b)=>a.s-b.s||a.e-b.e);o.ns=new Set(o.ch.map(c=>c.s)).size;delete o.se}
-  // capa genérica do servidor (a mesma imagem em vários títulos diferentes) é descartada; versões dublada/legendada do mesmo título não contam
-  const cnt=new Map(),vod=[...mv,...ser];vod.forEach(o=>{if(!o.logo)return;let st=cnt.get(o.logo);if(!st)cnt.set(o.logo,st=new Set());st.add(norm(o.kind=='s'?serT(o.title.replace(/\s*\(Legendado\)$/,'')):o.title))});vod.forEach(o=>{if(o.logo&&cnt.get(o.logo).size>2)o.logo=''});
+  // capa genérica do servidor (a mesma imagem em vários títulos diferentes) é descartada; a capa oficial da série (o.cov) nunca é removida
+  const cnt=new Map(),vod=[...mv,...ser];vod.forEach(o=>{if(!o.logo||o.cov)return;let st=cnt.get(o.logo);if(!st)cnt.set(o.logo,st=new Set());st.add(norm(o.kind=='s'?serT(o.title.replace(/\s*\(Legendado\)$/,'')):o.title))});vod.forEach(o=>{if(o.logo&&!o.cov&&cnt.get(o.logo)&&cnt.get(o.logo).size>2)o.logo=''});
   S.live=live;S.mov=mv;S.ser=ser;S.every=live.concat(mv,ser);S.map=new Map(S.every.map(e=>[e.key,e]));
   S.every.forEach(e=>{e.th=theme(e,e.group)});
   S.idx={m:new Map(),s:new Map()};mv.forEach(e=>{const k=norm(e.title);if(k&&!S.idx.m.has(k))S.idx.m.set(k,e)});ser.forEach(e=>{const k=norm(e.title);if(k&&!S.idx.s.has(k))S.idx.s.set(k,e)});
@@ -340,7 +359,7 @@ const bgOf=t=>{let h=0;for(const ch of t)h=(h*31+ch.charCodeAt(0))%360;return`ba
 const ini=e=>esc((e.title.replace(/[^\p{L}\p{N}]/gu,'')[0]||'?').toUpperCase());
 const imgTag=u=>u?`<img loading="lazy" referrerpolicy="no-referrer" src="${esc(u)}" onerror="needImg(this)">`:'';
 const star=e=>`<button class="fv${S.fav.has(e.key)?' on':''}" data-f="${esc(e.key)}" title="Favoritar">★</button>`;
-function pcard(e,c,rm){const cur=S.cur&&S.cur.e.key==e.key,p=eprog(e),inf=INFO[e.key]||{},lg=e.logo||inf.img||'',rt=e.r||inf.r;
+function pcard(e,c,rm){const cur=S.cur&&S.cur.e.key==e.key,p=eprog(e),inf=INFO[e.key]||{},lg=(e.kind=='s'&&!e.cov)?(inf.img||e.logo||''):(e.logo||inf.img||''),rt=e.r||inf.r;
   return`<div class="pc${cur?' cur':''}" data-k="${esc(e.key)}"${c?` data-c="${esc(c.url)}"`:''} data-u="${esc(e.ch[0].url)}"${lg||inf.none||isAdult(e)?'':' data-need="1"'} tabindex="0">${rm?`<span class="rmb" data-rm="${esc(e.key)}" role="button" tabindex="0" title="Remover de Continuar assistindo" aria-label="Remover">✕</span>`:''}<div class="im" style="${bgOf(e.title)}"><span class="ini">${ini(e)}</span>${imgTag(lg)}<div class="grad"></div>
    ${rt?`<span class="rt">★ ${rt}</span>`:''}<span class="tr">${e.kind=='s'?e.ns+(e.ns>1?' temps.':' temp.'):'HD'}</span><div class="ov"><i>${ic('play',1)}</i></div>
    <div class="nm"><div class="t">${esc(e.title)}</div><div class="g">${esc(e.group)}</div></div>${star(e)}${p?`<div class="pb"><i style="width:${p}%"></i></div>`:''}</div></div>`}
@@ -481,7 +500,9 @@ async function applyLists(){const all=((await dbAll().catch(()=>[]))||[]).sort((
   if(!act.length&&LS.bobList&&all.some(o=>o.id==LS.bobList))act=[LS.bobList];if(!act.length&&all.length)act=[all[0].id];setActive(act);
   const on=all.filter(o=>act.includes(o.id)),ch=[],seen=new Set();
   for(const o of on)for(const c of parseM3U(o.text)){if(seen.has(c.url))continue;seen.add(c.url);c.src=o.name;ch.push(c)}
-  if(!on.length){S.all=[];S.pl='';build();S.stack=[];renderAll()}else setList(ch,on.map(o=>o.name).join(' + '));renderPls()}
+  if(!on.length){S.all=[];S.pl='';build();S.stack=[];renderAll()}else{setList(ch,on.map(o=>o.name).join(' + '));
+    loadXtreamSeries(on.filter(o=>credsOf(o.url))).then(n=>{if(n&&S.all.length){build();if(S.view=='browse')renderBrowse();updBar()}}).catch(()=>{})}
+  renderPls()}
 async function addList(t,name,url){const n=parseM3U(t).length;if(!n){toast('Nenhum canal encontrado nessa lista. Verifique se é um M3U válido.','',null,'er');return false}
   const id=url||'file:'+name,all=(await dbAll().catch(()=>[]))||[],old=all.find(o=>o.id==id);let nm=(old&&old.name)||name;
   if(!old&&all.some(o=>o.name==nm)){let i=2;while(all.some(o=>o.name==nm+' ('+i+')'))i++;nm+=' ('+i+')'}

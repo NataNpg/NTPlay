@@ -12,11 +12,16 @@ class MainActivity : ComponentActivity() {
     private var state: AppState? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Stick de Android TV tem pouca memória: metade de memória por imagem (RGB565), cache limitado em
+        // RAM e cache em disco. Sem isso, muitas capas falhavam ao decodificar e o app fechava com lista grande.
         coil.Coil.setImageLoader(
             coil.ImageLoader.Builder(this)
                 .okHttpClient(Net.img)
                 .crossfade(false)
                 .respectCacheHeaders(false)
+                .allowRgb565(true)
+                .memoryCache { coil.memory.MemoryCache.Builder(this).maxSizePercent(0.20).build() }
+                .diskCache { coil.disk.DiskCache.Builder().directory(cacheDir.resolve("img_cache")).maxSizeBytes(96L * 1024 * 1024).build() }
                 .build()
         )
         setContent {

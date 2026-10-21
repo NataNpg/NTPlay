@@ -112,3 +112,7 @@ Player IPTV (listas M3U / Xtream Codes) **nativo** para Android TV, feito para s
 ## Presença (1.2.0 — anônima)
 
 `Presence.kt` manda a cada 5 min um sinal anônimo (mesmo formato `ntp1.` do web): só `{id (hash diário), p:"tv", v, t}` — sem lista, nome, modelo nem o que assiste. O aviso/opção foi removido (é anônimo). `versionName 1.2.0` / `versionCode 3`.
+
+## Memória de imagens (1.2.1)
+
+Stick de Android TV tem pouca memória. O Coil (MainActivity) passou a usar RGB565 (metade de memória por imagem), cache em RAM limitado a 20% e cache em disco (96 MB em `cacheDir/img_cache`). Objetivo: capas que falhavam ao decodificar passarem a carregar e o app parar de fechar sozinho com listas grandes. `versionName 1.2.1` / `versionCode 4`. **A travada no ao vivo e a aba Futebol na TV ainda estão pendentes — precisam de teste no aparelho para iterar.**
