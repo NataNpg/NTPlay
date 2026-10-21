@@ -135,13 +135,17 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
             .setConstantBitrateSeekingEnabled(true)
             .setTsExtractorFlags(DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS)
         val rf = DefaultRenderersFactory(ctx).setEnableDecoderFallback(true).setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-        // buffer maior = menos travadas; início rápido (1,5 s) e recuperação com 4 s de folga
+        // buffer: filmes/séries seguem a preferência (Padrão / Grande / Muito grande); ao vivo fixo
+        val minV = when (st.store.bufferMode) { 1 -> 25_000; 2 -> 45_000; else -> 15_000 }
+        val maxV = when (st.store.bufferMode) { 1 -> 60_000; 2 -> 90_000; else -> 50_000 }
         val lc = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(if (live) 20_000 else 30_000, if (live) 60_000 else 120_000, 1_500, 4_000)
+            .setBufferDurationsMs(if (live) 20_000 else minV, if (live) 60_000 else maxV, 1_500, if (live) 4_000 else 5_000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
         val p = ExoPlayer.Builder(ctx, rf).setLoadControl(lc).setMediaSourceFactory(DefaultMediaSourceFactory(ctx, ex).setDataSourceFactory(ds)).build()
+        // sempre a melhor qualidade: nunca reduz resolução/bitrate e aceita 4K/UHD quando o canal entrega
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setPreferredAudioLanguage("pt")
+            .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE).setMaxVideoBitrate(Int.MAX_VALUE).setForceHighestSupportedBitrate(true)
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !st.subs).apply { if (st.subs) setPreferredTextLanguage("pt") }.build()
         p
     }

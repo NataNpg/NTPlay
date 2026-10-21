@@ -116,3 +116,20 @@ Player IPTV (listas M3U / Xtream Codes) **nativo** para Android TV, feito para s
 ## Memória de imagens (1.2.1)
 
 Stick de Android TV tem pouca memória. O Coil (MainActivity) passou a usar RGB565 (metade de memória por imagem), cache em RAM limitado a 20% e cache em disco (96 MB em `cacheDir/img_cache`). Objetivo: capas que falhavam ao decodificar passarem a carregar e o app parar de fechar sozinho com listas grandes. `versionName 1.2.1` / `versionCode 4`. **A travada no ao vivo e a aba Futebol na TV ainda estão pendentes — precisam de teste no aparelho para iterar.**
+
+## Versão 1.3.0 (Android TV) — Futebol, qualidade e compatibilidade
+
+Tudo nesta versão é só no app nativo de Android TV.
+
+- **Aba FUTEBOL** (`Futebol.kt`): jogos do dia pela API pública da ESPN (`site.api.espn.com/.../soccer/<liga>/scoreboard?dates=AAAAMMDD&lang=pt&region=br`) para ~16 campeonatos (Brasileirão A/B, Copa do Brasil, Libertadores, Sul-Americana, Champions, Europa, ligas europeias, Mundo/Eliminatórias, MLS). Agrupa por campeonato, mostra horário/ao vivo/placar e, por baixo, os canais de esporte da lista. Em cada jogo, casa canais da lista pelo nome dos times (sem EPG por enquanto). Cache 1 min com jogo ao vivo, 10 min senão. Seletor Ontem/Hoje/Amanhã. Adicionada em `TABS` (AppState) e no `when (tab)` de `Browse` (UI.kt).
+- **Qualidade máxima / 4K** (`Player.kt`): `trackSelectionParameters` com `setMaxVideoSize(MAX, MAX)`, `setMaxVideoBitrate(MAX)` e `setForceHighestSupportedBitrate(true)` — nunca reduz resolução/bitrate e aceita 4K/UHD quando o canal entrega. `DefaultRenderersFactory` já usa decodificadores de hardware com fallback (HEVC/H.265).
+- **Buffering de filmes/séries** (preferência `bufferMode` no Store; botão em Preferências): Padrão (15 s), Grande (~25 s) ou Muito grande (~45 s). Aplicado ao `DefaultLoadControl` só no VOD; ao vivo fica fixo.
+- **Compatibilidade de fonte (Xtream)** em Preferências: `adultByName` (detectar adulto pelo nome da categoria — liga/desliga a heurística `Util.isAdult`) e `base64` (`Util.maybeB64` decodifica nomes/categorias só quando o texto realmente parece Base64). `Library.build(files, showAdult, b64, adultByName)`.
+- **Memória de imagens** (1.2.1, mantida): Coil com RGB565 + cache de RAM 20% + cache em disco (96 MB). Resolveu capas em branco e o app fechando com listas grandes.
+
+### Pendências pedidas (ainda a fazer, precisam de teste no aparelho)
+- Painel do ao vivo mais rico (EPG agora/próximo, barra de opções como no app de referência).
+- Tela de provedores com estatísticas/diagnóstico e mais ações.
+- Grupos de favoritos personalizados (filmes/séries/animes) criados pelo usuário.
+- Config de playlist (auto-atualização, intervalo, retenção de EPG) e visual do player de VOD.
+- `versionName 1.3.0` / `versionCode 5`.

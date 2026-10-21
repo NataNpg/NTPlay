@@ -67,6 +67,21 @@ class Store(ctx: Context) {
         get() = sp.getBoolean("autonext", true)
         set(v) { sp.edit().putBoolean("autonext", v).apply() }
 
+    // 0 = padrão, 1 = grande (~25 s), 2 = muito grande (~45 s) — buffer de filmes/séries
+    var bufferMode: Int
+        get() = sp.getInt("buffermode", 0)
+        set(v) { sp.edit().putInt("buffermode", v).apply() }
+
+    // decodifica nomes/categorias Xtream em Base64 (só quando o provedor os guarda assim)
+    var base64: Boolean
+        get() = sp.getBoolean("b64names", false)
+        set(v) { sp.edit().putBoolean("b64names", v).apply() }
+
+    // detectar conteúdo adulto pelo nome da categoria (quando o provedor não marca a flag)
+    var adultByName: Boolean
+        get() = sp.getBoolean("adultbyname", true)
+        set(v) { sp.edit().putBoolean("adultbyname", v).apply() }
+
     fun relay(): Pair<String, String> {
         var t = sp.getString("rt", null)
         var k = sp.getString("rk", null)

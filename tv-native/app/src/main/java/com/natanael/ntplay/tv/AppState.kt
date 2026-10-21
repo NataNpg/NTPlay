@@ -14,7 +14,7 @@ import kotlinx.coroutines.withContext
 
 class PlayReq(val item: Item, val ep: Ep, val resume: Long)
 
-val TABS = listOf("RECOMENDAÇÕES", "TV AO VIVO", "FILMES", "SÉRIES", "INFANTIL", "ANIMES", "FAVORITOS")
+val TABS = listOf("RECOMENDAÇÕES", "TV AO VIVO", "FUTEBOL", "FILMES", "SÉRIES", "INFANTIL", "ANIMES", "FAVORITOS")
 
 class AppState(val ctx: Context) {
     val store = Store(ctx)
@@ -90,7 +90,7 @@ class AppState(val ctx: Context) {
         status = "Carregando lista…"
         try {
             val l = withContext(Dispatchers.Default) {
-                val b = Library.build(files, adult)
+                val b = Library.build(files, adult, store.base64, store.adultByName)
                 // pré-calcula agrupamentos fora da tela (evita travar ao trocar de aba)
                 b.every; b.byKey; b.liveGroups; b.movieGroups; b.serieGroups; b.kids; b.anime
                 b
@@ -226,6 +226,12 @@ class AppState(val ctx: Context) {
     fun changeAdult(v: Boolean) { adult = v; store.adult = v; scope.launch { reload() } }
     fun changeAutoNext(v: Boolean) { autoNext = v; store.autoNext = v }
     fun changeSubs(v: Boolean) { subs = v; store.subs = v }
+    var bufferMode by mutableIntStateOf(store.bufferMode)
+    fun changeBuffer(v: Int) { bufferMode = v; store.bufferMode = v }
+    var base64 by mutableStateOf(store.base64)
+    fun changeBase64(v: Boolean) { base64 = v; store.base64 = v; scope.launch { reload() } }
+    var adultByName by mutableStateOf(store.adultByName)
+    fun changeAdultByName(v: Boolean) { adultByName = v; store.adultByName = v; scope.launch { reload() } }
 
     /** atualiza vencimento das listas Xtream (em segundo plano) */
     fun refreshAccounts() {

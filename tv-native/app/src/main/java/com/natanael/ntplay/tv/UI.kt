@@ -425,6 +425,7 @@ fun Browse(st: AppState) {
                     GridOf(st, l, st.group)
                 }
             } else when (tab) {
+                "FUTEBOL" -> FutebolScreen(st, lib)
                 "INFANTIL" -> GridOf(st, lib.kids.take(600), "Infantil")
                 "ANIMES" -> GridOf(st, lib.anime.take(600), "Animes")
                 "FAVORITOS" -> GridOf(st, lib.every.filter { st.favs.contains(it.key) }, "Minha lista")
@@ -773,6 +774,10 @@ fun ListsDialog(st: AppState) {
                     item { TvButton((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAdult(!st.adult) } }
                     item { TvButton((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAutoNext(!st.autoNext) } }
                     item { TvButton((if (st.subs) "☑" else "☐") + " Mostrar legendas (desmarcado = legendas desligadas em tudo)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeSubs(!st.subs) } }
+                    item { TvButton("Buffer de filmes/séries: " + when (st.bufferMode) { 1 -> "Grande (~25 s)"; 2 -> "Muito grande (~45 s)"; else -> "Padrão" }, Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeBuffer((st.bufferMode + 1) % 3) } }
+                    item { Spacer(Modifier.height(4.dp)); Text("COMPATIBILIDADE DE FONTE (XTREAM)", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                    item { TvButton((if (st.adultByName) "☑" else "☐") + " Detectar adulto pelo nome da categoria (quando o provedor não marca)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAdultByName(!st.adultByName) } }
+                    item { TvButton((if (st.base64) "☑" else "☐") + " Decodificar nomes em Base64 (só se os nomes aparecerem embaralhados)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeBase64(!st.base64) } }
                 }
             }
         }

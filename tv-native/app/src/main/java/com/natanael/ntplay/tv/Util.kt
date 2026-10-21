@@ -44,6 +44,17 @@ object Util {
 
     fun isAdult(s: String) = adr.containsMatchIn(s)
 
+    private val b64re = Regex("^[A-Za-z0-9+/]{8,}={0,2}$")
+    /** decodifica Base64 só quando o texto realmente parece Base64 e vira texto legível (senão devolve igual) */
+    fun maybeB64(s: String): String {
+        val t = s.trim()
+        if (t.length % 4 != 0 || !b64re.matches(t)) return s
+        return try {
+            val d = String(android.util.Base64.decode(t, android.util.Base64.DEFAULT), Charsets.UTF_8)
+            if (d.isNotBlank() && d.length >= 2 && d.none { it.code in 0..8 || it.code in 14..31 }) d else s
+        } catch (e: Exception) { s }
+    }
+
     fun cleanG(g: String): String {
         val r = cleanGr.replace(g, "").trim()
         return if (r.isEmpty()) (g.trim().ifEmpty { "Sem grupo" }) else r

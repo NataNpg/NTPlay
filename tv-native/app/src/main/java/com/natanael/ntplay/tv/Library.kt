@@ -38,14 +38,16 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
     val serieGroups by lazy { grp(series) }
 
     companion object {
-        fun build(files: List<File>, showAdult: Boolean): Library {
+        fun build(files: List<File>, showAdult: Boolean, b64: Boolean = false, adultByName: Boolean = true): Library {
             val live = ArrayList<Item>()
             val mv = ArrayList<Item>()
             val sm = LinkedHashMap<String, Item>()
             val seenLive = HashSet<String>()
             for (f in files) {
-                M3u.parse(f) { name, url, group, logo ->
-                    val adult = Util.isAdult("$name $group")
+                M3u.parse(f) { rawName, url, rawGroup, logo ->
+                    val name = if (b64) Util.maybeB64(rawName) else rawName
+                    val group = if (b64) Util.maybeB64(rawGroup) else rawGroup
+                    val adult = adultByName && Util.isAdult("$name $group")
                     if (adult && !showAdult) return@parse
                     when (Util.guess(url, group, name)) {
                         'm' -> mv.add(Item('m', "m:$url", name, Util.cleanG(group), logo, arrayListOf(Ep(name, url, 0, 0)), adult))
