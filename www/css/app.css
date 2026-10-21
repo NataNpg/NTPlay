@@ -218,3 +218,4 @@ html.tv .rmb{width:34px;height:34px;font-size:16px}
 .fw{font-size:10px;color:#fff6;line-height:1.4}.fch{display:flex;flex-wrap:wrap;gap:5px}.fch small{font-size:10px;color:#fff5}.chip.fk{cursor:pointer;color:#fff;background:#e93a7d33;border:1px solid #e93a7d66;max-width:100%;overflow:hidden;text-overflow:ellipsis}.chip.fk:hover{background:#e93a7d66}
 @media(max-width:1440px){#nav{gap:13px}#nav button{font-size:12.5px;letter-spacing:.02em}.st{display:none}}
 @media(max-width:1150px){#nav{display:none}#navs{display:block}}
+.fgt{color:#60a5fa;font-weight:700}

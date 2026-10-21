@@ -172,7 +172,7 @@ function play(c,auto,force){
     clearTimeout(chk);chk=setTimeout(()=>{if(my!=tok||v.paused)return;const vf=v.getVideoPlaybackQuality?v.getVideoPlaybackQuality().totalVideoFrames:1,ab=v.webkitAudioDecodedByteCount;
       dbg('checagem: quadros='+vf+' áudio='+(ab==null?'?':ab)+' '+v.videoWidth+'x'+v.videoHeight);
       if(!ff||!q.length)return;const at=curT();
-      if(!vf||!v.videoWidth){dbg('sem imagem (codec de vídeo não suportado) — convertendo no FFmpeg');toast('Vídeo em formato não suportado (ex.: H.265). Convertendo…');q.length=0;q.push('ffenc');if(!live)resumeAt=at;stop();run()}
+      if((!vf||!v.videoWidth)&&!(FFM&&FFM.eng=='ffenc')){dbg('sem imagem (codec de vídeo não suportado) — convertendo no FFmpeg');toast('Vídeo em formato não suportado (ex.: H.265). Convertendo…');q.length=0;q.push('ffenc');if(!live)resumeAt=at;stop();run()}
       else if(ab===0&&!FFM&&!/radio|r[aá]dio|fm\b/i.test(c.name)){dbg('sem som (AC3/EAC3/DTS) — convertendo o áudio no FFmpeg');toast('Áudio em formato não suportado (AC3/DTS). Convertendo…');q.length=0;q.push('ffcopy','ffenc');if(!live)resumeAt=at;stop();run()}},6000)};
   v.onloadedmetadata=()=>{if(my==tok&&!FFM&&resumeAt&&isFinite(v.duration)&&resumeAt<v.duration-30){v.currentTime=resumeAt;const t=resumeAt;resumeAt=0;
     toast('Continuando de '+fmt(t),'Do início',()=>{v.currentTime=0})}};
@@ -181,7 +181,7 @@ function play(c,auto,force){
       if(ss&&!force)toast('Continuando de '+fmt(ss),'Do início',()=>play(c,true,{eng:e,ss:0}));force=null;resumeAt=0;
       const src='http://127.0.0.1:'+PX+'/ff?v='+(e=='ffenc'?'enc':'copy')+'&live='+(live?1:0)+'&ss='+Math.floor(ss)+'&id='+id+'&u='+encodeURIComponent(c.url);
       dbg('tentando: FFmpeg '+(e=='ffenc'?'(converte vídeo + áudio)':'(copia vídeo, áudio AAC)')+(ss?' a partir de '+fmt(ss):''));ph('Carregando…',(x?x.e.title:'')+' • modo compatibilidade (FFmpeg)',true);
-      const p=eng=mpegts.createPlayer({type:'mpegts',isLive:true,url:src},{enableWorker:true,enableStashBuffer:true,stashInitialSize:1024*1024,liveBufferLatencyChasing:false,lazyLoad:false,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30});
+      const p=eng=mpegts.createPlayer({type:'mpegts',isLive:true,url:src},{enableWorker:true,enableStashBuffer:true,stashInitialSize:live?512*1024:1024*1024,liveBufferLatencyChasing:false,liveBufferLatencyMaxLatency:6,liveBufferLatencyMinRemain:1.2,lazyLoad:false,autoCleanupSourceBuffer:true,autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30});
       FFM={eng:e,base:ss,id,dur:0,live};ffBar();p.attachMediaElement(v);p.on(mpegts.Events.ERROR,(t,d)=>{if(my!=tok)return;if(FFM&&!live&&FFM.dur&&curT()>FFM.dur-25){onEnded();return}ffErr(id).then(m=>next('ffmpeg: '+d+(m?' ('+m+')':'')))});p.load();p.play().catch(()=>{});return}
     const src=e=='hls2'?viaP(hlsUrl):e=='hlsD'?hlsUrl:e=='mpegtsD'?c.url:e=='mpegtsT'?viaP(tsUrl,1):viaP(c.url,e=='mpegts'||e=='native');
     dbg('tentando: '+e);
@@ -209,15 +209,14 @@ v.addEventListener('waiting',()=>{clearTimeout(wd);const be=bufEnd();wd=setTimeo
 /* pula "buracos" no vídeo: quando o servidor demora para mandar o próximo pedaço, o player fica parado
    antes de um trecho que já chegou. O VLC pula sozinho; aqui fazemos o mesmo. */
 const bufEnd=()=>{const b=v.buffered;return b.length?b.end(b.length-1):0};
+// só pula quando o vídeo REALMENTE travou antes de um trecho que já chegou — um salto único, sem micro-ajustes (que é o que fazia "pular/pipocar")
 function gapJump(why){const b=v.buffered,t=v.currentTime;if(!b.length||v.seeking)return false;
-  for(let i=0;i<b.length;i++){if(b.start(i)<=t+.05&&b.end(i)>t+.3)return false}
-  for(let i=0;i<b.length;i++){const st=b.start(i);if(st>t&&st-t<90&&b.end(i)-st>.5){v.currentTime=st+.05;dbg('pulou buraco de '+(st-t).toFixed(1)+'s ('+why+')');return true}}
-  if(S.cur&&S.cur.c.cat=='live'&&b.end(b.length-1)-b.start(b.length-1)>1&&t<b.start(0)){v.currentTime=b.start(b.length-1)+.05;dbg('voltou para o trecho recebido');return true}
+  for(let i=0;i<b.length;i++){if(b.start(i)<=t+.1&&b.end(i)>t+.25)return false} // ainda há o que tocar à frente: não mexe
+  for(let i=0;i<b.length;i++){const st=b.start(i);if(st>t&&st-t<120&&b.end(i)-st>.8){v.currentTime=st+.03;dbg('pulou um buraco de '+(st-t).toFixed(1)+'s ('+why+')');return true}}
   return false}
-let gjT=0,gjLast=-1;setInterval(()=>{if(S.view!='player'||v.paused||!S.cur)return;const t=v.currentTime;
-  if(Math.abs(t-gjLast)<.01){gjT+=500;if(gjT>=1200){gjT=0;gapJump('parado')}}else gjT=0;gjLast=t;
-  // ao vivo: se ficou muito atrás do que já chegou, chega mais perto (evita acumular atraso depois de travadas)
-  if(S.cur.c.cat=='live'&&bufEnd()-t>45){v.currentTime=bufEnd()-8;dbg('atraso grande — avançou para perto do ao vivo')}},500);
+// detecta travamento de verdade: tempo parado por ~4 s com o vídeo sem conseguir avançar
+let gjT=0,gjLast=-1;setInterval(()=>{if(S.view!='player'||v.paused||!S.cur||v.seeking){gjT=0;return}const t=v.currentTime;
+  if(Math.abs(t-gjLast)<.02&&v.readyState<3){gjT+=700;if(gjT>=4000){gjT=0;gapJump('travado')}}else gjT=0;gjLast=t;},700);
 v.addEventListener('playing',()=>clearTimeout(wd));
 v.addEventListener('ended',onEnded);
 function onEnded(){if(S.cur&&S.cur.c.cat=='live'){dbg('fluxo encerrado pelo servidor — reconectando');const f=FFM?{eng:FFM.eng}:null;setTimeout(()=>{if(S.cur&&S.cur.c.cat=='live')play(S.cur.c,true,f)},400);return}if(!S.cur)return;const u=S.cur.c.url;P[u]={t:0,d:Math.floor(durT())||0,ts:Date.now(),done:true};try{LS.ntProg=JSON.stringify(P)}catch(e){}

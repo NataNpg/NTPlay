@@ -1,12 +1,10 @@
 package com.natanael.ntplay.tv
 
 import android.content.Context
-import android.os.Build
 import android.util.Base64
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
 import org.json.JSONObject
 import java.math.BigInteger
 import java.security.KeyFactory
@@ -63,41 +61,29 @@ object Presence {
         return "ntp1." + b64(epRaw) + "." + b64(iv) + "." + b64(ct)
     }
 
-    private fun deviceId(ctx: Context): String {
+    /** identificador que troca a cada dia: semente local (nunca enviada) + data, com hash. Anônimo. */
+    private fun dayId(ctx: Context): String {
         val sp = ctx.getSharedPreferences("ntplay", Context.MODE_PRIVATE)
-        var id = sp.getString("dev_id", "") ?: ""
-        if (id.isEmpty()) {
-            val r = ByteArray(8).also { SecureRandom().nextBytes(it) }
-            id = "t" + r.joinToString("") { "%02x".format(it) }
-            sp.edit().putString("dev_id", id).apply()
+        var salt = sp.getString("pres_salt", "") ?: ""
+        if (salt.isEmpty()) {
+            val r = ByteArray(16).also { SecureRandom().nextBytes(it) }
+            salt = r.joinToString("") { "%02x".format(it) }
+            sp.edit().putString("pres_salt", salt).apply()
         }
-        return id
+        val day = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        val h = MessageDigest.getInstance("SHA-256").digest((salt + "|" + day).toByteArray())
+        return "a" + h.take(6).joinToString("") { "%02x".format(it) }
     }
 
     fun enabled(ctx: Context) = ctx.getSharedPreferences("ntplay", Context.MODE_PRIVATE).getBoolean("presence", true)
-    fun setEnabled(ctx: Context, v: Boolean) { ctx.getSharedPreferences("ntplay", Context.MODE_PRIVATE).edit().putBoolean("presence", v).apply() }
 
-    /** monta e envia (chamar fora da thread principal) */
-    fun send(ctx: Context, st: AppState) {
+    /** contador anônimo: envia só id (diário), plataforma, versão e hora. Nada de listas, conta ou o que assiste. */
+    fun send(ctx: Context) {
         if (!enabled(ctx)) return
         try {
-            val ls = JSONArray()
-            for (m in st.store.lists().take(12)) {
-                val a = st.store.account(m.id).split('|')
-                val host = try { android.net.Uri.parse(m.url).host ?: "arquivo" } catch (e: Exception) { "arquivo" }
-                ls.put(JSONObject().apply {
-                    put("n", m.name); put("h", if (m.url.isEmpty()) "arquivo" else host); put("c", m.count); put("on", if (m.active) 1 else 0)
-                    if (a.size >= 4) { put("e", a[0].toLongOrNull() ?: 0L); put("s", a[1]); put("m", a[2].toIntOrNull() ?: 0); put("a", a[3].toIntOrNull() ?: 0) }
-                })
-            }
-            val p = st.play
             val ver = try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "" } catch (e: Exception) { "" }
             val o = JSONObject().apply {
-                put("id", deviceId(ctx)); put("nm", ""); put("p", "tv"); put("v", "tv-" + ver)
-                put("os", "Android " + Build.VERSION.RELEASE + " • " + Build.MANUFACTURER + " " + Build.MODEL)
-                put("t", System.currentTimeMillis()); put("off", 0)
-                if (p != null) put("w", JSONObject().apply { put("k", p.item.kind.toString()); put("g", if (p.item.kind == 'l') p.item.group else "") })
-                put("ls", ls)
+                put("id", dayId(ctx)); put("p", "tv"); put("v", "tv-" + ver); put("t", System.currentTimeMillis())
             }
             val body = seal(o.toString()).toRequestBody("text/plain".toMediaType())
             Net.client.newCall(Request.Builder().url("https://ntfy.sh/" + TOPIC).post(body).build()).execute().close()

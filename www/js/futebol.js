@@ -52,7 +52,7 @@ function futStatus(g) {
   return g.t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 // ---- programação (EPG) do servidor Xtream: o que cada canal de esporte está passando agora
-FUT.epg = new Map(); FUT.epgTs = 0; FUT.epgBusy = null; FUT.epgOk = null; FUT.all = false;
+FUT.epg = new Map(); FUT.epgList = new Map(); FUT.epgTs = 0; FUT.epgBusy = null; FUT.epgOk = null; FUT.all = false;
 const futB64 = (x) => { try { return decodeURIComponent(escape(atob(String(x || '')))); } catch (e) { return String(x || ''); } };
 const futBase = (t) => norm(t).replace(/\b(fhd|hd|sd|uhd|4k|h265|hevc|fullhd|alt|backup|[0-9]{3,4}p)\b/g, ' ').replace(/\s+/g, ' ').trim();
 const futSid = (u) => { const m = String(u).split('?')[0].match(/\/(\d+)(?:\.\w+)?$/); return m ? m[1] : ''; };
@@ -71,12 +71,13 @@ function futEpgLoad(force) {
         if (!c || !sid) continue;
         tried++;
         try {
-          const j = await (await fetch(api(c, 'get_short_epg', '&stream_id=' + sid + '&limit=3'))).json();
+          const j = await (await fetch(api(c, 'get_short_epg', '&stream_id=' + sid + '&limit=8'))).json();
           const now = Date.now() / 1000, L = (j && j.epg_listings) || [];
           const cur = L.find((x) => +x.start_timestamp <= now && +x.stop_timestamp > now) || L.find((x) => x.now_playing == 1);
           if (L.length) ok++;
           const v = cur ? { t: futB64(cur.title).trim(), d: futB64(cur.description).trim(), end: +cur.stop_timestamp * 1000 } : null;
-          vs.forEach((x) => FUT.epg.set(x.key, v));
+          const lst = L.map((x) => ({ t: futB64(x.title).trim(), d: futB64(x.description).trim(), s: +x.start_timestamp * 1000, e: +x.stop_timestamp * 1000 })).filter((x) => x.e > Date.now() - 36e5);
+          vs.forEach((x) => { FUT.epg.set(x.key, v); FUT.epgList.set(x.key, lst); });
         } catch (er) {}
       }
     };
@@ -94,24 +95,30 @@ const futKey = (s) => norm(s).replace(/\b(fc|sc|ec|cf|ac|afc|club|clube|de|da|do
 function futChannels(g, sp) {
   const ks = (t) => [...new Set([futKey(t.n), futKey(t.full)].filter((k) => k.length >= 3))];
   const H = ks(g.h), A = ks(g.a), has = (n, K) => K.some((k) => (' ' + n + ' ').includes(' ' + k + ' '));
-  const epg2 = [], both = [], epg1 = [], one = [];
+  const now = Date.now(), kick = g.t.getTime();
+  // casa o jogo com a PROGRAMAÇÃO do canal: agora = está passando; perto do horário = vai passar
+  const epgMatch = (e) => { const L = FUT.epgList.get(e.key); if (!L) return undefined;
+    for (const x of L) { const pn = futKey(x.t + ' ' + x.d); if (has(pn, H) && has(pn, A)) {
+      if (x.s <= now && x.e > now) return 'live';
+      if (x.e > now && x.s - now < 6 * 36e5 && Math.abs(x.s - kick) < 3 * 36e5) return x.s; } }
+    return undefined; };
+  const prog = [], both = [], one = [], seen = new Set();
+  const push = (arr, e, w) => { const k = futBase(e.title); if (seen.has(k)) return; seen.add(k); arr.push({ e, when: w }); };
   for (const e of sp) {
-    const n = futKey(e.title), p = FUT.epg.get(e.key), pn = p ? futKey(p.t + ' ' + p.d) : '';
-    if (pn && has(pn, H) && has(pn, A)) { epg2.push(e); continue; }
-    const h = has(n, H), a = has(n, A);
-    if (h && a) both.push(e);
-    else if (pn && (has(pn, H) || has(pn, A)) && futOnAir(e)) epg1.push(e);
-    else if ((h || a) && FUT_EV.test(e.group + ' ' + e.title)) one.push(e);
+    const m = epgMatch(e); if (m !== undefined) { push(prog, e, m); continue; }
+    const n = futKey(e.title), h = has(n, H), a = has(n, A);
+    if (h && a) push(both, e, futOnAir(e) ? 'live' : null);
+    else if ((h || a) && FUT_EV.test(e.group + ' ' + e.title)) push(one, e, futOnAir(e) ? 'live' : null);
   }
-  const uniq = (L) => { const seen = new Set(); return L.filter((e) => { const k = futBase(e.title); if (seen.has(k)) return false; seen.add(k); return true; }); };
-  return uniq([...epg2, ...both, ...epg1, ...one]).slice(0, 6);
+  return [...prog, ...both, ...one].slice(0, 6);
 }
+const futChEls = (g, sp) => futChannels(g, sp).map((o) => o.e);
 function futCard(g, sp) {
   const ch = g.st == 'post' ? [] : futChannels(g, sp);
   const tm = (t) => `<div class="ftm${t.win ? ' w' : ''}">${t.logo ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(t.logo)}" onerror="this.remove()">` : '<i></i>'}<span>${esc(t.n)}</span><b>${g.st == 'pre' ? '' : esc(t.sc)}</b></div>`;
   return `<div class="fc${g.st == 'in' ? ' on' : ''}"><div class="fst">${futStatus(g)}</div>${tm(g.h)}${tm(g.a)}
     <div class="fw">${esc([g.venue, g.city].filter(Boolean).join(' • '))}</div>
-    <div class="fch">${ch.length ? ch.map((e) => { const p = FUT.epg.get(e.key); return `<button class="chip fk" data-k="${esc(e.key)}" title="${esc(p && p.t ? p.t : e.group)}">▶ ${esc(e.title)}</button>`; }).join('') : g.st == 'post' ? '' : `<small>${g.st == 'in' ? 'Nenhum canal da sua lista está passando este jogo' : 'Canais aparecem quando o jogo começar'}</small>`}</div></div>`;
+    <div class="fch">${ch.length ? ch.map((o) => { const e = o.e, p = FUT.epg.get(e.key), lb = o.when == 'live' ? ' <b class="fl1">• ● AGORA</b>' : o.when ? ' <span class="fgt">• ' + new Date(o.when).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + '</span>' : ''; return `<button class="chip fk" data-k="${esc(e.key)}" title="${esc(p && p.t ? p.t : e.group)}">▶ ${esc(e.title)}${lb}</button>`; }).join('') : g.st == 'post' ? '' : `<small>${g.st == 'in' ? 'Nenhum canal da sua lista está passando este jogo' : g.st == 'pre' ? 'O canal aparece quando a programação confirmar' : ''}</small>`}</div></div>`;
 }
 // cartão de canal com o programa atual
 const futLive = (e, p) => `<div class="pc wc" data-k="${esc(e.key)}" data-u="${esc(e.ch[0].url)}" tabindex="0"><div class="im"><span class="ini">${ini(e)}</span>${imgTag(e.logo)}<div class="grad"></div><span class="tl">● AO VIVO</span><div class="ov"><i>${ic('play', 1)}</i></div></div><div class="nm"><div class="t">${esc(e.title)}</div><div class="g">${esc(p ? '⚽ ' + p.t : e.group)}</div></div>${star(e)}</div>`;
@@ -126,7 +133,7 @@ function futPage() {
   // 1) canais passando jogo agora (programação do servidor + canais de evento com os times de jogos ao vivo)
   if (FUT.off == 0) {
     const liveG = D ? D.games.filter((g) => g.st == 'in') : [];
-    const fromGames = new Set(liveG.flatMap((g) => futChannels(g, sp)));
+    const fromGames = new Set(liveG.flatMap((g) => futChEls(g, sp)));
     const seen = new Set(), on = [];
     for (const e of sp) { const p = futOnAir(e); if ((p || fromGames.has(e)) && !seen.has(futBase(e.title))) { seen.add(futBase(e.title)); on.push([e, p]); } }
     on.sort((x, y) => (y[1] ? 1 : 0) - (x[1] ? 1 : 0));

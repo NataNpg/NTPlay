@@ -33,6 +33,12 @@ h2{font-size:15px;margin:26px 0 10px}
 .srv{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}.srv div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;gap:10px}.srv span{color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .login{max-width:560px;margin:60px auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}.login h2{margin:0 0 6px}.login textarea{width:100%;height:120px;margin:12px 0;padding:10px;border-radius:10px;background:#060c1a;border:1px solid var(--line);font:12px monospace;outline:0}
 .err{color:var(--rd);font-size:12px;margin-top:8px}.empty{padding:50px 10px;text-align:center;color:var(--mut)}
+.chart{display:flex;gap:6px;align-items:flex-end;height:150px;overflow-x:auto;padding:4px 2px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.col{flex:1;min-width:26px;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%}
+.col .bk{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
+.col .bar{width:62%;min-height:2px;border-radius:4px 4px 0 0;background:linear-gradient(#5B8CFF,#22D3EE)}
+.col .bar.hl{background:linear-gradient(#e93a7d,#ff8fbb)}
+.col .v{font-size:10px;color:var(--mut);height:12px}.col .x{font-size:9px;color:var(--mut);white-space:nowrap}
 @media(max-width:520px){.grid{grid-template-columns:1fr}header{padding:12px}.st b{font-size:24px}}
 </style>
 </head>
@@ -43,10 +49,10 @@ h2{font-size:15px;margin:26px 0 10px}
 const TOPIC='ntplay-pres-381affd473dafb5cac';
 const $=s=>document.querySelector(s),esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const unb=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return Uint8Array.from(atob(s),c=>c.charCodeAt(0))};
-let KEY=null,DATA=[],F={per:'on',q:''},T=null,lastRx=0;
-const DAY=864e5,GAP=11*60000,ONLINE=7*60000,RET=120*DAY; // guarda ~120 dias no navegador
-/* histórico local: o serviço de avisos só guarda ~12 h, então o painel acumula o que recebe aqui */
-const DB=new Promise((ok,no)=>{const r=indexedDB.open('ntadmin',1);r.onupgradeneeded=()=>r.result.createObjectStore('ev',{keyPath:'k'});r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+let KEY=null,DATA=[],F={per:'7d'},T=null,lastRx=0;
+const DAY=864e5,ONLINE=7*60000,RET=180*DAY;
+/* histórico anônimo guardado no navegador (o serviço de avisos só retém ~12 h) */
+const DB=new Promise((ok,no)=>{const r=indexedDB.open('ntadmin',2);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('ev'))r.result.createObjectStore('ev',{keyPath:'k'})};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
 const tx=(m,f)=>DB.then(db=>new Promise((ok,no)=>{const t=db.transaction('ev',m),r=f(t.objectStore('ev'));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error)}));
 const dbAll=()=>tx('readonly',s=>s.getAll());
 const dbPut=evs=>tx('readwrite',s=>{evs.forEach(e=>s.put(e))});
@@ -59,49 +65,45 @@ async function open1(m){const p=m.split('.');if(p[0]!='ntp1'||p.length!=4)return
 async function fetchNew(){const since=lastRx?Math.floor(lastRx/1000):Math.floor((Date.now()-12*36e5)/1000);
   const r=await fetch('https://ntfy.sh/'+TOPIC+'/json?poll=1&since='+since,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);
   const neu=[];for(const l of (await r.text()).split('\n')){if(!l.trim())continue;let j;try{j=JSON.parse(l)}catch(e){continue}if(j.event!='message'||!j.message)continue;
-    try{const o=await open1(j.message.trim());if(o&&o.id&&o.t){o.rx=j.time*1000;o.k=o.id+'|'+o.t;neu.push(o);if(o.rx>lastRx)lastRx=o.rx}}catch(e){}}
+    try{const o=await open1(j.message.trim());if(o&&o.id&&o.t){const e={k:o.id+'|'+o.t,id:o.id,p:o.p||'?',v:o.v||'',t:o.t,rx:j.time*1000};neu.push(e);if(e.rx>lastRx)lastRx=e.rx}}catch(e){}}
   if(neu.length)await dbPut(neu);return neu.length}
-const PL={pc:['💻','PC Windows'],android:['📱','Android'],ios:['📱','iPhone/iPad'],androidtv:['📺','Android TV (web)'],tv:['📺','Android TV'],web:['🌐','Navegador'],'web-celular':['🌐','Navegador (celular)']};
-const ago=t=>{const s=Math.max(0,(Date.now()-t)/1000);return s<60?'agora':s<3600?Math.floor(s/60)+' min atrás':s<864e2?Math.floor(s/3600)+' h atrás':Math.floor(s/86400)+' dia(s) atrás'};
-const fmtDur=ms=>{const m=Math.round(ms/60000);if(m<1)return'<1 min';if(m<60)return m+' min';const h=Math.floor(m/60),mm=m%60;return h+' h'+(mm?' '+mm+' min':'')};
-const dnum=t=>new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-function badge(l){if(!l.e&&!l.s)return'<span class="bdg n">—</span>';const d=l.e?Math.ceil((l.e-Date.now())/864e5):null;
-  if(l.s&&!/active/i.test(l.s)&&!(d!=null&&d<0))return'<span class="bdg r">'+esc(l.s)+'</span>';if(d==null)return'<span class="bdg g">sem venc.</span>';if(d<0)return'<span class="bdg r">VENCIDA</span>';
-  return'<span class="bdg '+(d>7?'g':'y')+'">'+new Date(l.e).toLocaleDateString('pt-BR')+' ('+d+'d)</span>'}
-/* junta os avisos de cada aparelho: primeiro/último uso, tempo total e sessões (intervalos de até 11 min contam como uso contínuo) */
-function aggregate(evs){const by=new Map();
-  evs.forEach(o=>{let d=by.get(o.id);if(!d){d={id:o.id,evs:[]};by.set(o.id,d)}d.evs.push(o)});
-  const out=[];
-  for(const d of by.values()){d.evs.sort((a,b)=>a.t-b.t);const last=d.evs[d.evs.length-1];
-    let use=0,sess=0,st=null,prev=null;
-    for(const e of d.evs){if(st==null){st=e.t;sess++}else if(e.t-prev>GAP){use+=prev-st;st=e.t;sess++}if(e.off&&st!=null){use+=e.t-st;st=null}prev=e.t}
-    if(st!=null)use+=prev-st;
-    out.push({id:d.id,last,first:d.evs[0].t,lastT:last.t,use,sess,on:!last.off&&Date.now()-last.t<ONLINE,novo:d.evs[0].t>Date.now()-7*DAY})}
-  return out.sort((a,b)=>b.on-a.on||b.lastT-a.lastT)}
-function render(){const all=aggregate(DATA),now=Date.now(),tday=new Date().setHours(0,0,0,0);
-  const inPer=d=>F.per=='on'?d.on:F.per=='today'?d.lastT>=tday:F.per=='7d'?d.lastT>=now-7*DAY:true;
-  const on=all.filter(d=>d.on),watch=on.filter(d=>d.last.w),novos=all.filter(d=>d.novo);
-  const cnt={on:on.length,today:all.filter(d=>d.lastT>=tday).length,'7d':all.filter(d=>d.lastT>=now-7*DAY).length,all:all.length};
-  const hosts=new Map();all.forEach(d=>(d.last.ls||[]).forEach(l=>{const h=hosts.get(l.h)||{n:0,on:0};h.n++;if(d.on)h.on++;hosts.set(l.h,h)}));
-  const venc=[];all.forEach(d=>(d.last.ls||[]).forEach(l=>{if(l.e&&l.e<now)venc.push({d,l})}));venc.sort((a,b)=>b.l.e-a.l.e);
-  const q=F.q.toLowerCase(),show=all.filter(d=>inPer(d)&&(!q||JSON.stringify([d.last.nm,d.last.p,d.last.ls]).toLowerCase().includes(q)));
-  let h='<div class="stats"><div class="st on"><b>'+on.length+'</b><small>usando agora</small></div><div class="st pl"><b>'+watch.length+'</b><small>assistindo agora</small></div><div class="st"><b>'+novos.length+'</b><small>aparelhos novos (7 dias)</small></div><div class="st"><b>'+venc.length+'</b><small>listas vencidas</small></div></div>';
-  h+='<div class="bar">'+[['on','Usando agora'],['today','Hoje'],['7d','7 dias'],['all','Tudo']].map(p=>'<button class="ch'+(F.per==p[0]?' on':'')+'" data-p="'+p[0]+'">'+p[1]+' ('+cnt[p[0]]+')</button>').join('')+'<input id="q" placeholder="Buscar aparelho, lista ou servidor…" value="'+esc(F.q)+'"></div>';
-  if(!show.length)h+='<div class="empty">'+(F.per=='on'?'Ninguém usando o NTPlay neste momento.':'Nenhum aparelho neste período.')+'<br><span class="muted">O painel guarda o histórico aqui no navegador conforme recebe os avisos. Deixe-o aberto ou abra de vez em quando para não perder dados.</span></div>';
-  else h+='<div class="grid">'+show.map(d=>{const o=d.last,p=PL[o.p]||['❔',o.p],w=o.w?(o.w.k=='l'?'TV ao vivo'+(o.w.g?' • '+o.w.g:''):o.w.k=='m'?'Filme':'Série'):'';
-    return'<div class="dv'+(d.on?' live':'')+'"><div class="dh"><span class="ico">'+p[0]+'</span><div class="n"><b>'+esc(o.nm||'Aparelho '+o.id.slice(1,7))+'</b>'+(d.novo?' <span class="bdg g" style="vertical-align:1px">novo</span>':'')+'<small>'+esc(p[1])+(o.v?' • v'+esc(o.v):'')+' • '+esc(o.os||'')+'</small></div><span class="dot'+(d.on?' on':'')+'" title="'+(d.on?'online':'offline')+'"></span></div>'+
-      '<div class="tags"><span class="tg">'+(d.on?'online • ':'visto ')+ago(o.t)+'</span>'+(w?'<span class="tg w">▶ assistindo: '+esc(w)+'</span>':'')+'<span class="tg">⏱ '+fmtDur(d.use)+' • '+d.sess+' sessão(ões)</span><span class="tg">desde '+new Date(d.first).toLocaleDateString('pt-BR')+'</span></div>'+
-      ((o.ls||[]).length?'<table><tr><th>Lista</th><th>Servidor</th><th>Itens</th><th>Vencimento</th><th>Telas</th></tr>'+o.ls.map(l=>'<tr><td class="nm" title="'+esc(l.n)+'">'+(l.on?'● ':'')+esc(l.n)+'</td><td class="hs" title="'+esc(l.h)+'">'+esc(l.h)+'</td><td>'+(+l.c||0).toLocaleString('pt-BR')+'</td><td>'+badge(l)+'</td><td>'+(l.m?l.a+'/'+l.m:'—')+'</td></tr>').join('')+'</table>':'<span class="muted">Sem listas cadastradas</span>')+'</div>'}).join('')+'</div>';
-  if(venc.length)h+='<h2>Listas vencidas</h2><div class="srv">'+venc.slice(0,40).map(v=>'<div><span title="'+esc(v.l.n)+' — '+esc(v.l.h)+'">'+esc(v.d.last.nm||v.d.id.slice(1,7))+': '+esc(v.l.n)+'</span><b class="muted">'+new Date(v.l.e).toLocaleDateString('pt-BR')+'</b></div>').join('')+'</div>';
-  if(hosts.size)h+='<h2>Servidores das listas</h2><div class="srv">'+[...hosts].sort((a,b)=>b[1].n-a[1].n).map(([k,v])=>'<div><span title="'+esc(k)+'">'+esc(k)+'</span><b>'+v.on+' / '+v.n+'</b></div>').join('')+'</div><p class="muted" style="margin-top:6px">usando agora / aparelhos no total</p>';
-  h+='<p class="muted" style="margin-top:22px">Os aparelhos não enviam usuário, senha nem o link completo das listas. O histórico fica guardado neste navegador (até '+(RET/DAY)+' dias); o serviço de avisos só retém ~12 h, então abra o painel de vez em quando para não haver buracos.</p>';
-  $('#m').innerHTML=h;$('#q').oninput=e=>{F.q=e.target.value;const s=e.target.selectionStart;render();const i=$('#q');i.focus();i.setSelectionRange(s,s)}}
+const PL={pc:['💻','PC Windows'],android:['📱','Android'],ios:['📱','iPhone/iPad'],androidtv:['📺','Android TV (web)'],tv:['📺','Android TV'],web:['🌐','Navegador'],'web-celular':['🌐','Navegador (celular)'],'?':['❔','Desconhecido']};
+const dkey=t=>{const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const nD=n=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+n);return d};
+// último evento de cada id (id é diário, então "id distinto" = um aparelho naquele dia)
+function lastById(evs){const m=new Map();evs.forEach(e=>{const o=m.get(e.id);if(!o||e.t>o.t)m.set(e.id,e)});return m}
+function bars(rows,fmt){const max=Math.max(1,...rows.map(r=>r[1]));
+  return'<div class="chart">'+rows.map(r=>'<div class="col"><span class="v">'+(r[1]||'')+'</span><div class="bk"><div class="bar'+(r[2]?' hl':'')+'" style="height:'+(r[1]/max*100).toFixed(1)+'%"></div></div><span class="x">'+esc(r[0])+'</span></div>').join('')+'</div>'}
+function render(){const now=Date.now(),evs=DATA;
+  const last=lastById(evs);
+  const on=[...last.values()].filter(e=>!e.off&&now-e.t<ONLINE);
+  // aparelhos distintos por dia (id é diário) — base honesta: não dá para deduplicar aparelhos entre dias
+  const perDay=i=>{const d0=nD(-i).getTime(),d1=nD(-i+1).getTime(),ss=new Set();evs.forEach(e=>{if(e.t>=d0&&e.t<d1)ss.add(e.id)});return ss.size};
+  const cnt30=[];for(let i=0;i<30;i++)cnt30.push(perDay(i));
+  const avg7=Math.round(cnt30.slice(0,7).reduce((a,b)=>a+b,0)/7),peak30=Math.max(0,...cnt30);
+  const stats=[['on','usando agora',on.length],['','ativos hoje',cnt30[0]],['','média/dia (7 dias)',avg7],['','pico num dia (30 dias)',peak30]];
+  let h='<div class="stats">'+stats.map(s=>'<div class="st'+(s[0]?' '+s[0]:'')+'"><b>'+s[2]+'</b><small>'+s[1]+'</small></div>').join('')+'</div>';
+  // aparelhos ativos por dia (14 dias) — id distinto por dia
+  const days=[];for(let i=13;i>=0;i--){const d0=nD(-i).getTime(),d1=nD(-i+1).getTime(),s=new Set();evs.forEach(e=>{if(e.t>=d0&&e.t<d1)s.add(e.id)});
+    days.push([new Date(d0).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),s.size,i==0])}
+  h+='<h2>Aparelhos ativos por dia</h2>'+bars(days)+'<p class="muted">cada barra = aparelhos diferentes que usaram o app naquele dia (últimos 14 dias).</p>';
+  // horário de pico (7 dias) — aparelho-dia distinto por hora
+  const hrs=Array.from({length:24},()=>new Set()),w7=now-7*DAY,hn=new Date().getHours();
+  evs.forEach(e=>{if(e.t>=w7){const d=new Date(e.t);hrs[d.getHours()].add(e.id+'|'+dkey(e.t))}});
+  h+='<h2>Horário de pico <span class="muted" style="font-weight:400">(últimos 7 dias)</span></h2>'+bars(hrs.map((s,i)=>[String(i).padStart(2,'0')+'h',s.size,i==hn]))+'<p class="muted">cada barra = aparelhos ativos naquela hora do dia (somando os 7 dias).</p>';
+  // plataformas — aparelhos distintos de hoje por plataforma
+  const pm=new Map();[...last.values()].forEach(e=>{if(e.t>=nD(0).getTime())pm.set(e.p,(pm.get(e.p)||0)+1)});
+  if(pm.size){h+='<h2>Plataformas <span class="muted" style="font-weight:400">(aparelhos de hoje)</span></h2><div class="srv">'+[...pm].sort((a,b)=>b[1]-a[1]).map(([k,n])=>{const p=PL[k]||['❔',k];return'<div><span>'+p[0]+' '+esc(p[1])+'</span><b>'+n+'</b></div>'}).join('')+'</div>'}
+  // versões (ativos 7 dias)
+  const vm=new Map();[...last.values()].forEach(e=>{if(e.t>=nD(0).getTime()&&e.v)vm.set(e.v,(vm.get(e.v)||0)+1)});
+  if(vm.size){h+='<h2>Versões <span class="muted" style="font-weight:400">(hoje)</span></h2><div class="srv">'+[...vm].sort((a,b)=>b[1]-a[1]).map(([k,n])=>'<div><span>v'+esc(k)+'</span><b>'+n+'</b></div>').join('')+'</div>'}
+  h+='<p class="muted" style="margin-top:22px">Contagem anônima: os aparelhos enviam só uma marca de uso com identificador que troca a cada dia — sem nome, lista, o que assistem, usuário ou senha. O histórico fica neste navegador (até '+(RET/DAY)+' dias); como o serviço de avisos só retém ~12 h, abra o painel de vez em quando para não haver buracos.</p>';
+  $('#m').innerHTML=h}
 async function refresh(){$('#upd').textContent='atualizando…';try{await fetchNew();await dbDelOld(Date.now()-RET);DATA=await dbAll();render();$('#upd').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}catch(e){$('#upd').textContent='erro: '+e.message;if(DATA.length)render()}}
 function login(err){$('#out').hidden=true;$('#m').innerHTML='<div class="login"><h2>Entrar no painel</h2><p class="muted">Cole o conteúdo do arquivo <b>ntplay-painel-chave.json</b> (ou escolha o arquivo). A chave fica só neste navegador.</p><textarea id="k" placeholder="{&quot;prv&quot;: …}"></textarea><input type="file" id="kf" accept=".json,.txt"><div style="margin-top:12px"><button class="bt pk" id="go">Entrar</button></div>'+(err?'<p class="err">'+esc(err)+'</p>':'')+'</div>';
   $('#kf').onchange=async e=>{const f=e.target.files[0];if(f)$('#k').value=await f.text()};
   $('#go').onclick=async()=>{try{KEY=await loadKey($('#k').value.trim());localStorage.ntAdminKey=$('#k').value.trim();start()}catch(e){login('Chave inválida.')}}}
 async function start(){$('#out').hidden=false;try{DATA=await dbAll()}catch(e){}await refresh();clearInterval(T);T=setInterval(refresh,30000)}
-document.addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(b){F.per=b.dataset.p;render()}});
 $('#rf').onclick=()=>KEY&&refresh();$('#out').onclick=()=>{delete localStorage.ntAdminKey;KEY=null;clearInterval(T);login()};
 (async()=>{const k=localStorage.ntAdminKey;if(!k)return login();try{KEY=await loadKey(k);start()}catch(e){login('A chave salva não funcionou.')}})();
 </script>

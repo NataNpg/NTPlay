@@ -72,13 +72,11 @@ class AppState(val ctx: Context) {
         scope.launch {
             delay(8000)
             while (true) {
-                withContext(Dispatchers.IO) { Presence.send(ctx, this@AppState) }
+                withContext(Dispatchers.IO) { Presence.send(ctx) }
                 delay(5 * 60_000L)
             }
         }
     }
-    var presence by mutableStateOf(Presence.enabled(ctx))
-    fun changePresence(v: Boolean) { presence = v; Presence.setEnabled(ctx, v) }
 
     suspend fun reload() {
         val metas = store.lists().filter { it.active }
