@@ -1,6 +1,6 @@
 {
   "name": "ntplay",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "NTPlay - player IPTV (M3U) para Windows, Android, Android TV e iOS",
   "main": "electron/main.js",
   "author": "Natanael G Silva <djnatan0@live.com>",

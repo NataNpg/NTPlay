@@ -183,11 +183,12 @@ async function ffStream(p, r) {
   // conexão única e (ao vivo) emenda dos pedaços. Nos filmes o repasse repassa o Range, então o -ss pula direto.
   const input = `http://127.0.0.1:${proxyPort}/p?${live ? 'live=1&' : ''}u=${encodeURIComponent(u)}`;
   if (!live) { a.push('-reconnect', '1', '-reconnect_on_network_error', '1', '-reconnect_delay_max', '4'); if (ss > 0) a.push('-ss', String(ss)); }
-  a.push('-fflags', '+genpts+discardcorrupt', '-analyzeduration', '5000000', '-probesize', '10000000', '-i', input, '-map', '0:v:0?', '-map', '0:a:0?', '-sn', '-dn');
+  // ao vivo: o FFmpeg refaz os tempos (PTS/DTS) quando o servidor emenda pedaços com saltos — igual ao VLC
+  a.push('-fflags', '+genpts+discardcorrupt', '-err_detect', 'ignore_err', '-analyzeduration', live ? '2500000' : '5000000', '-probesize', live ? '4000000' : '10000000', '-i', input, '-map', '0:v:0?', '-map', '0:a:0?', '-sn', '-dn');
   if (!enc) a.push('-c:v', 'copy');
   else if (enc === 'libx264') a.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-vf', "scale=-2:'min(1080,ih)',format=yuv420p", '-g', '60');
   else a.push('-c:v', enc, '-vf', 'format=yuv420p', '-b:v', '14M', '-maxrate', '20M', '-bufsize', '28M', '-g', '60');
-  a.push('-c:a', 'aac', '-b:a', '192k', '-ac', '2', '-ar', '48000', '-f', 'mpegts', '-mpegts_flags', '+resend_headers', '-muxdelay', '0', '-muxpreload', '0', 'pipe:1');
+  a.push('-c:a', 'aac', '-b:a', '192k', '-ac', '2', '-ar', '48000', '-f', 'mpegts', '-mpegts_flags', '+resend_headers', '-muxdelay', '0', '-muxpreload', '0', '-flush_packets', '1', 'pipe:1');
   logp('FFmpeg ' + (live ? 'ao vivo' : 'vod' + (ss ? ' a partir de ' + Math.round(ss) + 's' : '')) + ' — vídeo ' + (enc || 'copiado') + ', áudio AAC');
   let ff;
   try { ff = spawn(FF, a, { windowsHide: true }); } catch (e) { r.writeHead(500, CORS); return r.end(String(e.message)); }
@@ -315,5 +316,6 @@ ipcMain.handle('open-vlc', (_, { url, live }) => {
 });
 ipcMain.handle('players', () => Object.keys(PLAYERS).filter((k) => findPlayer(k)).map((k) => ({ id: k, n: PLAYERS[k].n })));
 ipcMain.handle('open-ext', (_, { id, url, live }) => openExt(id, url, live));
+ipcMain.handle('app-version', () => app.getVersion());
 ipcMain.handle('ff-ok', async () => ({ ok: !!FF, enc: FF ? await getEnc() : null }));
 app.on('window-all-closed', () => app.quit());

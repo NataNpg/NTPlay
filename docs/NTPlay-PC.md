@@ -9,12 +9,13 @@ Situação em 20/10/2026 · repositório `natanpg/NTPlay` (raiz, `electron/` + `
 
 Player IPTV (M3U / Xtream) para Windows, feito em **Electron**. A interface web (`www/`) é a mesma base das versões navegador, celular (Capacitor) e iOS.
 
-- **Versão atual:** **3.1.0** (`package.json`)
+- **Versão atual:** **3.2.0** (`package.json`)
 - **Downloads (sempre a última versão):**
   - Instalador: `https://github.com/NataNpg/NTPlay/releases/download/pc-latest/NTPlay.Setup.<versão>.exe`
   - Portátil: `https://github.com/NataNpg/NTPlay/releases/download/pc-latest/NTPlay.<versão>.exe`
   - Página da release: https://github.com/NataNpg/NTPlay/releases/tag/pc-latest
 - **Página para enviar a lista pelo QR code (GitHub Pages):** https://natanpg.github.io/NTPlay/enviar.html
+- **Painel de usuários (GitHub Pages):** https://natanpg.github.io/NTPlay/admin.html — pede a chave privada (arquivo `ntplay-painel-chave.json`, **fora do repositório**, com o dono).
 
 ## 2. Tecnologias
 
@@ -44,6 +45,8 @@ Player IPTV (M3U / Xtream) para Windows, feito em **Electron**. A interface web 
 | `www/js/platform.js`, `native.js` | Adaptações por plataforma (celular, TV via Capacitor). |
 | `www/index.html`, `css/app.css` | Layout. |
 | `www/js/futebol.js` | Aba **FUTEBOL**: jogos do dia pela API pública da ESPN (sem chave) e canais da lista que passam os jogos. Carregado antes do `app.js`. |
+| `www/js/presenca.js` | Presença criptografada para o painel (ver seção 6c). Carregado depois do `app.js`. |
+| `www/admin.html` | Painel: quantos aparelhos usam o NTPlay agora e as listas de cada um. |
 | `www/enviar.html` | Página do celular para enviar a lista (QR code). |
 
 ## 5. Repasse local de vídeo (`electron/main.js`)
@@ -89,6 +92,13 @@ Servidor HTTP em `127.0.0.1:<porta aleatória>`, informada ao app via IPC `proxy
 - **FUTEBOL:** `futebol.js`. Busca o placar de ~33 campeonatos (`site.api.espn.com/apis/site/v2/sports/soccer/<liga>/scoreboard?dates=AAAAMMDD&lang=pt&region=br`), agrupa por campeonato, mostra horário/ao vivo/placar e liga cada jogo aos canais da lista que têm os nomes dos times (canais de evento). Atualiza a cada 60 s com jogo ao vivo. Abaixo, "Canais de jogos e eventos" e "Canais de esporte" (regex `FUT_SP`).
 - **Selo de vencimento das listas** (igual ao Android TV): `player_api.php` da conta (`exp_date`, `status`, `max_connections`, `active_cons`), cache de 6 h em `LS.ntAcct`; o ↻ força a checagem. Verde > 7 dias, amarelo ≤ 7, vermelho vencida, mais "telas em uso/permitidas".
 
+## 6c. Travadas, futebol ao vivo e painel (3.2.0)
+
+- **Travadas no ao vivo:** o servidor entrega o canal em pedaços e cada pedaço novo vem com os tempos (PTS/DTS) saltando para frente ou para trás. O VLC refaz os tempos; o mpegts.js não, e o vídeo parava. Agora, no PC, o ao vivo começa pelo `ffcopy` (FFmpeg copia o vídeo e refaz os tempos — testado: fluxo emendado com saltos sai contínuo). Preferência "Canais ao vivo pelo FFmpeg" (`LS.ntLiveFF`, ligado por padrão). Além disso o player tem um **pulador de buracos** (`gapJump`): se o vídeo fica parado antes de um trecho que já chegou, pula para ele; no ao vivo, se ficar mais de 45 s atrás, avança. O reinício automático por espera só acontece depois de 25 s no ao vivo e não acontece se ainda está chegando dado.
+- **Séries sem SxxEyy:** `epInfo` reconhece "EP01", "Episódio 12", "Capítulo 3", "E05" (temporada por "Temporada 2"/"T2"); e nome terminado em número dentro de grupo de séries. Antes cada episódio virava uma série com a mesma capa e a capa era descartada como "genérica". A regra da capa genérica agora conta títulos diferentes.
+- **Futebol — passando agora:** `get_short_epg` (Xtream) de cada canal de esporte (uma consulta por canal-base, sem FHD/HD/SD, 4 em paralelo, até 160, cache 5 min). Canal entra em "Passando jogo agora" se o programa atual parece jogo (`FUT_GAME`) e não é reprise/debate (`FUT_NOT`), ou se é canal de evento com os times de um jogo ao vivo. Os cartões dos jogos mostram só canais da programação ou com os nomes dos times. A lista completa de canais de esporte fica atrás de um botão.
+- **Presença / painel:** a cada 5 min (e ao começar a assistir) o app manda para `ntfy.sh/<tópico>` uma mensagem `ntp1.<chave efêmera>.<iv>.<dados>` — ECDH P-256 com a chave pública do painel + SHA-256 + AES-GCM. Conteúdo: id aleatório do aparelho, nome do aparelho (opcional), plataforma, versão, se está assistindo (tipo e grupo do canal) e as listas (nome, host do servidor, itens, ativa, vencimento, telas). **Sem usuário, senha ou link completo.** Desligável em Preferências (`LS.ntPres`). O ntfy guarda 12 h; o painel lê `/json?poll=1&since=12h` a cada 30 s e considera "online" quem mandou sinal nos últimos 7 min. O app da TV (`Presence.kt`) manda o mesmo formato (testado: cifrado em Java, decifrado pelo painel).
+
 ## 7. O que já foi descoberto sobre os servidores do usuário
 
 - Lista antiga `teleflixhd.club`: fora do ar (Cloudflare 522 e "Welcome to nginx").
@@ -106,11 +116,12 @@ Servidor HTTP em `127.0.0.1:<porta aleatória>`, informada ao app via IPC `proxy
 | 3.0.3 | Prefere `.ts` contínuo, painel Ctrl+D, DevTools corrigido. |
 | 3.0.4 | Conexão única (sem consulta) e emenda dos pedaços. *Congelava: pacotes TS desalinhados.* |
 | 3.0.5 | Emenda alinhada em pacotes de 188 bytes, sem cache de token. |
-| 3.1.0 | Repasse espera a conexão única liberar e mostra o motivo da falha; modo FFmpeg (áudio AC3/DTS, vídeo 4K/H.265 com placa de vídeo) e players externos (VLC, mpv, PotPlayer, MPC-HC); séries com temporadas juntas; capas/sinopses do Xtream + TMDB; animes; aba FUTEBOL; selo de vencimento das listas. **Aguardando teste do usuário.** |
+| 3.2.0 | Ao vivo pelo FFmpeg por padrão (fim das travadas por salto de tempo), pulador de buracos, séries EP01/Capítulo agrupadas (capas), Futebol só com canais passando jogo (EPG), presença + painel `admin.html`. **Aguardando teste do usuário.** |
+| 3.1.0 | Repasse espera a conexão única liberar e mostra o motivo da falha; modo FFmpeg (áudio AC3/DTS, vídeo 4K/H.265 com placa de vídeo) e players externos (VLC, mpv, PotPlayer, MPC-HC); séries com temporadas juntas; capas/sinopses do Xtream + TMDB; animes; aba FUTEBOL; selo de vencimento das listas. |
 
 ## 9. Pendências / ideias
 
-1. **Confirmar a 3.1.0 no PC do usuário** (troca de canal com conta de 1 tela, filme com áudio AC3, canal 4K/H.265). Se ainda houver pausa na emenda: os timestamps (PTS) podem recomeçar a cada pedaço. Aí a saída é usar `fixAudioTimestampGap` / `liveBufferLatencyChasing` no mpegts.js, ou transmuxar no processo principal.
+1. **Confirmar a 3.2.0 no PC do usuário** (troca de canal com conta de 1 tela, filme com áudio AC3, canal 4K/H.265). Se ainda houver pausa na emenda: os timestamps (PTS) podem recomeçar a cada pedaço. Aí a saída é usar `fixAudioTimestampGap` / `liveBufferLatencyChasing` no mpegts.js, ou transmuxar no processo principal.
 3. Assinar o executável, para o Windows (SmartScreen) não bloquear.
 4. Atualização automática a partir da release `pc-latest`.
 5. Painel de diagnóstico com botão "copiar".

@@ -66,7 +66,19 @@ class AppState(val ctx: Context) {
         }
     }
 
-    fun start() { scope.launch { reload() } }
+    fun start() {
+        scope.launch { reload() }
+        // presença para o painel do desenvolvedor: ao abrir e a cada 5 minutos
+        scope.launch {
+            delay(8000)
+            while (true) {
+                withContext(Dispatchers.IO) { Presence.send(ctx, this@AppState) }
+                delay(5 * 60_000L)
+            }
+        }
+    }
+    var presence by mutableStateOf(Presence.enabled(ctx))
+    fun changePresence(v: Boolean) { presence = v; Presence.setEnabled(ctx, v) }
 
     suspend fun reload() {
         val metas = store.lists().filter { it.active }

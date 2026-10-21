@@ -14,7 +14,11 @@ let HL={movies:[],series:[],tips:[]};
 function serT(t){let x=String(t).replace(/\b[ST]\d{1,2}\b(?!\s?[EeXx]\d)/g,' ').replace(/\b(?:temporada|season|temp\.?)\s*\d{1,2}\b|\b\d{1,2}\s*[ªa°º]?\s*temporada\b/ig,' ').replace(/\s+/g,' ').replace(/[\s\-–|:._]+$/,'').replace(/^[\s\-–|:._]+/,'').trim();
   const w=x.split(' ');if(w.length>1&&w.length%2==0){const h=w.length/2;if(w.slice(0,h).join(' ').toLowerCase()==w.slice(h).join(' ').toLowerCase())x=w.slice(0,h).join(' ')}return x||String(t).trim()}
 const epName=c=>{const m=c.name.match(/\b[sStT]\s?\d{1,2}\s?[eExX]\s?\d{1,3}\b|\b\d{1,2}x\d{1,3}\b/);let r=m?c.name.slice(m.index+m[0].length):'';r=r.replace(/^[\s\-–|:._]+/,'').trim();return r&&!/^\d+$/.test(r)?r:'Episódio '+c.e};
-function epInfo(n){const m=n.match(/^(.*?)[\s._\-–|:]*[\[(]?\b[sStT]\s?(\d{1,2})\s?[eExX]\s?(\d{1,3})\b/)||n.match(/^(.*?)[\s._\-–|:]*\b(\d{1,2})x(\d{1,3})\b/);return m?{t:m[1].trim()||n,s:+m[2],e:+m[3]}:null}
+function epInfo(n){const m=n.match(/^(.*?)[\s._\-–|:]*[\[(]?\b[sStT]\s?(\d{1,2})\s?[eExX]\s?(\d{1,3})\b/)||n.match(/^(.*?)[\s._\-–|:]*\b(\d{1,2})x(\d{1,3})\b/);if(m)return{t:m[1].trim()||n,s:+m[2],e:+m[3]};
+  // doramas/novelas: "Nome EP01", "Nome - Episódio 12", "Nome Capítulo 3", "Nome E05" (temporada pelo "Temporada 2"/"T2", senão 1)
+  const k=n.match(/^(.*?)[\s._\-–|:\[(]*\b(?:ep\.?|eps\.?|epis[oó]dio|cap[ií]tulo|cap\.|chapter|E)\s?(\d{1,4})\b/i);
+  if(k&&k[1].trim()){const sm=n.match(/\b(?:temporada|season)\s*(\d{1,2})\b|\b[ST](\d{1,2})\b/i);return{t:k[1].replace(/[\s\-–|:]*(?:\b(?:temporada|season)\s*\d{1,2}|\b[ST]\d{1,2})\s*$/i,'').trim()||k[1].trim(),s:sm?+(sm[1]||sm[2]):1,e:+k[2]}}
+  return null}
 function guess(u,g,n){const x=u.toLowerCase().split('?')[0];
   if(x.includes('/live/'))return'live';if(epInfo(n||''))return'series';if(x.includes('/series/'))return'series';if(x.includes('/movie/'))return'movies';
   if(/s[eé]rie|novela|anime|dorama|temporada/i.test(g))return'series';
@@ -40,12 +44,13 @@ function build(){
   const live=[],mv=[],sm=new Map();S.byUrl=new Map();const hideA=!showAdult();
   for(const c of S.all){if(hideA&&ADR.test(c.name+' '+c.group))continue;
     if(c.cat=='movies'){const e={kind:'m',key:'m:'+c.url,title:c.name,group:cleanG(c.group),logo:c.logo,ch:[c]};mv.push(e);S.byUrl.set(c.url,{e,c})}
-    else if(c.cat=='series'){const i=epInfo(c.name),t=serT(i?i.t:c.name),leg=/legendad|\[l\]|\(l\)|\bleg\b/i.test(c.name+' '+c.group)?'|L':'',k='s:'+(norm(t)||t.toLowerCase())+leg;let o=sm.get(k);
+    else if(c.cat=='series'){const i=epInfo(c.name)||(()=>{const z=c.name.match(/^(.+?)[\s\-–|:#]+(\d{1,4})\s*$/);return z?{t:z[1],s:1,e:+z[2]}:null})(),t=serT(i?i.t:c.name),leg=/legendad|\[l\]|\(l\)|\bleg\b/i.test(c.name+' '+c.group)?'|L':'',k='s:'+(norm(t)||t.toLowerCase())+leg;let o=sm.get(k);
       if(!o){o={kind:'s',key:k,title:t+(leg?' (Legendado)':''),group:cleanG(c.group),logo:c.logo,ch:[],se:new Set()};sm.set(k,o)}
       c.s=i?i.s:1;c.e=i?i.e:o.ch.length+1;const se=c.s+'x'+c.e;if(i&&o.se.has(se))continue;o.se.add(se);if(!o.logo)o.logo=c.logo;o.ch.push(c);S.byUrl.set(c.url,{e:o,c})}
     else{const e={kind:'l',key:'l:'+c.url,title:c.name,group:cleanG(c.group),logo:c.logo,ch:[c]};live.push(e);S.byUrl.set(c.url,{e,c})}}
   const adl=a=>a.sort((x,y)=>isAdult(x)-isAdult(y));adl(live);adl(mv);const ser=adl([...sm.values()]);for(const o of ser){o.ch.sort((a,b)=>a.s-b.s||a.e-b.e);o.ns=new Set(o.ch.map(c=>c.s)).size;delete o.se}
-  const cnt=new Map(),vod=[...mv,...ser];vod.forEach(o=>o.logo&&cnt.set(o.logo,(cnt.get(o.logo)||0)+1));vod.forEach(o=>{if(o.logo&&cnt.get(o.logo)>2)o.logo=''});
+  // capa genérica do servidor (a mesma imagem em vários títulos diferentes) é descartada; versões dublada/legendada do mesmo título não contam
+  const cnt=new Map(),vod=[...mv,...ser];vod.forEach(o=>{if(!o.logo)return;let st=cnt.get(o.logo);if(!st)cnt.set(o.logo,st=new Set());st.add(norm(o.kind=='s'?serT(o.title.replace(/\s*\(Legendado\)$/,'')):o.title))});vod.forEach(o=>{if(o.logo&&cnt.get(o.logo).size>2)o.logo=''});
   S.live=live;S.mov=mv;S.ser=ser;S.every=live.concat(mv,ser);S.map=new Map(S.every.map(e=>[e.key,e]));
   S.every.forEach(e=>{e.th=theme(e,e.group)});
   S.idx={m:new Map(),s:new Map()};mv.forEach(e=>{const k=norm(e.title);if(k&&!S.idx.m.has(k))S.idx.m.set(k,e)});ser.forEach(e=>{const k=norm(e.title);if(k&&!S.idx.s.has(k))S.idx.s.set(k,e)});
@@ -148,6 +153,8 @@ function play(c,auto,force){
     else{q.push('mpegts');if(window.Hls)q.push('hls2');q.push('native')}}
   // 4K / H.265: se o Chromium não decodifica HEVC, converte direto no FFmpeg
   const hevcName=/h\.?265|hevc|\b4k\b|uhd|2160/i.test((x?x.e.title:'')+' '+c.name),hevcOk=!!(window.MediaSource&&MediaSource.isTypeSupported('video/mp4; codecs="hvc1.1.6.L150.B0"'));
+  // PC, ao vivo: começa pelo FFmpeg (copia o vídeo e refaz os tempos dos pedaços emendados; é o que evita as travadas)
+  if(ff&&live&&pm=='auto'&&LS.ntLiveFF!='0')q.unshift('ffcopy');
   if(ff){if(pm=='ff')q.unshift('ffcopy');else if(pm=='ffenc'||(hevcName&&!hevcOk))q.unshift('ffenc');q.push('ffcopy','ffenc')}
   if(force&&force.eng){q.length=0;q.push(force.eng);if(force.eng=='ffcopy')q.push('ffenc')}
   const uniq=[];q.forEach(e=>{if(!uniq.includes(e))uniq.push(e)});q.length=0;q.push(...uniq);
@@ -166,7 +173,7 @@ function play(c,auto,force){
       dbg('checagem: quadros='+vf+' áudio='+(ab==null?'?':ab)+' '+v.videoWidth+'x'+v.videoHeight);
       if(!ff||!q.length)return;const at=curT();
       if(!vf||!v.videoWidth){dbg('sem imagem (codec de vídeo não suportado) — convertendo no FFmpeg');toast('Vídeo em formato não suportado (ex.: H.265). Convertendo…');q.length=0;q.push('ffenc');if(!live)resumeAt=at;stop();run()}
-      else if(ab===0&&!FFM){dbg('sem som (AC3/EAC3/DTS) — convertendo o áudio no FFmpeg');toast('Áudio em formato não suportado (AC3/DTS). Convertendo…');q.length=0;q.push('ffcopy','ffenc');if(!live)resumeAt=at;stop();run()}},6000)};
+      else if(ab===0&&!FFM&&!/radio|r[aá]dio|fm\b/i.test(c.name)){dbg('sem som (AC3/EAC3/DTS) — convertendo o áudio no FFmpeg');toast('Áudio em formato não suportado (AC3/DTS). Convertendo…');q.length=0;q.push('ffcopy','ffenc');if(!live)resumeAt=at;stop();run()}},6000)};
   v.onloadedmetadata=()=>{if(my==tok&&!FFM&&resumeAt&&isFinite(v.duration)&&resumeAt<v.duration-30){v.currentTime=resumeAt;const t=resumeAt;resumeAt=0;
     toast('Continuando de '+fmt(t),'Do início',()=>{v.currentTime=0})}};
   function run(){if(my!=tok)return;let e=q.shift();
@@ -198,7 +205,19 @@ setInterval(async()=>{if(!FFM||S.view!='player')return;
   if(!ffDrag&&d){const r=$('#ffr');r.max=Math.floor(d);r.value=Math.floor(t)}},1000);
 const fmt=t=>{t=Math.floor(t);const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0')};
 v.addEventListener('timeupdate',()=>saveProg(false));v.addEventListener('pause',()=>saveProg(true));addEventListener('beforeunload',()=>saveProg(true));
-v.addEventListener('waiting',()=>{clearTimeout(wd);wd=setTimeout(()=>{if(S.cur&&retries++<3&&v.readyState<3){toast('Reconectando…');saveProg(true);play(S.cur.c,true,FFM?{eng:FFM.eng,ss:FFM.live?0:curT()}:null)}},FFM&&FFM.eng=='ffenc'?20000:10000)});
+v.addEventListener('waiting',()=>{clearTimeout(wd);const be=bufEnd();wd=setTimeout(()=>{if(gapJump('espera'))return;if(S.cur&&S.cur.c.cat=='live'&&window.NT_PROXY&&bufEnd()>be+1)return;if(S.cur&&retries++<3&&v.readyState<3){toast('Reconectando…');saveProg(true);play(S.cur.c,true,FFM?{eng:FFM.eng,ss:FFM.live?0:curT()}:null)}},FFM&&FFM.eng=='ffenc'?20000:S.cur&&S.cur.c.cat=='live'&&window.NT_PROXY?25000:10000)});
+/* pula "buracos" no vídeo: quando o servidor demora para mandar o próximo pedaço, o player fica parado
+   antes de um trecho que já chegou. O VLC pula sozinho; aqui fazemos o mesmo. */
+const bufEnd=()=>{const b=v.buffered;return b.length?b.end(b.length-1):0};
+function gapJump(why){const b=v.buffered,t=v.currentTime;if(!b.length||v.seeking)return false;
+  for(let i=0;i<b.length;i++){if(b.start(i)<=t+.05&&b.end(i)>t+.3)return false}
+  for(let i=0;i<b.length;i++){const st=b.start(i);if(st>t&&st-t<90&&b.end(i)-st>.5){v.currentTime=st+.05;dbg('pulou buraco de '+(st-t).toFixed(1)+'s ('+why+')');return true}}
+  if(S.cur&&S.cur.c.cat=='live'&&b.end(b.length-1)-b.start(b.length-1)>1&&t<b.start(0)){v.currentTime=b.start(b.length-1)+.05;dbg('voltou para o trecho recebido');return true}
+  return false}
+let gjT=0,gjLast=-1;setInterval(()=>{if(S.view!='player'||v.paused||!S.cur)return;const t=v.currentTime;
+  if(Math.abs(t-gjLast)<.01){gjT+=500;if(gjT>=1200){gjT=0;gapJump('parado')}}else gjT=0;gjLast=t;
+  // ao vivo: se ficou muito atrás do que já chegou, chega mais perto (evita acumular atraso depois de travadas)
+  if(S.cur.c.cat=='live'&&bufEnd()-t>45){v.currentTime=bufEnd()-8;dbg('atraso grande — avançou para perto do ao vivo')}},500);
 v.addEventListener('playing',()=>clearTimeout(wd));
 v.addEventListener('ended',onEnded);
 function onEnded(){if(S.cur&&S.cur.c.cat=='live'){dbg('fluxo encerrado pelo servidor — reconectando');const f=FFM?{eng:FFM.eng}:null;setTimeout(()=>{if(S.cur&&S.cur.c.cat=='live')play(S.cur.c,true,f)},400);return}if(!S.cur)return;const u=S.cur.c.url;P[u]={t:0,d:Math.floor(durT())||0,ts:Date.now(),done:true};try{LS.ntProg=JSON.stringify(P)}catch(e){}
@@ -563,7 +582,7 @@ if(window.bobNative){$('#vlc').hidden=false;$('#vlcl').hidden=false;$('#vlca').c
   let PLS=[];if(bobNative.players)bobNative.players().then(a=>{PLS=a||[]}).catch(()=>{});
   if(bobNative.ffOk)bobNative.ffOk().then(r=>{window.NT_FF=!!(r&&r.ok);$('#pmodew').hidden=!window.NT_FF;$('#pmode').value=LS.ntPMode||'auto';
     $('#pmodei').textContent=window.NT_FF?'FFmpeg pronto • vídeo convertido com '+({h264_nvenc:'placa NVIDIA',h264_qsv:'Intel Quick Sync',h264_amf:'placa AMD',libx264:'processador (até 1080p)'}[r.enc]||r.enc):''}).catch(()=>{});
-  $('#pmode').onchange=e=>{LS.ntPMode=e.target.value};
+  $('#pmode').onchange=e=>{LS.ntPMode=e.target.value};$('#plff').checked=LS.ntLiveFF!='0';$('#plff').onchange=e=>{LS.ntLiveFF=e.target.checked?'1':'0'};
   // menu "Outros players": players instalados no PC + modos do FFmpeg
   $('#vlc').onclick=ev=>{ev.stopPropagation();if(!S.cur)return;let m=$('#xpm');if(m){m.remove();return}m=document.createElement('div');m.id='xpm';
     const it=[...PLS.map(p=>['x:'+p.id,'▶ '+p.n+(p.id==(LS.ntExt||'vlc')?' ✓':'')]),...(window.NT_FF?[['f:ffcopy','⚙ Modo compatibilidade (FFmpeg, áudio AAC)'],['f:ffenc','⚙ Converter vídeo 4K/H.265 (FFmpeg)']]:[])];

@@ -108,3 +108,7 @@ Player IPTV (listas M3U / Xtream Codes) **nativo** para Android TV, feito para s
 - Tempo da abertura por série (memorizar quando o usuário pula).
 - Atualizar o app pelo próprio app (verificar a release `tv-latest`).
 - Incrementar `versionCode` automaticamente no workflow.
+
+## Presença (1.1.0)
+
+`Presence.kt` manda a cada 5 min um sinal criptografado (mesmo formato `ntp1.` do app web) para o painel `admin.html`: id aleatório, versão, modelo, se está assistindo e as listas (nome, host, itens, vencimento, telas) — sem usuário/senha. Opção em Listas → Preferências. `versionName 1.1.0` / `versionCode 2`.

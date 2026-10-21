@@ -48,7 +48,8 @@
    <div id="qrbox"></div><div class="btns" style="margin-top:8px"><input type="text" id="slink" readonly placeholder="Link de envio"><button class="bt" id="scopy">Copiar link</button></div>
    <input type="text" id="sbase" placeholder="Endereço da página enviar.html (ex.: https://usuario.github.io/NTPlay/)" style="margin-top:8px"></div>
   <div><h4>Preferências</h4><label class="ck" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="padult"> Mostrar conteúdo adulto (fica no fim da lista)</label><label class="ck" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="plite"> Modo leve (menos imagens e efeitos, mais rápido)</label>
-   <div id="pmodew" hidden style="margin-top:8px"><label class="small" for="pmode">Reprodução no PC</label><select id="pmode" class="in" style="margin-top:4px"><option value="auto">Automática (tenta todos os players e usa o FFmpeg se precisar)</option><option value="ff">Sempre modo compatibilidade (FFmpeg: converte o áudio AC3/DTS)</option><option value="ffenc">Sempre converter o vídeo (4K/H.265 em PCs sem suporte)</option></select><p class="small" id="pmodei" style="margin-top:6px"></p></div></div>
+   <label class="ck" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="ppres"> Enviar presença ao desenvolvedor (aparelho e listas, sem usuário/senha)</label><input type="text" id="pdev" class="in" placeholder="Nome deste aparelho (ex.: PC da sala)" maxlength="40">
+   <div id="pmodew" hidden style="margin-top:8px"><label class="small" for="pmode">Reprodução no PC</label><select id="pmode" class="in" style="margin-top:4px"><option value="auto">Automática (tenta todos os players e usa o FFmpeg se precisar)</option><option value="ff">Sempre modo compatibilidade (FFmpeg: converte o áudio AC3/DTS)</option><option value="ffenc">Sempre converter o vídeo (4K/H.265 em PCs sem suporte)</option></select><label class="ck" style="display:flex;gap:8px;margin:8px 0 0"><input type="checkbox" id="plff"> Canais ao vivo pelo FFmpeg (igual ao VLC, evita travadas — recomendado)</label><p class="small" id="pmodei" style="margin-top:6px"></p></div></div>
   <div><h4>Destaques e capas da internet</h4><input type="text" id="tkey" placeholder="Chave TMDB (opcional, grátis em themoviedb.org)"><div class="btns" style="margin-top:8px"><button class="bt" id="mhl">↻ Atualizar destaques</button></div>
    <p class="small" style="margin-top:8px">Sem chave o app usa Wikipédia (em português), TVMaze e iTunes. Com a chave TMDB as capas, notas e banners ficam mais completos.</p></div>
  </div>
@@ -64,5 +65,6 @@
 <script src="js/native.js"></script>
 <script src="js/futebol.js"></script>
 <script src="js/app.js"></script>
+<script src="js/presenca.js"></script>
 </body>
 </html>

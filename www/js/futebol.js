@@ -51,54 +51,114 @@ function futStatus(g) {
   if (g.st == 'post') return /PEN|SHOOTOUT/.test(g.sn) ? 'Encerrado (pênaltis)' : 'Encerrado';
   return g.t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
-// canais da lista para este jogo: primeiro os que têm os dois times no nome (canais de evento), depois um dos times
+// ---- programação (EPG) do servidor Xtream: o que cada canal de esporte está passando agora
+FUT.epg = new Map(); FUT.epgTs = 0; FUT.epgBusy = null; FUT.epgOk = null; FUT.all = false;
+const futB64 = (x) => { try { return decodeURIComponent(escape(atob(String(x || '')))); } catch (e) { return String(x || ''); } };
+const futBase = (t) => norm(t).replace(/\b(fhd|hd|sd|uhd|4k|h265|hevc|fullhd|alt|backup|[0-9]{3,4}p)\b/g, ' ').replace(/\s+/g, ' ').trim();
+const futSid = (u) => { const m = String(u).split('?')[0].match(/\/(\d+)(?:\.\w+)?$/); return m ? m[1] : ''; };
+function futEpgLoad(force) {
+  if (FUT.epgBusy) return FUT.epgBusy;
+  if (!force && FUT.epgTs && Date.now() - FUT.epgTs < 5 * 60000) return Promise.resolve();
+  const sp = futSportCh(), groups = new Map();
+  sp.forEach((e) => { const k = futBase(e.title); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); });
+  const jobs = [...groups.values()].slice(0, 160);
+  let ok = 0, tried = 0;
+  FUT.epgBusy = (async () => {
+    let i = 0;
+    const work = async () => {
+      while (i < jobs.length) {
+        const vs = jobs[i++], e = vs[0], c = credsOf(e.ch[0].url), sid = futSid(e.ch[0].url);
+        if (!c || !sid) continue;
+        tried++;
+        try {
+          const j = await (await fetch(api(c, 'get_short_epg', '&stream_id=' + sid + '&limit=3'))).json();
+          const now = Date.now() / 1000, L = (j && j.epg_listings) || [];
+          const cur = L.find((x) => +x.start_timestamp <= now && +x.stop_timestamp > now) || L.find((x) => x.now_playing == 1);
+          if (L.length) ok++;
+          const v = cur ? { t: futB64(cur.title).trim(), d: futB64(cur.description).trim(), end: +cur.stop_timestamp * 1000 } : null;
+          vs.forEach((x) => FUT.epg.set(x.key, v));
+        } catch (er) {}
+      }
+    };
+    await Promise.all([work(), work(), work(), work()]);
+    FUT.epgOk = tried ? ok > 0 : false; FUT.epgTs = Date.now(); FUT.epgBusy = null;
+  })();
+  return FUT.epgBusy;
+}
+const FUT_GAME = /\s(x|vs\.?|versus)\s|futebol|campeonato|brasileir|libertadores|sul.?americana|champions|copa |liga |premier|la liga|serie a|bundesliga|ligue 1|eliminat|amistoso|\bjogo\b|rodada|final|semifinal|cl[aá]ssico/i;
+const FUT_NOT = /reprise|compacto|melhores momentos|gols da rodada|resenha|debate|programa|mesa redonda|jornal|not[ií]cias|tal(k|e) show|pr[eé].?jogo|p[oó]s.?jogo|replay|vt\b/i;
+// o canal está passando jogo agora? (programa atual com cara de jogo, sem ser reprise/debate)
+function futOnAir(e) { const p = FUT.epg.get(e.key); if (!p || !p.t) return null; const t = p.t + ' ' + p.d; return FUT_GAME.test(t) && !FUT_NOT.test(p.t) ? p : null; }
+// canais da lista para este jogo: programação com os dois times, canais de evento com os nomes, depois só um time
 const futKey = (s) => norm(s).replace(/\b(fc|sc|ec|cf|ac|afc|club|clube|de|da|do|futebol|football|esporte|sport)\b/g, ' ').replace(/\s+/g, ' ').trim();
 function futChannels(g, sp) {
   const ks = (t) => [...new Set([futKey(t.n), futKey(t.full)].filter((k) => k.length >= 3))];
   const H = ks(g.h), A = ks(g.a), has = (n, K) => K.some((k) => (' ' + n + ' ').includes(' ' + k + ' '));
-  const both = [], one = [];
+  const epg2 = [], both = [], epg1 = [], one = [];
   for (const e of sp) {
-    const n = futKey(e.title);
+    const n = futKey(e.title), p = FUT.epg.get(e.key), pn = p ? futKey(p.t + ' ' + p.d) : '';
+    if (pn && has(pn, H) && has(pn, A)) { epg2.push(e); continue; }
     const h = has(n, H), a = has(n, A);
-    if (h && a) both.push(e); else if ((h || a) && FUT_EV.test(e.group + ' ' + e.title)) one.push(e);
+    if (h && a) both.push(e);
+    else if (pn && (has(pn, H) || has(pn, A)) && futOnAir(e)) epg1.push(e);
+    else if ((h || a) && FUT_EV.test(e.group + ' ' + e.title)) one.push(e);
   }
-  const tvk = g.tv.map(futKey).filter((k) => k.length >= 3), byTv = tvk.length ? sp.filter((e) => tvk.some((k) => futKey(e.title).startsWith(k))).slice(0, 3) : [];
-  return [...new Set([...both, ...one, ...byTv])].slice(0, 6);
+  const uniq = (L) => { const seen = new Set(); return L.filter((e) => { const k = futBase(e.title); if (seen.has(k)) return false; seen.add(k); return true; }); };
+  return uniq([...epg2, ...both, ...epg1, ...one]).slice(0, 6);
 }
 function futCard(g, sp) {
-  const ch = futChannels(g, sp);
+  const ch = g.st == 'post' ? [] : futChannels(g, sp);
   const tm = (t) => `<div class="ftm${t.win ? ' w' : ''}">${t.logo ? `<img loading="lazy" referrerpolicy="no-referrer" src="${esc(t.logo)}" onerror="this.remove()">` : '<i></i>'}<span>${esc(t.n)}</span><b>${g.st == 'pre' ? '' : esc(t.sc)}</b></div>`;
   return `<div class="fc${g.st == 'in' ? ' on' : ''}"><div class="fst">${futStatus(g)}</div>${tm(g.h)}${tm(g.a)}
-    <div class="fw">${esc([g.venue, g.city].filter(Boolean).join(' • '))}${g.tv.length ? '<br>TV: ' + esc(g.tv.join(', ')) : ''}</div>
-    <div class="fch">${ch.length ? ch.map((e) => `<button class="chip fk" data-k="${esc(e.key)}" title="${esc(e.group)}">▶ ${esc(e.title)}</button>`).join('') : '<small>Procure nos canais de esporte abaixo</small>'}</div></div>`;
+    <div class="fw">${esc([g.venue, g.city].filter(Boolean).join(' • '))}</div>
+    <div class="fch">${ch.length ? ch.map((e) => { const p = FUT.epg.get(e.key); return `<button class="chip fk" data-k="${esc(e.key)}" title="${esc(p && p.t ? p.t : e.group)}">▶ ${esc(e.title)}</button>`; }).join('') : g.st == 'post' ? '' : `<small>${g.st == 'in' ? 'Nenhum canal da sua lista está passando este jogo' : 'Canais aparecem quando o jogo começar'}</small>`}</div></div>`;
 }
+// cartão de canal com o programa atual
+const futLive = (e, p) => `<div class="pc wc" data-k="${esc(e.key)}" data-u="${esc(e.ch[0].url)}" tabindex="0"><div class="im"><span class="ini">${ini(e)}</span>${imgTag(e.logo)}<div class="grad"></div><span class="tl">● AO VIVO</span><div class="ov"><i>${ic('play', 1)}</i></div></div><div class="nm"><div class="t">${esc(e.title)}</div><div class="g">${esc(p ? '⚽ ' + p.t : e.group)}</div></div>${star(e)}</div>`;
 function futPage() {
   const d = futDay(FUT.off), D = FUT.data[d], sp = futSportCh();
   const days = [[-1, 'Ontem'], [0, 'Hoje'], [1, 'Amanhã'], [2, new Date(Date.now() + 2 * 864e5).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' })]];
   let h = `<div class="fut"><div class="fh"><h2 class="pgt">⚽ Jogos ${FUT.off == 0 ? 'de hoje' : FUT.off == -1 ? 'de ontem' : FUT.off == 1 ? 'de amanhã' : ''}<small>${((x) => x[0].toUpperCase() + x.slice(1))(new Date(Date.now() + FUT.off * 864e5).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }))}</small></h2>
-    <div class="fd">${days.map(([o, n]) => `<button class="ch2${FUT.off == o ? ' on' : ''}" data-fo="${o}">${esc(n)}</button>`).join('')}<button class="ch2" data-fr="1" title="Atualizar placares">↻</button></div></div>`;
-  if (!D) { h += '<div class="hint">Buscando os jogos na internet…</div>'; futLoad(FUT.off).then(() => { if (S.view == 'browse' && S.tab == 'FUTEBOL') renderBrowse(); }); }
+    <div class="fd">${days.map(([o, n]) => `<button class="ch2${FUT.off == o ? ' on' : ''}" data-fo="${o}">${esc(n)}</button>`).join('')}<button class="ch2" data-fr="1" title="Atualizar placares e programação">↻</button></div></div>`;
+  const redraw = () => { if (S.view == 'browse' && S.tab == 'FUTEBOL' && !S.q.trim()) renderBrowse(); };
+  if (!D) futLoad(FUT.off).then(redraw);
+  if (FUT.off == 0 && !FUT.epgBusy && (!FUT.epgTs || Date.now() - FUT.epgTs > 5 * 60000)) futEpgLoad().then(redraw);
+  // 1) canais passando jogo agora (programação do servidor + canais de evento com os times de jogos ao vivo)
+  if (FUT.off == 0) {
+    const liveG = D ? D.games.filter((g) => g.st == 'in') : [];
+    const fromGames = new Set(liveG.flatMap((g) => futChannels(g, sp)));
+    const seen = new Set(), on = [];
+    for (const e of sp) { const p = futOnAir(e); if ((p || fromGames.has(e)) && !seen.has(futBase(e.title))) { seen.add(futBase(e.title)); on.push([e, p]); } }
+    on.sort((x, y) => (y[1] ? 1 : 0) - (x[1] ? 1 : 0));
+    const st = FUT.epgBusy && !FUT.epgTs ? 'lendo a programação dos canais…' : FUT.epgOk === false ? 'seu servidor não informa a programação (EPG): mostrando pelos nomes dos canais' : on.length + ' canais';
+    h += `<section class="rs"><div class="sh"><h3><span class="fl1">●</span> Passando jogo agora</h3><span>${esc(st)}</span></div>` +
+      (on.length ? `<div class="rw2"><button class="ar l" data-ar="-1">‹</button><div class="hs">${on.map(([e, p]) => futLive(e, p)).join('')}</div><button class="ar r" data-ar="1">›</button></div>` : `<div class="empty" style="padding:24px">${FUT.epgBusy ? 'Verificando os canais…' : 'Nenhum canal da sua lista está passando jogo neste momento.'}</div>`) + '</section>';
+  }
+  // 2) jogos do dia
+  if (!D) h += '<div class="hint">Buscando os jogos na internet…</div>';
   else if (!D.games.length) h += `<div class="empty">Nenhum jogo encontrado ${FUT.off == 0 ? 'hoje' : 'neste dia'} nos campeonatos acompanhados${D.err ? ' (' + esc(D.err) + ')' : ''}.</div>`;
   else {
     const lv = D.games.filter((g) => g.st == 'in').length;
     h += `<div class="fsum">${D.games.length} jogos${lv ? ` • <b class="fl1">● ${lv} ao vivo agora</b>` : ''} • atualizado às ${new Date(D.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • fonte: ESPN</div>`;
-    const by = new Map();
-    D.games.forEach((g) => { if (!by.has(g.lg)) by.set(g.lg, []); by.get(g.lg).push(g); });
+    const by = new Map(), ord = (g) => (g.st == 'in' ? 0 : g.st == 'pre' ? 1 : 2);
+    [...D.games].sort((x, y) => x.li - y.li || ord(x) - ord(y) || x.t - y.t).forEach((g) => { if (!by.has(g.lg)) by.set(g.lg, []); by.get(g.lg).push(g); });
     for (const [lg, a] of by) h += `<section class="flg"><div class="flh">${a[0].lgLogo ? `<img src="${esc(a[0].lgLogo)}" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}<b>${esc(lg)}</b><span>${a.length} jogo${a.length > 1 ? 's' : ''}</span></div><div class="fgr">${a.map((g) => futCard(g, sp)).join('')}</div></section>`;
   }
-  const ev = sp.filter((e) => FUT_EV.test(e.group)), rest = sp.filter((e) => !FUT_EV.test(e.group));
-  h += '</div>' + row('Canais de jogos e eventos', ev.slice(0, 40).map(wcard), ev.length + ' canais') + row('Canais de esporte', rest.slice(0, 40).map(wcard), rest.length + ' canais');
+  // 3) todos os canais de esporte só quando pedir
+  h += `</div><div style="padding:6px 20px"><button class="more" data-fall="1">${FUT.all ? 'Esconder' : 'Mostrar'} todos os canais de esporte (${sp.length.toLocaleString('pt-BR')})</button></div>`;
+  if (FUT.all) h += row('Todos os canais de esporte', sp.slice(0, 80).map((e) => futLive(e, futOnAir(e))), sp.length + ' canais');
   if (!sp.length && S.all.length) h += '<div class="empty">Não encontrei canais de esporte na sua lista (Premiere, SporTV, ESPN, TNT Sports…).</div>';
   clearInterval(FUT.timer);
-  if (D && D.games.some((g) => g.st == 'in')) FUT.timer = setInterval(() => { if (S.view != 'browse' || S.tab != 'FUTEBOL' || S.q) return clearInterval(FUT.timer); futLoad(FUT.off, true).then(() => renderBrowse()); }, 60000);
+  if (FUT.off == 0) FUT.timer = setInterval(() => { if (S.view != 'browse' || S.tab != 'FUTEBOL' || S.q) return clearInterval(FUT.timer); Promise.all([futLoad(0, true), futEpgLoad()]).then(redraw); }, 60000);
   return h;
 }
 document.addEventListener('click', (e) => {
-  const b = e.target.closest('[data-fo],[data-fr]');
+  const b = e.target.closest('[data-fo],[data-fr],[data-fall]');
   if (!b) return;
+  if (b.dataset.fall) { FUT.all = !FUT.all; renderBrowse(); return; }
   if (b.dataset.fo != null) FUT.off = +b.dataset.fo;
   const d = futDay(FUT.off);
-  if (b.dataset.fr) delete FUT.data[d];
+  if (b.dataset.fr) { delete FUT.data[d]; FUT.epgTs = 0; }
   renderBrowse();
-  if (b.dataset.fr) toast('Atualizando placares…');
+  if (b.dataset.fr) toast('Atualizando placares e programação…');
 });

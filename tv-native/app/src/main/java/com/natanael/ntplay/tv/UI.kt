@@ -773,6 +773,7 @@ fun ListsDialog(st: AppState) {
                     item { TvButton((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAdult(!st.adult) } }
                     item { TvButton((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAutoNext(!st.autoNext) } }
                     item { TvButton((if (st.subs) "☑" else "☐") + " Mostrar legendas (desmarcado = legendas desligadas em tudo)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeSubs(!st.subs) } }
+                    item { TvButton((if (st.presence) "☑" else "☐") + " Enviar presença ao desenvolvedor (aparelho e listas, sem usuário/senha)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changePresence(!st.presence) } }
                 }
             }
         }
