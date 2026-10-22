@@ -1,6 +1,10 @@
 package com.natanael.ntplay.tv
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.os.Build
 import android.net.Uri
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
@@ -55,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.VideoSize
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -224,6 +229,10 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
 
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
 
+            override fun onVideoSizeChanged(vs: VideoSize) {
+                if (vs.width > 0 && vs.height > 0) setDisplayModeFor(ctx, vs.width, vs.height, player.videoFormat?.frameRate ?: 0f)
+            }
+
             override fun onTracksChanged(tracks: Tracks) {
                 quality = qualityOf(player)
                 nSubs = groups(C.TRACK_TYPE_TEXT).size
@@ -259,6 +268,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
         player.addListener(l)
         onDispose {
             st.saveProg(req, player.currentPosition, player.duration.coerceAtLeast(0))
+            resetDisplayMode(ctx)
             player.removeListener(l)
             player.release()
         }
@@ -453,4 +463,52 @@ fun SeekBar(pos: Long, dur: Long, onActivity: () -> Unit, onSeek: (Long) -> Unit
         Text(Util.fmt(dur), color = Color.White, fontSize = 11.sp)
     }
     if (fi.focused) Text("◀ ▶ para voltar/avançar (segure para ir mais rápido) · clique/arraste com o mouse", color = Color(0xAAFFFFFF), fontSize = 9.sp)
+}
+
+
+/** acha a Activity a partir do Context do Compose */
+fun Context.findActivity(): Activity? {
+    var c: Context? = this
+    while (c is ContextWrapper) { if (c is Activity) return c; c = c.baseContext }
+    return null
+}
+
+/** troca a saída HDMI para a resolução do vídeo (4K => TV mostra UHD ativo) e casa a taxa de quadros.
+ *  Só muda em conteúdo 2K/4K; para o resto volta ao padrão do sistema. */
+fun setDisplayModeFor(ctx: Context, w: Int, h: Int, fps: Float) {
+    if (Build.VERSION.SDK_INT < 23) return
+    val act = ctx.findActivity() ?: return
+    val id = if (h >= 1440) bestDisplayMode(act, w, h, fps) else 0
+    act.runOnUiThread {
+        try {
+            val lp = act.window.attributes
+            if (lp.preferredDisplayModeId != id) { lp.preferredDisplayModeId = id; act.window.attributes = lp }
+        } catch (e: Throwable) { }
+    }
+}
+
+fun resetDisplayMode(ctx: Context) {
+    if (Build.VERSION.SDK_INT < 23) return
+    val act = ctx.findActivity() ?: return
+    act.runOnUiThread {
+        try {
+            val lp = act.window.attributes
+            if (lp.preferredDisplayModeId != 0) { lp.preferredDisplayModeId = 0; act.window.attributes = lp }
+        } catch (e: Throwable) { }
+    }
+}
+
+private fun bestDisplayMode(act: Activity, w: Int, h: Int, fps: Float): Int {
+    val disp = (if (Build.VERSION.SDK_INT >= 30) act.display else @Suppress("DEPRECATION") act.windowManager.defaultDisplay) ?: return 0
+    val modes = disp.supportedModes
+    if (modes.size < 2) return 0
+    val fit = modes.filter { it.physicalWidth >= w - 16 && it.physicalHeight >= h - 16 }
+    val cands = if (fit.isNotEmpty()) fit else modes.toList()
+    val best = cands.minByOrNull {
+        val resPenalty = ((it.physicalWidth - w).coerceAtLeast(0) + (it.physicalHeight - h).coerceAtLeast(0)).toFloat()
+        val rr = it.refreshRate
+        val fpsPenalty = if (fps in 1f..121f) { val mult = Math.round(rr / fps).coerceAtLeast(1); Math.abs(rr - mult * fps) } else 0f
+        resPenalty * 100000f + fpsPenalty
+    }
+    return best?.modeId ?: 0
 }

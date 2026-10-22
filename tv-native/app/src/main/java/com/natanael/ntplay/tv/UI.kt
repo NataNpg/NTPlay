@@ -35,6 +35,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -391,6 +394,22 @@ fun ShelfRow(title: String, count: Int, onAll: (() -> Unit)?, content: LazyListS
 
 // ---------------------------------------------------------------- navegação
 @Composable
+fun savedGridState(st: AppState, key: String): LazyGridState {
+    val saved = st.scroll[key] ?: (0 to 0)
+    val state = rememberLazyGridState(saved.first, saved.second)
+    DisposableEffect(key) { onDispose { st.scroll[key] = state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset } }
+    return state
+}
+
+@Composable
+fun savedListState(st: AppState, key: String): LazyListState {
+    val saved = st.scroll[key] ?: (0 to 0)
+    val state = rememberLazyListState(saved.first, saved.second)
+    DisposableEffect(key) { onDispose { st.scroll[key] = state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset } }
+    return state
+}
+
+@Composable
 fun Browse(st: AppState) {
     val lib = st.lib
     if (lib == null) {
@@ -412,7 +431,7 @@ fun Browse(st: AppState) {
         Box(Modifier.weight(1f).fillMaxHeight()) {
             if (groups != null) {
                 if (st.group.isEmpty()) {
-                    val ls = rememberLazyListState()
+                    val ls = savedListState(st, "shelves:" + tab)
                     LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp)) {
                         items(groups.take(80), key = { it.first }) { g ->
                             ShelfRow(g.first, g.second.size, { st.group = g.first }) {
@@ -454,7 +473,7 @@ fun GridOf(st: AppState, l: List<Item>, title: String) {
             Spacer(Modifier.width(8.dp))
             Text("${l.size}", color = Muted, fontSize = 12.sp)
         }
-        val gs = rememberLazyGridState()
+        val gs = savedGridState(st, "grid:" + title)
         LazyVerticalGrid(
             columns = GridCells.Adaptive(if (live) 170.dp else 112.dp), modifier = Modifier.fillMaxSize().mouseScroll(gs), state = gs,
             contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)

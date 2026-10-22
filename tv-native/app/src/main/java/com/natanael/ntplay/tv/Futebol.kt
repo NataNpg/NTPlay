@@ -1,14 +1,14 @@
 package com.natanael.ntplay.tv
 
+import android.net.Uri
+import android.util.Base64
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,13 +38,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
-/** ⚽ Futebol: jogos do dia (placar da ESPN, sem chave) + canais de esporte da lista. */
+/** ⚽ Futebol: jogos do dia (placar da ESPN) + o canal da lista que está passando cada jogo (pela programação EPG). */
 object Fut {
     class Game(
         val league: String, val leagueLogo: String,
@@ -60,11 +66,23 @@ object Fut {
         "ger.1" to "Bundesliga", "fra.1" to "Ligue 1", "por.1" to "Liga Portugal",
         "fifa.world" to "Copa do Mundo", "fifa.worldq.conmebol" to "Eliminatórias", "usa.1" to "MLS"
     )
-    val sportRe = Regex("esporte|sport|futebol|premiere|\\bespn|tnt sports|band ?sports|sportv|combate|caz[eé]|dazn|paramount|\\bggoat|jogos|campeonato|brasileir|libertadores|champions|copa do|nosso futebol|conmebol|bein|fox sports|xsports|nsports", RegexOption.IGNORE_CASE)
+    val sportRe = Regex("esporte|sport|futebol|premiere|\\bespn|tnt sports|band ?sports|sportv|combate|caz[eé]|dazn|paramount|jogos|campeonato|brasileir|libertadores|champions|copa do|nosso futebol|conmebol|bein|fox sports|xsports|nsports", RegexOption.IGNORE_CASE)
+    private val gameRe = Regex("\\s(x|vs\\.?|versus)\\s|futebol|campeonato|brasileir|libertadores|sul.?americana|champions|copa |liga |premier|la liga|serie a|bundesliga|ligue 1|eliminat|amistoso|\\bjogo\\b|rodada|\\bfinal\\b|semifinal|cl[aá]ssico", RegexOption.IGNORE_CASE)
+    private val notRe = Regex("reprise|compacto|melhores momentos|gols da rodada|resenha|debate|programa|mesa redonda|jornal|not[ií]cias|tal(k|e) ?show|pr[eé].?jogo|p[oó]s.?jogo|replay", RegexOption.IGNORE_CASE)
+    private val credRe = Regex("^(https?://[^/]+)/live/([^/]+)/([^/]+)/(\\d+)(?:\\.\\w+)?")
 
+    private val isoFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'", Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
     private val cache = HashMap<Int, Pair<Long, List<Game>>>()
 
+    // programação atual por canal: baseKey(nome) -> título do programa que está no ar agora
+    val epg = ConcurrentHashMap<String, String>()
+    @Volatile var epgTs = 0L
+    @Volatile var epgLoading = false
+
     fun day(off: Int): String = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date(System.currentTimeMillis() + off * 86400000L))
+    fun baseKey(s: String): String = Util.norm(s).replace(Regex("\\b(fhd|hd|sd|uhd|4k|h265|hevc|fullhd|alt|backup|\\d{3,4}p)\\b"), " ").replace(Regex("\\s+"), " ").trim()
+    private fun teamKey(s: String) = Util.norm(s).replace(Regex("\\b(fc|sc|ec|cf|ac|afc|de|da|do|futebol|esporte|sport)\\b"), " ").replace(Regex("\\s+"), " ").trim()
+    private fun b64(s: String): String = try { String(Base64.decode(s, Base64.DEFAULT), Charsets.UTF_8) } catch (e: Exception) { s }
 
     suspend fun load(off: Int, force: Boolean): List<Game> = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
@@ -84,10 +102,10 @@ object Fut {
                     val ev = evs.optJSONObject(i) ?: continue
                     val eid = ev.optString("id"); if (eid.isEmpty() || !seen.add(eid)) continue
                     val cp = ev.optJSONArray("competitions")?.optJSONObject(0) ?: continue
-                    val st = cp.optJSONObject("status") ?: ev.optJSONObject("status")
-                    val ty = st?.optJSONObject("type")
+                    val stt = cp.optJSONObject("status") ?: ev.optJSONObject("status")
+                    val ty = stt?.optJSONObject("type")
                     val state = ty?.optString("state") ?: "pre"
-                    val clock = st?.optString("displayClock") ?: ""
+                    val clock = stt?.optString("displayClock") ?: ""
                     val comps = cp.optJSONArray("competitors") ?: continue
                     var hN = ""; var hL = ""; var hS = ""; var aN = ""; var aL = ""; var aS = ""
                     for (k in 0 until comps.length()) {
@@ -110,7 +128,41 @@ object Fut {
         sorted
     }
 
-    private val isoFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'", Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+    /** lê o guia (get_short_epg) dos canais de esporte para saber o que cada um está passando agora */
+    suspend fun loadEpg(sports: List<Item>, force: Boolean) = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        if (!force && epgTs > 0 && now - epgTs < 5 * 60000) return@withContext
+        if (epgLoading) return@withContext
+        epgLoading = true
+        try {
+            val reps = LinkedHashMap<String, Item>()
+            for (c in sports) { val k = baseKey(c.title); if (k.isNotEmpty() && !reps.containsKey(k)) reps[k] = c }
+            val jobs = reps.entries.toList().take(140)
+            val map = ConcurrentHashMap<String, String>()
+            val sem = Semaphore(5)
+            coroutineScope {
+                for ((bk, ch) in jobs) launch {
+                    sem.withPermit {
+                        val m = credRe.find(ch.eps.firstOrNull()?.url ?: "") ?: return@withPermit
+                        val base = m.groupValues[1]; val u = Net.enc(Uri.decode(m.groupValues[2])); val p = Net.enc(Uri.decode(m.groupValues[3])); val id = m.groupValues[4]
+                        val t = Net.getQuick("$base/player_api.php?username=$u&password=$p&action=get_short_epg&stream_id=$id&limit=6") ?: return@withPermit
+                        try {
+                            val arr = JSONObject(t).optJSONArray("epg_listings") ?: return@withPermit
+                            val ns = now / 1000
+                            for (i in 0 until arr.length()) {
+                                val o = arr.optJSONObject(i) ?: continue
+                                val s0 = o.optString("start_timestamp").toLongOrNull() ?: 0
+                                val s1 = o.optString("stop_timestamp").toLongOrNull() ?: 0
+                                val nowP = o.optInt("now_playing", 0) == 1
+                                if ((s0 <= ns && s1 > ns) || nowP) { map[bk] = (b64(o.optString("title")) + " " + b64(o.optString("description"))).trim(); break }
+                            }
+                        } catch (e: Exception) { }
+                    }
+                }
+            }
+            epg.clear(); epg.putAll(map); epgTs = now
+        } finally { epgLoading = false }
+    }
 
     fun status(g: Game): String = when {
         g.state == "in" -> "● AO VIVO" + (if (g.clock.isNotEmpty() && g.clock != "0'") " " + g.clock else "")
@@ -119,31 +171,32 @@ object Fut {
         else -> "A definir"
     }
 
-    private fun key(s: String) = Util.norm(s).replace(Regex("\\b(fc|sc|ec|cf|ac|afc|de|da|do|futebol|esporte|sport)\\b"), " ").replace(Regex("\\s+"), " ").trim()
+    /** o canal está passando jogo agora? (programa atual com cara de jogo, sem ser reprise/debate) */
+    fun onAir(ch: Item): String? { val p = epg[baseKey(ch.title)] ?: return null; return if (gameRe.containsMatchIn(p) && !notRe.containsMatchIn(p)) p else null }
 
-    /** canais de esporte da lista que citam os times do jogo (sem EPG, só pelo nome) */
+    /** canais da lista passando ESTE jogo: pela programação (dois times no programa) ou canal de evento com os dois nomes */
     fun channelsFor(g: Game, sports: List<Item>): List<Item> {
-        val h = key(g.home); val a = key(g.away)
+        val h = teamKey(g.home); val a = teamKey(g.away)
         if (h.length < 3 && a.length < 3) return emptyList()
-        return sports.filter {
-            val n = " " + key(it.title) + " "
-            (h.length >= 3 && n.contains(" $h ")) || (a.length >= 3 && n.contains(" $a "))
-        }.take(4)
+        fun has(s: String, k: String) = k.length >= 3 && (" $s ").contains(" $k ")
+        val seen = HashSet<String>(); val out = ArrayList<Item>()
+        // 1) programação com os dois times
+        for (c in sports) { val p = epg[baseKey(c.title)] ?: continue; val pk = teamKey(p); if (has(pk, h) && has(pk, a)) { if (seen.add(baseKey(c.title))) out.add(c) } }
+        // 2) canal de evento (nome com os dois times)
+        for (c in sports) { val n = teamKey(c.title); if (has(n, h) && has(n, a)) { if (seen.add(baseKey(c.title))) out.add(c) } }
+        return out.take(4)
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FutebolScreen(st: AppState, lib: Library) {
     var off by remember { mutableIntStateOf(0) }
     var games by remember { mutableStateOf<List<Fut.Game>?>(null) }
-    var loading by remember { mutableStateOf(true) }
+    var epgVer by remember { mutableIntStateOf(0) }
     val sports = remember(lib) { lib.live.filter { Fut.sportRe.containsMatchIn(it.title + " " + it.group) } }
-    LaunchedEffect(off) {
-        loading = true; games = null
-        games = try { Fut.load(off, false) } catch (e: Exception) { emptyList() }
-        loading = false
-    }
+    LaunchedEffect(off) { games = try { Fut.load(off, false) } catch (e: Exception) { emptyList() } }
+    LaunchedEffect(sports, off) { if (off == 0 && sports.isNotEmpty()) { Fut.loadEpg(sports, false); epgVer++ } }
+    val airing = remember(epgVer, sports) { if (off == 0) sports.mapNotNull { c -> Fut.onAir(c)?.let { c to it } }.distinctBy { Fut.baseKey(it.first.title) } else emptyList() }
     val ls = rememberLazyListState()
     LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 24.dp)) {
         item {
@@ -160,14 +213,40 @@ fun FutebolScreen(st: AppState, lib: Library) {
                     Spacer(Modifier.width(6.dp))
                 }
             }
-            Spacer(Modifier.height(10.dp))
         }
-        if (loading && games == null) {
+        if (off == 0) {
+            item {
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("● ", color = Color(0xFF34D399), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Passando jogo agora", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (Fut.epgLoading && Fut.epgTs == 0L) "lendo a programação…" else "${airing.size} canais", color = Muted, fontSize = 11.sp)
+                }
+                Spacer(Modifier.height(6.dp))
+                if (airing.isEmpty()) {
+                    Text(if (Fut.epgLoading) "Verificando os canais…" else "Nenhum canal da sua lista está passando jogo neste momento.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                        items(airing, key = { Fut.baseKey(it.first.title) }) { (ch, prog) ->
+                            val fi = rememberFocus()
+                            Column(Modifier.width(150.dp).tvClick(fi, RoundedCornerShape(10.dp)) { st.playItem(ch, null, sports) }
+                                .background(if (fi.on) FocusBg else Color(0xFF17263F), RoundedCornerShape(10.dp)).padding(10.dp)) {
+                                Text("📺 " + ch.title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("⚽ " + prog, color = Color(0xAA34D399), fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val g = games
+        if (g == null) {
             item { Text("Buscando os jogos na internet…", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(12.dp)) }
-        } else if (games.isNullOrEmpty()) {
+        } else if (g.isEmpty()) {
             item { Text("Nenhum jogo encontrado neste dia nos campeonatos acompanhados.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(12.dp)) }
         } else {
-            val byLeague = games!!.groupBy { it.league }
+            val byLeague = g.groupBy { it.league }
             for ((lg, list) in byLeague) {
                 item(key = "lg_$lg") {
                     Row(Modifier.padding(top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -176,28 +255,15 @@ fun FutebolScreen(st: AppState, lib: Library) {
                         Spacer(Modifier.width(8.dp)); Text("${list.size} jogo${if (list.size > 1) "s" else ""}", color = Muted, fontSize = 11.sp)
                     }
                 }
-                items(list, key = { "${lg}_${it.home}_${it.away}_${it.timeMs}" }) { g -> GameCard(st, g, sports) }
-            }
-        }
-        if (sports.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(16.dp))
-                Text("Canais de esporte da sua lista (${sports.size})", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    for (ch in sports.take(60)) {
-                        val fi = rememberFocus()
-                        Text("📺 " + ch.title, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.tvClick(fi, RoundedCornerShape(8.dp)) { st.playItem(ch, null, sports) }
-                                .background(if (fi.on) FocusBg else Color(0xFF17263F), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 7.dp))
-                    }
-                }
+                items(list, key = { "${lg}_${it.home}_${it.away}_${it.timeMs}" }) { game -> GameCard(st, game, sports, epgVer) }
             }
         }
     }
 }
 
 @Composable
-private fun GameCard(st: AppState, g: Fut.Game, sports: List<Item>) {
+private fun GameCard(st: AppState, g: Fut.Game, sports: List<Item>, epgVer: Int) {
+    @Suppress("UNUSED_EXPRESSION") epgVer
     val chs = if (g.state == "post") emptyList() else Fut.channelsFor(g, sports)
     Column(Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(12.dp))
         .background(if (g.state == "in") Color(0x332CC66B) else Color(0xFF141A28), RoundedCornerShape(12.dp)).padding(12.dp)) {
@@ -216,6 +282,8 @@ private fun GameCard(st: AppState, g: Fut.Game, sports: List<Item>) {
                             .background(if (fi.on) Pink else Color(0x55E93A7D), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
                 }
             }
+        } else if (g.state == "in") {
+            Spacer(Modifier.height(4.dp)); Text("Nenhum canal da sua lista está passando este jogo", color = Color(0x66FFFFFF), fontSize = 10.sp)
         }
     }
 }

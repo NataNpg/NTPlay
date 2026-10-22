@@ -133,3 +133,13 @@ Tudo nesta versão é só no app nativo de Android TV.
 - Grupos de favoritos personalizados (filmes/séries/animes) criados pelo usuário.
 - Config de playlist (auto-atualização, intervalo, retenção de EPG) e visual do player de VOD.
 - `versionName 1.3.0` / `versionCode 5`.
+
+## Versão 1.4.0 (Android TV) — 4K real, Futebol por EPG, rolagem
+
+- **Saída 4K/UHD real** (`Player.kt`, `setDisplayModeFor`): ao detectar o tamanho do vídeo (`onVideoSizeChanged`), troca a saída HDMI para a resolução do conteúdo via `window.attributes.preferredDisplayModeId`, casando a taxa de quadros (evita judder). Só muda em conteúdo ≥1440p; para o resto volta ao padrão do sistema. É isso que faz a TV mostrar "UHD ativo" no 4K. Volta ao padrão ao sair do player. Requer Android 6+.
+- **Aba Futebol por programação (EPG)** (`Futebol.kt`): `loadEpg` lê `get_short_epg` dos canais de esporte (5 em paralelo, até 140 canais-base, cache 5 min) e descobre o que cada um passa agora. "Passando jogo agora" lista só os canais cujo programa atual é um jogo. Em cada jogo do dia, mostra abaixo só o canal que está passando aquele jogo (dois times no programa, ou canal de evento com os dois nomes). Removida a lista geral de canais que não estavam passando jogo. Igual ao PC.
+- **Rolagem volta onde parou** (`UI.kt`, `savedGridState`/`savedListState` + `AppState.scroll`): a posição das grades de filmes/séries e das prateleiras é guardada ao abrir um item e restaurada na volta, em vez de voltar ao topo.
+- `versionName 1.4.0` / `versionCode 6`.
+
+### Observação sobre 4K que "não entra"
+Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES`), é limite de hardware do aparelho (alguns boxes não decodificam HEVC 10-bit 4K). O app mostra o aviso e sugere a versão Full HD/HD. A troca de modo de tela resolve o "UHD ativo" quando o aparelho CONSEGUE decodificar.

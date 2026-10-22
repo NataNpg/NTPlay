@@ -45,6 +45,7 @@ class AppState(val ctx: Context) {
     var trend by mutableStateOf<List<Trending.Row>>(emptyList())
     var epsErr by mutableStateOf("")
     var queue: List<Item> = emptyList()
+    val scroll = HashMap<String, Pair<Int, Int>>() // posição de rolagem por tela (volta onde parou)
     private val progMap: HashMap<String, Prog> = store.progress()
 
     fun toast(m: String) {
