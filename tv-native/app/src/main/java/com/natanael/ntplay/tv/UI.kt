@@ -246,6 +246,7 @@ fun App(st: AppState) {
         if (p != null) PlayerScreen(st, p)
         if (st.showLists) ListsDialog(st)
         if (st.showSearch) SearchDialog(st)
+        if (st.groupDialog) GroupDialog(st)
         if (st.toastMsg.isNotEmpty()) {
             Box(Modifier.fillMaxSize().padding(bottom = 48.dp), contentAlignment = Alignment.BottomCenter) {
                 Surface(shape = RoundedCornerShape(14.dp), color = Color(0xF01C2438)) {
@@ -447,7 +448,7 @@ fun Browse(st: AppState) {
                 "FUTEBOL" -> FutebolScreen(st, lib)
                 "INFANTIL" -> GridOf(st, lib.kids.take(600), "Infantil")
                 "ANIMES" -> GridOf(st, lib.anime.take(600), "Animes")
-                "FAVORITOS" -> GridOf(st, lib.every.filter { st.favs.contains(it.key) }, "Minha lista")
+                "FAVORITOS" -> FavoritesScreen(st, lib)
                 else -> Recom(st, lib)
             }
         }
@@ -645,6 +646,7 @@ fun DetailScreen(st: AppState, item: Item) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     TvButton(label, Pink, 13.sp) { if (needEps) { if (!st.epsLoading) st.loadEps(item) } else st.playItem(item, cont) }
                     TvButton(if (st.favs.contains(item.key)) "★ Na lista" else "☆ Minha lista", Btn, 13.sp) { st.toggleFav(item.key) }
+                    TvButton("＋ Grupo", Btn, 13.sp) { st.openGroups(item) }
                     TvButton("‹ Voltar", Btn, 13.sp) { st.detail = null }
                 }
                 if (needEps && st.epsErr.isNotEmpty()) Text(st.epsErr + " Toque em \"Carregar episódios\" para tentar de novo.", color = Color(0xFFFF9A9A), fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
@@ -738,6 +740,79 @@ fun fieldColors() = OutlinedTextFieldDefaults.colors(
     cursorColor = Cyan, focusedPlaceholderColor = Muted, unfocusedPlaceholderColor = Muted
 )
 
+@Composable
+fun FavoritesScreen(st: AppState, lib: Library) {
+    @Suppress("UNUSED_VARIABLE") val gv = st.groupsVer
+    val names = st.groupNames()
+    val favs = lib.every.filter { st.favs.contains(it.key) }
+    val ls = savedListState(st, "favorites")
+    LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)) {
+        item {
+            Row(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.width(4.dp).height(18.dp).background(Pink, RoundedCornerShape(2.dp)))
+                Spacer(Modifier.width(8.dp))
+                Text("Minha lista e grupos", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.width(12.dp))
+                TvButton("＋ Novo grupo", Color(0xFF2B6CB0), 11.sp, compact = true) { st.openGroups(null) }
+            }
+        }
+        for (name in names) {
+            val gitems = st.groupItems(name)
+            item(key = "grp_" + name) {
+                ShelfRow(name, gitems.size, null) {
+                    if (gitems.isEmpty()) item { Text("Vazio — use o botão ＋ Grupo na tela do filme/série.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(8.dp)) }
+                    else items(gitems.take(40), key = { it.key }) { it2 -> CardFor(st, it2, gitems) }
+                }
+            }
+        }
+        item(key = "favshelf") {
+            ShelfRow("★ Favoritos", favs.size, null) {
+                if (favs.isEmpty()) item { Text("Toque e segure em um título para favoritar.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(8.dp)) }
+                else items(favs.take(40), key = { it.key }) { it2 -> CardFor(st, it2, favs) }
+            }
+        }
+        if (names.isEmpty() && favs.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { Text("Crie um grupo ou favorite títulos.", color = Muted, fontSize = 14.sp) } }
+    }
+}
+
+@Composable
+fun GroupDialog(st: AppState) {
+    val item = st.groupDialogItem
+    @Suppress("UNUSED_VARIABLE") val gv = st.groupsVer
+    val names = st.groupNames()
+    var newName by remember { mutableStateOf("") }
+    Dialog(onDismissRequest = { st.groupDialog = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxWidth(0.62f).fillMaxHeight(0.82f), shape = RoundedCornerShape(18.dp), color = PanelC) {
+            Column(Modifier.padding(20.dp)) {
+                Text(if (item != null) "Adicionar a um grupo" else "Meus grupos personalizados", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                if (item != null) Text(showTitle(item), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                Spacer(Modifier.height(12.dp))
+                val ls = rememberLazyListState()
+                LazyColumn(Modifier.weight(1f).mouseScroll(ls), state = ls, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (names.isEmpty()) item { Text("Nenhum grupo ainda. Crie um abaixo.", color = Muted, fontSize = 12.sp) }
+                    items(names, key = { it }) { n ->
+                        Row(Modifier.fillMaxWidth().background(Color(0x14FFFFFF), RoundedCornerShape(10.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(Modifier.weight(1f)) {
+                                Text(n, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(st.groupCount(n).toString() + " títulos", color = Muted, fontSize = 10.sp)
+                            }
+                            if (item != null) TvButton(if (st.inGroup(n, item.key)) "☑ No grupo" else "☐ Adicionar", Btn, 10.sp, compact = true) { st.toggleInGroup(n, item.key) }
+                            TvButton("🗑", Color(0xFF7A2E3A), 10.sp, compact = true) { st.deleteGroup(n) }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(newName, { newName = it }, Modifier.weight(1f), placeholder = { Text("Nome do novo grupo", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors())
+                    TvButton("Criar", Color(0xFF2B6CB0), 12.sp) { if (newName.isNotBlank()) { val nm = newName.trim(); st.createGroup(nm); if (item != null && !st.inGroup(nm, item.key)) st.toggleInGroup(nm, item.key); newName = "" } }
+                }
+                Spacer(Modifier.height(8.dp))
+                TvButton("Fechar", Btn) { st.groupDialog = false }
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- listas M3U + QR code
 @Composable
 fun ListsDialog(st: AppState) {
@@ -764,6 +839,7 @@ fun ListsDialog(st: AppState) {
                 val ls = rememberLazyListState()
                 LazyColumn(Modifier.weight(1f).fillMaxHeight().mouseScroll(ls), state = ls, verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(end = 4.dp, bottom = 24.dp)) {
                     item { Text("MINHAS LISTAS", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                    item { st.lib?.let { lb -> Text("Ao vivo ${lb.live.size}  ·  Filmes ${lb.movies.size}  ·  Séries ${lb.series.size}", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold) } }
                     if (lists.isEmpty()) item { Text("Nenhuma lista ainda.", color = Muted, fontSize = 12.sp) }
                     items(lists, key = { it.id }) { m ->
                         Row(Modifier.fillMaxWidth().background(Color(0x14FFFFFF), RoundedCornerShape(12.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -797,6 +873,9 @@ fun ListsDialog(st: AppState) {
                     item { Spacer(Modifier.height(4.dp)); Text("COMPATIBILIDADE DE FONTE (XTREAM)", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     item { TvButton((if (st.adultByName) "☑" else "☐") + " Detectar adulto pelo nome da categoria (quando o provedor não marca)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAdultByName(!st.adultByName) } }
                     item { TvButton((if (st.base64) "☑" else "☐") + " Decodificar nomes em Base64 (só se os nomes aparecerem embaralhados)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeBase64(!st.base64) } }
+                    item { Spacer(Modifier.height(4.dp)); Text("ATUALIZAÇÃO DAS LISTAS", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                    item { TvButton((if (st.updateOnStart) "☑" else "☐") + " Atualizar as listas ao abrir o app", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeUpdateOnStart(!st.updateOnStart) } }
+                    item { TvButton("Atualização automática: " + when (st.updateHours) { 6 -> "a cada 6 h"; 12 -> "a cada 12 h"; 24 -> "a cada 24 h"; else -> "desligada" }, Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeUpdateHours(when (st.updateHours) { 0 -> 6; 6 -> 12; 12 -> 24; else -> 0 }) } }
                 }
             }
         }

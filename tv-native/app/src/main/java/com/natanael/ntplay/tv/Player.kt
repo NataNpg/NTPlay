@@ -104,6 +104,8 @@ private fun qualityOf(p: ExoPlayer): String {
     return listOf(res, c, fps).filter { it.isNotEmpty() }.joinToString(" · ")
 }
 
+private fun hhmm(ms: Long): String = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ms))
+
 private fun langName(l: String?): String = when (l?.lowercase()?.take(2)) {
     null, "", "un" -> "Faixa"
     "pt" -> "Português"; "en" -> "Inglês"; "es" -> "Espanhol"; "ja" -> "Japonês"; "ko" -> "Coreano"
@@ -128,6 +130,8 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     var quality by remember(req.ep.url) { mutableStateOf("") }
     var subLabel by remember(req.ep.url) { mutableStateOf("Desligada") }
     var audioLabel by remember(req.ep.url) { mutableStateOf("") }
+    var epgNow by remember(req.ep.url) { mutableStateOf<Fut.Prog2?>(null) }
+    var epgNext by remember(req.ep.url) { mutableStateOf<Fut.Prog2?>(null) }
     var nSubs by remember(req.ep.url) { mutableIntStateOf(0) }
     var nAudio by remember(req.ep.url) { mutableIntStateOf(0) }
     val rootFocus = remember { FocusRequester() }
@@ -163,6 +167,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     }
 
     LaunchedEffect(player) { load(url, if (req.resume > 0) req.resume else 0L) }
+    LaunchedEffect(req.ep.url) { if (live) { val r = Fut.epgOf(req.item); epgNow = r.first; epgNext = r.second } else { epgNow = null; epgNext = null } }
 
     fun show() { ui = true; lastAct = System.currentTimeMillis() }
     fun close() { st.saveProg(req, player.currentPosition, player.duration.coerceAtLeast(0)); st.closePlayer() }
@@ -346,11 +351,11 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
         }
 
         if (ui) {
-            // topo: título, qualidade, relógio
-            Row(
-                Modifier.align(Alignment.TopStart).fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent))).padding(start = 40.dp, end = 40.dp, top = 22.dp, bottom = 30.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // topo: título, qualidade, relógio + guia (ao vivo)
+            Column(
+                Modifier.align(Alignment.TopStart).fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent))).padding(start = 40.dp, end = 40.dp, top = 22.dp, bottom = 16.dp)
             ) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
                 if (live) { LiveBadge(Modifier); Spacer(Modifier.width(10.dp)) }
                 Text(
                     showTitle(req.item) + if (req.item.kind == 's') "  ·  T${req.ep.s} E${req.ep.e}" else "",
@@ -360,6 +365,26 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                 if (quality.isNotEmpty()) Text(quality, color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.background(Cyan, RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
                 Spacer(Modifier.weight(1f))
                 Text(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+              }
+              if (live && (epgNow != null || epgNext != null)) {
+                Spacer(Modifier.height(8.dp))
+                epgNow?.let { pr ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("AGORA", color = Pink, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+                        Spacer(Modifier.width(8.dp))
+                        Text(pr.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        Spacer(Modifier.width(8.dp))
+                        if (pr.start > 0) Text(hhmm(pr.start) + "–" + hhmm(pr.stop), color = Muted, fontSize = 10.sp)
+                    }
+                    if (pr.stop > pr.start) {
+                        val prog = ((System.currentTimeMillis() - pr.start).toFloat() / (pr.stop - pr.start)).coerceIn(0f, 1f)
+                        Box(Modifier.padding(top = 3.dp).fillMaxWidth(0.55f).height(3.dp).background(Color(0x44FFFFFF), RoundedCornerShape(2.dp))) {
+                            Box(Modifier.fillMaxWidth(prog).fillMaxHeight().background(Pink, RoundedCornerShape(2.dp)))
+                        }
+                    }
+                }
+                epgNext?.let { pr -> Text("A seguir: " + pr.title + (if (pr.start > 0) "  " + hhmm(pr.start) else ""), color = Color(0xBBFFFFFF), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)) }
+              }
             }
             // base: progresso + botões compactos
             Column(

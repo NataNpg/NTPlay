@@ -5,6 +5,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,6 +32,9 @@ class AppState(val ctx: Context) {
     var lastErr by mutableStateOf("")
     var showLists by mutableStateOf(false)
     var showSearch by mutableStateOf(false)
+    var groupDialog by mutableStateOf(false)
+    var groupDialogItem: Item? = null
+    fun openGroups(item: Item?) { groupDialogItem = item; groupDialog = true }
     var favs by mutableStateOf(store.favs)
     var adult by mutableStateOf(store.adult)
     var autoNext by mutableStateOf(store.autoNext)
@@ -69,6 +74,7 @@ class AppState(val ctx: Context) {
 
     fun start() {
         scope.launch { reload() }
+        autoUpdate()
         // presença para o painel do desenvolvedor: ao abrir e a cada 5 minutos
         scope.launch {
             delay(8000)
@@ -233,6 +239,49 @@ class AppState(val ctx: Context) {
     fun changeBase64(v: Boolean) { base64 = v; store.base64 = v; scope.launch { reload() } }
     var adultByName by mutableStateOf(store.adultByName)
     fun changeAdultByName(v: Boolean) { adultByName = v; store.adultByName = v; scope.launch { reload() } }
+
+    // ---------- grupos personalizados ----------
+    var groupsVer by mutableIntStateOf(0)
+    private fun readGroups(): LinkedHashMap<String, MutableList<String>> {
+        val m = LinkedHashMap<String, MutableList<String>>()
+        try { val o = JSONObject(store.groupsRaw); val it = o.keys(); while (it.hasNext()) { val k = it.next(); val a = o.getJSONArray(k); val l = ArrayList<String>(); for (i in 0 until a.length()) l.add(a.getString(i)); m[k] = l } } catch (e: Exception) { }
+        return m
+    }
+    private fun writeGroups(m: Map<String, List<String>>) {
+        val o = JSONObject(); for ((k, v) in m) o.put(k, JSONArray(v)); store.groupsRaw = o.toString(); groupsVer++
+    }
+    fun groupNames(): List<String> { @Suppress("UNUSED_EXPRESSION") groupsVer; return readGroups().keys.toList() }
+    fun groupCount(name: String): Int = readGroups()[name]?.size ?: 0
+    fun groupItems(name: String): List<Item> { val lb = lib ?: return emptyList(); val keys = readGroups()[name] ?: return emptyList(); return keys.mapNotNull { lb.byKey[it] } }
+    fun createGroup(name: String) { val n = name.trim().take(40); if (n.isEmpty()) return; val m = readGroups(); if (!m.containsKey(n)) { m[n] = ArrayList(); writeGroups(m); toast("Grupo \"$n\" criado") } }
+    fun deleteGroup(name: String) { val m = readGroups(); if (m.remove(name) != null) { writeGroups(m); toast("Grupo removido") } }
+    fun inGroup(name: String, key: String): Boolean = readGroups()[name]?.contains(key) == true
+    fun toggleInGroup(name: String, key: String) { val m = readGroups(); val l = m.getOrPut(name) { ArrayList() }; val added = if (l.contains(key)) { l.remove(key); false } else { l.add(key); true }; writeGroups(m); toast(if (added) "Adicionado ao grupo \"$name\"" else "Removido do grupo") }
+
+    // ---------- config de playlist ----------
+    var updateHours by mutableIntStateOf(store.updateHours)
+    fun changeUpdateHours(v: Int) { updateHours = v; store.updateHours = v }
+    var updateOnStart by mutableStateOf(store.updateOnStart)
+    fun changeUpdateOnStart(v: Boolean) { updateOnStart = v; store.updateOnStart = v }
+
+    private suspend fun syncList(m: ListMeta) {
+        withContext(Dispatchers.IO) {
+            val f = store.file(m.id); val cr = Xtream.creds(m.url)
+            if (cr != null) Xtream.buildM3u(cr, f) { } else Net.downloadAny(m.url, f)
+            val l = store.lists(); l.firstOrNull { it.id == m.id }?.let { it.count = countItems(f); it.date = System.currentTimeMillis() }; store.saveLists(l)
+        }
+    }
+    private fun autoUpdate() {
+        if (!store.updateOnStart && store.updateHours <= 0) return
+        scope.launch {
+            delay(12000)
+            val now = System.currentTimeMillis()
+            val due = store.lists().filter { it.active && it.url.isNotEmpty() && (store.updateOnStart || (store.updateHours > 0 && now - it.date > store.updateHours * 3600_000L)) }
+            if (due.isEmpty()) return@launch
+            for (m in due) try { syncList(m) } catch (e: Throwable) { }
+            reload()
+        }
+    }
 
     /** atualiza vencimento das listas Xtream (em segundo plano) */
     fun refreshAccounts() {

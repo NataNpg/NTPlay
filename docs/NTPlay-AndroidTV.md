@@ -143,3 +143,11 @@ Tudo nesta versão é só no app nativo de Android TV.
 
 ### Observação sobre 4K que "não entra"
 Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES`), é limite de hardware do aparelho (alguns boxes não decodificam HEVC 10-bit 4K). O app mostra o aviso e sugere a versão Full HD/HD. A troca de modo de tela resolve o "UHD ativo" quando o aparelho CONSEGUE decodificar.
+
+## Versão 1.5.0 (Android TV) — guia no player, grupos, provedores, auto-update
+
+- **Guia agora/próximo no player ao vivo** (`Player.kt` + `Fut.epgOf`): ao abrir um canal, o painel do topo mostra o programa atual (título, horário e barra de progresso) e "A seguir". Lê `get_short_epg` do servidor do canal.
+- **Grupos personalizados** (`Store.groupsRaw`, `AppState` grupos, `UI.FavoritesScreen`/`GroupDialog`): o usuário cria grupos (ex.: "Ação", "Doramas", "Para ver depois") e adiciona filmes/séries pelo botão **＋ Grupo** na tela do título. A aba FAVORITOS agora mostra cada grupo como uma prateleira, além de "★ Favoritos". Grupos guardados como JSON nas preferências.
+- **Provedores com estatísticas** (`ListsDialog`): mostra Ao vivo / Filmes / Séries da biblioteca, mantém por lista o vencimento/telas (conta Xtream) e as ações Atualizar/Excluir.
+- **Atualização automática das listas** (`AppState.autoUpdate`): em Preferências, "Atualizar ao abrir o app" e "Atualização automática" (6/12/24 h). Re-sincroniza listas Xtream (via `get_series`/`player_api`) ou baixa a M3U de novo. Desligada por padrão.
+- `versionName 1.5.0` / `versionCode 7`.

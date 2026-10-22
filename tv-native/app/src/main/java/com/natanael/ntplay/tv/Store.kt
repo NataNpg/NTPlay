@@ -82,6 +82,19 @@ class Store(ctx: Context) {
         get() = sp.getBoolean("adultbyname", true)
         set(v) { sp.edit().putBoolean("adultbyname", v).apply() }
 
+    // grupos personalizados do usuário: JSON { "nome": ["key1","key2"], ... }
+    var groupsRaw: String
+        get() = sp.getString("groups", "{}") ?: "{}"
+        set(v) { sp.edit().putString("groups", v).apply() }
+
+    // atualização automática das listas
+    var updateHours: Int
+        get() = sp.getInt("updhours", 0) // 0 = desligado; senão 6/12/24
+        set(v) { sp.edit().putInt("updhours", v).apply() }
+    var updateOnStart: Boolean
+        get() = sp.getBoolean("updstart", false)
+        set(v) { sp.edit().putBoolean("updstart", v).apply() }
+
     fun relay(): Pair<String, String> {
         var t = sp.getString("rt", null)
         var k = sp.getString("rk", null)
