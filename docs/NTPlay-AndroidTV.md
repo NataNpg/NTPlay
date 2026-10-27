@@ -203,3 +203,10 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 
 ## Versão 1.9.1 (Android TV) — chave de assinatura nos Secrets
 - Nova chave (secreta) em GitHub Secrets; build usa `NT_KS_FILE`/`NT_KS_PASS`. Quem instalou a 1.9.0 (chave antiga, pública) precisa reinstalar uma vez. `versionName 1.9.1` / `versionCode 13`.
+
+## Versão 1.9.2 (Android TV) — contato por WhatsApp na entrada, nuvem junto da lista; novo painel de contas
+- **Tela de entrada** (`UI.LoginGate`): QR code pequeno + número do WhatsApp (42) 92002-8569 (`https://wa.me/5542920028569`) para pedir acesso/renovação.
+- **Nuvem junto da lista**: o botão "☁ Conta" saiu do cabeçalho; a conta/nuvem (usuário, validade, "Sincronizar agora", "Sair da conta") agora fica dentro de **☰ Listas**, acima das listas.
+- **Painel de contas** (`www/contas.html`) refeito no novo design (cartões, gráficos, status, busca, filtros), nas cores/logo do NTPlay, ligado ao servidor real: criar (7/30/90/365 dias ou data), editar validade/anotação, renovar +30 dias, bloquear agora, nova senha, excluir, exportar CSV, último acesso. Não mostra nem guarda senhas (só na hora de criar/trocar, para copiar a mensagem de acesso). A chave de administrador é verificada no servidor (não está mais no código).
+- Servidor `ntsync` v4: novas operações `setexp` (data exata), `note`, e `create` aceita `date`.
+- `versionName 1.9.2` / `versionCode 14`.

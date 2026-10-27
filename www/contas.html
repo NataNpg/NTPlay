@@ -1,100 +1,669 @@
-<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NTPlay · Contas de acesso</title>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>NTPlay • Painel de Contas</title>
+<link rel="icon" href="img/ntplay-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-:root{--bg:#070b1a;--p:#111838;--c:#3ce0e6;--v:#8b5cf6;--m:#9fb0d6;--b:#2a3166}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:#fff;padding:18px;max-width:900px;margin:auto}
-h1{color:var(--c);margin:0 0 4px}h2{font-size:16px;margin:0 0 10px}.m{color:var(--m);font-size:13px}
-.card{background:var(--p);border:1px solid var(--b);border-radius:14px;padding:14px;margin:14px 0}
-input,select{width:100%;padding:11px;border-radius:9px;border:1px solid var(--b);background:#0b1130;color:#fff;font-size:15px;margin:4px 0}
-.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}
-button{padding:10px 14px;border:0;border-radius:9px;background:var(--v);color:#fff;font-weight:700;cursor:pointer;font-size:14px}
-button.s{background:#222b57}button.d{background:#7a2e3a}button.g{background:#0f766e}
-table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;border-bottom:1px solid var(--b);text-align:left;vertical-align:middle}
-.ok{color:#34d399}.bad{color:#ff8a8a}.warn{color:#fbbf24}.acts{display:flex;gap:5px;flex-wrap:wrap}.acts button{padding:6px 9px;font-size:12px}
-pre{background:#0b1130;border:1px dashed var(--c);border-radius:10px;padding:10px;white-space:pre-wrap;font-size:14px}
-</style></head><body>
-<h1>NTPlay · Contas de acesso</h1>
-<div class="m">Crie o usuário e a senha de quem pode usar o aplicativo e defina por quanto tempo vale. Termina o prazo, o app bloqueia.</div>
+:root{
+  --bg:#070b1a; --bg2:#0e1430; --card:rgba(255,255,255,.035); --card-h:rgba(255,255,255,.06);
+  --border:rgba(255,255,255,.08); --text:#eef0fb; --muted:#8a8fb3;
+  --primary:#8b5cf6; --primary2:#3ce0e6;
+  --green:#22c55e; --yellow:#f59e0b; --red:#ef4444; --radius:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;
+  background-image:
+    radial-gradient(circle at 10% -10%,rgba(139,92,246,.28),transparent 45%),
+    radial-gradient(circle at 100% 110%,rgba(60,224,230,.16),transparent 45%);
+  background-attachment:fixed;
+}
+button{font-family:inherit;cursor:pointer;border:none}
+input,select{font-family:inherit}
 
-<div class="card" id="loginBox">
-  <h2>Chave de administrador</h2>
-  <input id="adm" type="password" placeholder="Cole aqui a sua chave de administrador" autocomplete="off">
-  <div class="row"><button onclick="entrar()">Entrar</button></div>
-  <div id="lmsg" class="m"></div>
+/* ---------- LOGIN ---------- */
+#login{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:100;
+  background:rgba(7,11,26,.88);backdrop-filter:blur(14px)}
+.login-box{width:min(400px,92vw);background:var(--bg2);border:1px solid var(--border);border-radius:24px;
+  padding:40px 32px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.5);animation:pop .4s ease}
+.login-box .logo{margin:0 auto 18px;width:72px;height:72px;border-radius:18px}
+.login-box h2{font-size:22px;margin-bottom:6px}
+.login-box p{color:var(--muted);font-size:14px;margin-bottom:24px}
+.login-box .erro{color:var(--red);font-size:13px;margin-top:10px;min-height:18px}
+
+/* ---------- LAYOUT ---------- */
+.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+aside{border-right:1px solid var(--border);padding:28px 18px;position:sticky;top:0;height:100vh;
+  background:rgba(255,255,255,.015);display:flex;flex-direction:column;gap:30px}
+.brand{display:flex;align-items:center;gap:12px;padding:0 8px}
+.logo{width:42px;height:42px;border-radius:12px;display:block;object-fit:cover;box-shadow:0 8px 24px rgba(139,92,246,.4),0 0 0 1px rgba(60,224,230,.35)}
+.brand b{font-size:19px;letter-spacing:.3px;background:linear-gradient(90deg,var(--primary2),var(--primary));-webkit-background-clip:text;background-clip:text;color:transparent}
+.brand small{display:block;color:var(--muted);font-size:12px;font-weight:500}
+nav{display:flex;flex-direction:column;gap:4px}
+nav a{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;color:var(--muted);
+  text-decoration:none;font-weight:500;font-size:14px;transition:.2s}
+nav a:hover{background:var(--card-h);color:var(--text)}
+nav a.ativo{background:linear-gradient(90deg,rgba(139,92,246,.22),rgba(139,92,246,.04));color:#fff;
+  box-shadow:inset 3px 0 0 var(--primary)}
+.side-foot{margin-top:auto}
+.btn-sair{width:100%;padding:11px;border-radius:12px;background:var(--card);color:var(--muted);
+  border:1px solid var(--border);font-weight:500;transition:.2s}
+.btn-sair:hover{color:var(--red);border-color:rgba(239,68,68,.4)}
+
+main{padding:30px 36px 60px;max-width:1400px;width:100%}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:28px}
+.topbar h1{font-size:26px;font-weight:700}
+.topbar p{color:var(--muted);font-size:14px;margin-top:4px}
+.top-acoes{display:flex;gap:10px;flex-wrap:wrap}
+
+/* ---------- BOTÕES / INPUTS ---------- */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:12px;font-weight:600;
+  font-size:14px;transition:.2s;white-space:nowrap}
+.btn-primary{background:linear-gradient(135deg,var(--primary),#6d28d9);color:#fff;box-shadow:0 8px 22px rgba(139,92,246,.35)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(139,92,246,.5)}
+.btn-ghost{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--card-h)}
+.input{width:100%;padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.05);
+  border:1px solid var(--border);color:var(--text);font-size:14px;outline:none;transition:.2s}
+.input:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(139,92,246,.18)}
+select.input option{background:var(--bg2)}
+
+/* ---------- CARDS ---------- */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px;
+  backdrop-filter:blur(8px)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-bottom:22px}
+.kpi{position:relative;overflow:hidden;transition:.25s}
+.kpi:hover{transform:translateY(-3px);background:var(--card-h)}
+.kpi .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:20px;margin-bottom:14px}
+.kpi span{color:var(--muted);font-size:13px;font-weight:500}
+.kpi h3{font-size:32px;font-weight:800;margin-top:4px}
+.kpi small{font-size:12px;color:var(--muted)}
+.kpi::after{content:"";position:absolute;right:-30px;top:-30px;width:110px;height:110px;border-radius:50%;opacity:.12}
+.k-total .ic{background:rgba(139,92,246,.15)} .k-total::after{background:var(--primary)}
+.k-ativo .ic{background:rgba(34,197,94,.15)}  .k-ativo::after{background:var(--green)}
+.k-venc .ic{background:rgba(245,158,11,.15)}  .k-venc::after{background:var(--yellow)}
+.k-exp .ic{background:rgba(239,68,68,.15)}    .k-exp::after{background:var(--red)}
+
+.graficos{display:grid;grid-template-columns:1fr 1.6fr;gap:18px;margin-bottom:22px}
+.card h4{font-size:16px;font-weight:600}
+.card .sub{color:var(--muted);font-size:13px;margin-top:3px}
+.donut-wrap{position:relative;height:250px;margin-top:16px}
+.donut-centro{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.donut-centro b{font-size:34px;font-weight:800}
+.donut-centro span{color:var(--muted);font-size:12px}
+.bar-wrap{height:250px;margin-top:16px}
+
+/* ---------- TABELA ---------- */
+.tab-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.busca{position:relative;width:min(300px,100%)}
+.busca input{padding-left:40px}
+.busca::before{content:"🔍";position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:14px;opacity:.6}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{padding:8px 14px;border-radius:999px;background:var(--card);border:1px solid var(--border);
+  color:var(--muted);font-size:13px;font-weight:500;transition:.2s}
+.chip:hover{color:var(--text)}
+.chip.on{background:linear-gradient(135deg,var(--primary),#6d28d9);border-color:var(--primary);color:#fff}
+.chip em{font-style:normal;opacity:.75;margin-left:4px}
+
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
+  font-weight:600;padding:12px 14px;border-bottom:1px solid var(--border)}
+td{padding:14px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
+tbody tr{transition:.15s}
+tbody tr:hover{background:rgba(255,255,255,.025)}
+.user{display:flex;align-items:center;gap:12px}
+.avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:15px;color:#fff;flex-shrink:0}
+.user b{display:block;font-weight:600}
+.user small{color:var(--muted);font-size:12px}
+.visto{color:var(--muted);font-size:13px}
+.nota{color:var(--primary2)!important}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.b-ativo{background:rgba(34,197,94,.12);color:var(--green)}
+.b-venc{background:rgba(245,158,11,.12);color:var(--yellow)}
+.b-exp{background:rgba(239,68,68,.12);color:var(--red)}
+.b-ativo::before{animation:pulse 1.8s infinite}
+.prog{width:120px}
+.prog .barra{height:6px;border-radius:9px;background:rgba(255,255,255,.07);overflow:hidden;margin-top:6px}
+.prog .barra i{display:block;height:100%;border-radius:9px}
+.prog small{font-size:12px;color:var(--muted)}
+.acoes{display:flex;gap:6px;justify-content:flex-end}
+.ib{width:34px;height:34px;border-radius:10px;background:var(--card);border:1px solid var(--border);
+  font-size:15px;display:grid;place-items:center;transition:.2s;color:var(--text)}
+.ib:hover{background:var(--card-h);transform:translateY(-2px)}
+.ib.del:hover{border-color:rgba(239,68,68,.5);background:rgba(239,68,68,.12)}
+.vazio{text-align:center;padding:50px 20px;color:var(--muted)}
+.vazio div{font-size:42px;margin-bottom:10px}
+
+/* ---------- MODAL ---------- */
+.modal-bg{position:fixed;inset:0;background:rgba(5,6,12,.7);backdrop-filter:blur(6px);display:none;
+  align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal-bg.show{display:flex}
+.modal{width:min(460px,100%);background:var(--bg2);border:1px solid var(--border);border-radius:22px;padding:28px;animation:pop .3s ease}
+.modal h3{font-size:20px;margin-bottom:4px}
+.modal .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
+.campo{margin-bottom:16px}
+.campo label{display:block;font-size:13px;font-weight:500;margin-bottom:7px;color:#c9cce6}
+.linha{display:flex;gap:8px}
+.planos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.plano{padding:12px 6px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--border);
+  color:var(--text);font-weight:600;font-size:13px;transition:.2s}
+.plano small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:2px}
+.plano.on{border-color:var(--primary);background:rgba(139,92,246,.15)}
+.modal-acoes{display:flex;gap:10px;justify-content:flex-end;margin-top:24px}
+
+/* ---------- TOAST ---------- */
+#toasts{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:10px;z-index:200}
+.toast{background:var(--bg2);border:1px solid var(--border);border-left:4px solid var(--green);padding:14px 18px;
+  border-radius:12px;font-size:14px;box-shadow:0 12px 30px rgba(0,0,0,.4);animation:slide .3s ease}
+.toast.err{border-left-color:var(--red)}
+
+@keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+@keyframes slide{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.7)}70%{box-shadow:0 0 0 6px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+
+/* ---------- RESPONSIVO ---------- */
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}.graficos{grid-template-columns:1fr}}
+@media(max-width:860px){
+  .app{grid-template-columns:1fr}
+  aside{position:static;height:auto;flex-direction:row;align-items:center;padding:14px 18px;gap:14px;border-right:none;border-bottom:1px solid var(--border)}
+  nav,.side-foot{display:none}
+  main{padding:22px 16px 60px}
+}
+@media(max-width:700px){
+  .kpis{grid-template-columns:1fr 1fr;gap:12px}
+  .kpi h3{font-size:26px}
+  thead{display:none}
+  table,tbody,tr,td{display:block;width:100%}
+  tbody tr{border:1px solid var(--border);border-radius:14px;margin-bottom:12px;padding:6px 4px}
+  td{border:none;display:flex;justify-content:space-between;align-items:center;padding:9px 12px}
+  td::before{content:attr(data-label);color:var(--muted);font-size:12px;font-weight:500}
+  td:first-child::before{content:none}
+  .planos{grid-template-columns:repeat(2,1fr)}
+}
+
+.btn-danger{background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.35)}
+.btn-danger:hover{background:rgba(239,68,68,.22)}
+.caixa{white-space:pre-wrap;background:rgba(60,224,230,.06);border:1px dashed rgba(60,224,230,.45);border-radius:12px;padding:14px;font-size:14px;line-height:1.6;margin:6px 0 4px;word-break:break-all}
+.rodape{margin-top:26px;text-align:center;color:var(--muted);font-size:12px}
+.carregando{opacity:.55;pointer-events:none}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ADMIN ============ -->
+<div id="login">
+  <form class="login-box" onsubmit="entrar(event)">
+    <img class="logo" src="img/ntplay-logo.png" alt="NTPlay">
+    <h2>Painel NTPlay</h2>
+    <p>Digite a chave de administrador para continuar</p>
+    <input type="password" id="chave" class="input" placeholder="Chave de administrador" autocomplete="off" autofocus>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:14px" id="btnEntrar">Entrar</button>
+    <div class="erro" id="erroLogin"></div>
+  </form>
 </div>
 
-<div id="painel" style="display:none">
-  <div class="card">
-    <h2>Nova conta</h2>
-    <div class="row"><input id="nu" placeholder="Usuário (3-32: letras, números . _ -)" autocapitalize="off"><input id="np" placeholder="Senha (mín. 6)"><button class="s" onclick="gerar()">Gerar senha</button></div>
-    <div class="row">
-      <select id="nd"><option value="30">1 mês (30 dias)</option><option value="60">2 meses</option><option value="90">3 meses</option><option value="180">6 meses</option><option value="365" selected>1 ano</option><option value="730">2 anos</option><option value="x">Outro (dias)…</option></select>
-      <input id="nx" type="number" min="1" max="3650" placeholder="dias" style="display:none">
-      <input id="nn" placeholder="Anotação (nome da pessoa)">
+<div class="app">
+  <aside>
+    <div class="brand">
+      <img class="logo" src="img/ntplay-logo.png" alt="NTPlay">
+      <div><b>NTPlay</b><small>Painel Admin</small></div>
     </div>
-    <div class="row"><button onclick="criar()">Criar conta</button></div>
-    <div id="cmsg" class="m"></div><pre id="msg" style="display:none"></pre>
-  </div>
-  <div class="card">
-    <div class="row" style="align-items:center"><h2 style="flex:3">Contas</h2><button class="s" onclick="listar()">↻ Atualizar</button></div>
-    <div style="overflow:auto"><table><thead><tr><th>Usuário</th><th>Validade</th><th>Último acesso</th><th>Ações</th></tr></thead><tbody id="tb"></tbody></table></div>
+    <nav>
+      <a href="#" class="ativo">📊 Visão geral</a>
+      <a href="#tabela">👥 Clientes</a>
+      <a href="#" onclick="abrirModal();return false">➕ Nova conta</a>
+      <a href="#" onclick="exportarCSV();return false">📥 Exportar CSV</a>
+    </nav>
+    <div class="side-foot"><button class="btn-sair" onclick="sair()">⎋ Sair</button></div>
+  </aside>
+
+  <main id="principal">
+    <div class="topbar">
+      <div>
+        <h1 id="saudacao">Olá, Admin 👋</h1>
+        <p id="dataHoje"></p>
+      </div>
+      <div class="top-acoes">
+        <button class="btn btn-ghost" onclick="carregar(true)">↻ Atualizar</button>
+        <button class="btn btn-ghost" onclick="exportarCSV()">📥 Exportar</button>
+        <button class="btn btn-primary" onclick="abrirModal()">＋ Nova conta</button>
+      </div>
+    </div>
+
+    <section class="kpis">
+      <div class="card kpi k-total"><div class="ic">👥</div><span>Total de contas</span><h3 id="kTotal">0</h3><small>cadastradas</small></div>
+      <div class="card kpi k-ativo"><div class="ic">✅</div><span>Clientes ativos</span><h3 id="kAtivo">0</h3><small id="kPct">0% do total</small></div>
+      <div class="card kpi k-venc"><div class="ic">⏳</div><span>Vencendo (≤3 dias)</span><h3 id="kVenc">0</h3><small>renove logo</small></div>
+      <div class="card kpi k-exp"><div class="ic">⛔</div><span>Expirados</span><h3 id="kExp">0</h3><small>bloqueados no app</small></div>
+    </section>
+
+    <section class="graficos">
+      <div class="card">
+        <h4>Clientes ativos</h4>
+        <div class="sub">Distribuição por status</div>
+        <div class="donut-wrap">
+          <canvas id="gStatus"></canvas>
+          <div class="donut-centro"><b id="centroNum">0</b><span>ativos</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h4>Vencimentos nos próximos 7 dias</h4>
+        <div class="sub">Quantas contas expiram em cada dia</div>
+        <div class="bar-wrap"><canvas id="gVenc"></canvas></div>
+      </div>
+    </section>
+
+    <section class="card" id="tabela">
+      <div class="tab-head">
+        <div class="chips" id="chips"></div>
+        <div class="busca"><input class="input" id="busca" placeholder="Buscar cliente..." oninput="busca=this.value;renderTabela()"></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Cliente</th><th>Último acesso</th><th>Status</th><th>Tempo restante</th><th>Validade</th><th style="text-align:right">Ações</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+    <div class="rodape">NTPlay · as senhas não ficam guardadas em lugar nenhum: o servidor só guarda uma impressão digital delas.</div>
+  </main>
+</div>
+
+<!-- ============ MODAL: NOVA / EDITAR ============ -->
+<div class="modal-bg" id="modal" onclick="if(event.target===this)fecharModal()">
+  <form class="modal" onsubmit="salvar(event)">
+    <h3 id="mTitulo">Nova conta</h3>
+    <div class="sub" id="mSub">Crie o usuário e a senha e escolha o prazo de acesso.</div>
+    <div class="campo">
+      <label>Usuário</label>
+      <input class="input" id="fUser" required placeholder="ex: joao.silva" autocapitalize="off" autocomplete="off">
+    </div>
+    <div class="campo" id="campoSenha">
+      <label>Senha</label>
+      <div class="linha">
+        <input class="input" id="fSenha" placeholder="Senha de acesso (mín. 6)" autocomplete="off">
+        <button type="button" class="btn btn-ghost" onclick="gerarSenha()" title="Gerar senha">🎲</button>
+      </div>
+    </div>
+    <div class="campo">
+      <label id="lPrazo">Prazo de acesso</label>
+      <div class="planos" id="planos">
+        <button type="button" class="plano" data-d="7">7 dias<small>Teste</small></button>
+        <button type="button" class="plano on" data-d="30">30 dias<small>Mensal</small></button>
+        <button type="button" class="plano" data-d="90">90 dias<small>Trimestral</small></button>
+        <button type="button" class="plano" data-d="365">1 ano<small>Anual</small></button>
+      </div>
+    </div>
+    <div class="campo">
+      <label>Ou escolha a data de validade</label>
+      <input type="date" class="input" id="fData">
+    </div>
+    <div class="campo">
+      <label>Anotação (nome da pessoa, opcional)</label>
+      <input class="input" id="fNota" maxlength="80" placeholder="ex: João – cliente do centro">
+    </div>
+    <div class="modal-acoes">
+      <button type="button" class="btn btn-danger" id="btnBloq" style="margin-right:auto;display:none" onclick="bloquearAgora()">⛔ Bloquear agora</button>
+      <button type="button" class="btn btn-ghost" onclick="fecharModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvar">Salvar conta</button>
+    </div>
+  </form>
+</div>
+
+<!-- ============ MODAL: ACESSO PRONTO / NOVA SENHA ============ -->
+<div class="modal-bg" id="modalAcesso" onclick="if(event.target===this)fecharAcesso()">
+  <div class="modal">
+    <h3 id="aTitulo">Acesso criado</h3>
+    <div class="sub" id="aSub">Copie e envie para a pessoa.</div>
+    <div class="caixa" id="aTexto"></div>
+    <div class="modal-acoes">
+      <button class="btn btn-ghost" onclick="fecharAcesso()">Fechar</button>
+      <button class="btn btn-primary" onclick="copiarAcesso()">📋 Copiar mensagem</button>
+    </div>
   </div>
 </div>
+
+<!-- ============ MODAL: NOVA SENHA ============ -->
+<div class="modal-bg" id="modalSenha" onclick="if(event.target===this)fecharSenha()">
+  <form class="modal" onsubmit="trocarSenha(event)">
+    <h3>Nova senha</h3>
+    <div class="sub" id="sSub"></div>
+    <div class="campo">
+      <label>Nova senha</label>
+      <div class="linha">
+        <input class="input" id="sSenha" required placeholder="mín. 6 caracteres" autocomplete="off">
+        <button type="button" class="btn btn-ghost" onclick="$('sSenha').value=senhaAleatoria()" title="Gerar senha">🎲</button>
+      </div>
+    </div>
+    <div class="sub" style="margin:-4px 0 0">⚠️ Os dados que a pessoa já salvou na nuvem (listas, favoritos) não abrem com a senha nova. A lista dentro da TV dela continua.</div>
+    <div class="modal-acoes">
+      <button type="button" class="btn btn-ghost" onclick="fecharSenha()">Cancelar</button>
+      <button class="btn btn-primary">Trocar senha</button>
+    </div>
+  </form>
+</div>
+
+<div id="toasts"></div>
+
 <script>
-const API='https://baylcjfedxnjnjkvaufw.supabase.co/functions/v1/ntsync';
-let ADM='';
-const $=i=>document.getElementById(i);
-const b64=b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-// mesma derivação do aplicativo (PBKDF2-SHA1, 40000 voltas, 256 bits)
-async function authKey(user,pass){
-  const u=user.trim().toLowerCase();
-  const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveBits']);
-  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode('ntplay-auth:'+u),iterations:40000,hash:'SHA-1'},k,256);
+/* ================= CONFIGURAÇÃO ================= */
+const API  = "https://baylcjfedxnjnjkvaufw.supabase.co/functions/v1/ntsync";
+const APK  = "https://github.com/natanpg/NTPlay/releases/download/tv-latest/NTPlay-TV.apk";
+const DIAS_ALERTA = 3;                 // dias para considerar "vencendo"
+const DIA = 86400000;
+
+/* ================= UTILITÁRIOS ================= */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+function toISO(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function somarDias(n){ const d = new Date(); d.setDate(d.getDate()+n); return toISO(d); }
+const fmtData = ms => new Date(ms).toLocaleDateString("pt-BR");
+const cores = ["#8b5cf6","#3ce0e6","#ec4899","#f97316","#10b981","#3b82f6","#eab308"];
+const corAvatar = nome => cores[[...nome].reduce((s,c)=>s+c.charCodeAt(0),0) % cores.length];
+function senhaAleatoria(){ const ch="abcdefghjkmnpqrstuvwxyz23456789"; return Array.from(crypto.getRandomValues(new Uint8Array(8)),x=>ch[x%ch.length]).join(""); }
+
+// mesma derivação do aplicativo (PBKDF2-SHA1, 40000 voltas, 256 bits): a senha nunca é enviada
+async function authKey(user, pass){
+  const u = user.trim().toLowerCase();
+  const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({name:"PBKDF2", salt:new TextEncoder().encode("ntplay-auth:"+u), iterations:40000, hash:"SHA-1"}, k, 256);
   return b64(bits);
 }
+let ADM = "";
 async function api(o){
-  try{const r=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(Object.assign({a:'adm',adm:ADM},o))});
-    const j=await r.json().catch(()=>({}));return {ok:r.ok&&j.ok,j};}catch(e){return {ok:false,j:{msg:'Sem conexão: '+e.message}};}
+  try{
+    const r = await fetch(API, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(Object.assign({a:"adm", adm:ADM}, o))});
+    const j = await r.json().catch(()=>({}));
+    return {ok: r.ok && j.ok, j, status:r.status};
+  }catch(e){ return {ok:false, j:{msg:"Sem conexão: "+e.message}, status:0}; }
 }
-async function entrar(){
-  ADM=$('adm').value.trim();$('lmsg').textContent='Verificando…';
-  const r=await api({op:'list'});
-  if(!r.ok){$('lmsg').innerHTML='<span class=bad>'+(r.j.msg||'Erro')+'</span>';return;}
-  try{sessionStorage.setItem('ntadm',ADM)}catch(e){}
-  $('loginBox').style.display='none';$('painel').style.display='block';draw(r.j.users);
+
+/* ================= DADOS ================= */
+let contas = [];                       // {usuario, validade(ms), criado(ms), visto(ms|0), nota}
+let logado = false;
+let filtro = "todos", busca = "", editando = null, prazo = 30, gStatus, gVenc, acessoTexto = "", senhaDe = null;
+
+async function carregar(avisar){
+  const r = await api({op:"list"});
+  if (!r.ok){ if (r.status === 401 && logado){ sair(); return false; } if (logado) toast(r.j.msg || "Erro ao carregar", true); return false; }
+  contas = (r.j.users || []).map(u => ({
+    usuario:u.username, nota:u.note || "",
+    validade: u.expires_at ? new Date(u.expires_at).getTime() : 0,
+    criado: u.created_at ? new Date(u.created_at).getTime() : Date.now(),
+    visto: u.last_seen ? new Date(u.last_seen).getTime() : 0
+  }));
+  logado = true;
+  renderTudo();
+  if (avisar) toast("Lista atualizada ✔");
+  return true;
 }
-function fmt(d){return d?new Date(d).toLocaleDateString('pt-BR'):'—'}
-function draw(us){
-  const now=Date.now();
-  $('tb').innerHTML=us.map(u=>{
-    const e=u.expires_at?new Date(u.expires_at).getTime():0, dias=Math.ceil((e-now)/864e5);
-    const st=!e?'<span class=bad>sem validade</span>':e<now?'<span class=bad>expirada em '+fmt(u.expires_at)+'</span>':'<span class="'+(dias<=7?'warn':'ok')+'">até '+fmt(u.expires_at)+' ('+dias+' d)</span>';
-    return '<tr><td><b>'+u.username+'</b><div class=m>'+(u.note||'')+'</div></td><td>'+st+'</td><td class=m>'+(u.last_seen?new Date(u.last_seen).toLocaleString('pt-BR'):'nunca')+'</td><td class=acts>'+
-    '<button class=g onclick="renovar(\''+u.username+'\',30)">+30d</button><button class=g onclick="renovar(\''+u.username+'\',90)">+90d</button><button class=g onclick="renovar(\''+u.username+'\',365)">+1 ano</button>'+
-    '<button class=s onclick="novaSenha(\''+u.username+'\')">Senha</button><button class=s onclick="revogar(\''+u.username+'\')">Bloquear</button><button class=d onclick="excluir(\''+u.username+'\')">Excluir</button></td></tr>';
-  }).join('')||'<tr><td colspan=4 class=m>Nenhuma conta ainda.</td></tr>';
+
+/* ================= STATUS ================= */
+function calcularStatus(c){
+  const d = Math.ceil((c.validade - Date.now()) / DIA);
+  if (!c.validade || c.validade < Date.now()) return {k:"exp",  txt:"Expirado", dias:d};
+  if (d <= DIAS_ALERTA)                       return {k:"venc", txt:"Vencendo", dias:d};
+  return                                             {k:"ativo",txt:"Ativo",    dias:d};
 }
-async function listar(){const r=await api({op:'list'});if(r.ok)draw(r.j.users);else alert(r.j.msg||'Erro');}
-function gerar(){const c='abcdefghjkmnpqrstuvwxyz23456789';let s='';const a=crypto.getRandomValues(new Uint8Array(8));a.forEach(x=>s+=c[x%c.length]);$('np').value=s;}
-$('nd').onchange=()=>{$('nx').style.display=$('nd').value==='x'?'block':'none'};
-async function criar(){
-  const u=$('nu').value.trim().toLowerCase(),p=$('np').value,days=$('nd').value==='x'?+$('nx').value:+$('nd').value;
-  if(!/^[a-z0-9._-]{3,32}$/.test(u)){$('cmsg').innerHTML='<span class=bad>Usuário inválido.</span>';return;}
-  if(p.length<6){$('cmsg').innerHTML='<span class=bad>Senha: mínimo 6 caracteres.</span>';return;}
-  if(!(days>=1&&days<=3650)){$('cmsg').innerHTML='<span class=bad>Informe os dias (1 a 3650).</span>';return;}
-  $('cmsg').textContent='Criando…';
-  const r=await api({op:'create',u,k:await authKey(u,p),days,note:$('nn').value});
-  if(!r.ok){$('cmsg').innerHTML='<span class=bad>'+(r.j.msg||'Erro')+'</span>';return;}
-  const ate=new Date(Date.now()+days*864e5).toLocaleDateString('pt-BR');
-  $('cmsg').innerHTML='<span class=ok>Conta criada.</span> Copie e envie a mensagem abaixo:';
-  $('msg').style.display='block';$('msg').textContent='NTPlay\nUsuário: '+u+'\nSenha: '+p+'\nVálido até: '+ate;
-  $('nu').value='';$('np').value='';$('nn').value='';listar();
+
+/* ================= LOGIN ================= */
+async function entrar(e){
+  e.preventDefault();
+  ADM = $("chave").value.trim();
+  if (!ADM) return;
+  $("btnEntrar").textContent = "Verificando…";
+  const ok = await carregar(false);
+  $("btnEntrar").textContent = "Entrar";
+  if (ok){
+    try{ sessionStorage.setItem("ntplay_adm", ADM); }catch(_){}
+    $("login").style.display = "none";
+    iniciar();
+  } else {
+    $("erroLogin").textContent = "Chave incorreta ou sem conexão. Tente novamente.";
+    $("chave").value = "";
+  }
 }
-async function renovar(u,d){const r=await api({op:'renew',u,days:d});if(!r.ok)alert(r.j.msg||'Erro');listar();}
-async function revogar(u){if(!confirm('Bloquear o acesso de '+u+' agora?'))return;await api({op:'revoke',u});listar();}
-async function excluir(u){if(!confirm('Excluir a conta '+u+'? Os dados dela na nuvem serão apagados.'))return;await api({op:'delete',u});listar();}
-async function novaSenha(u){const p=prompt('Nova senha para '+u+' (mín. 6). Os dados já salvos na nuvem dessa conta não abrirão com a senha nova.');if(!p)return;if(p.length<6){alert('Mínimo 6 caracteres.');return;}
-  const r=await api({op:'setpass',u,k:await authKey(u,p)});alert(r.ok?'Senha trocada. Nova senha: '+p:(r.j.msg||'Erro'));}
-try{const s=sessionStorage.getItem('ntadm');if(s){$('adm').value=s;entrar();}}catch(e){}
-</script></body></html>
+function sair(){ try{ sessionStorage.removeItem("ntplay_adm"); }catch(_){} location.reload(); }
+
+/* ================= RENDER ================= */
+function contar(){
+  const r = {todos:contas.length, ativo:0, venc:0, exp:0};
+  contas.forEach(c => r[calcularStatus(c).k]++);
+  return r;
+}
+function renderKPIs(n){
+  const ativos = n.ativo + n.venc;
+  $("kTotal").textContent = n.todos;
+  $("kAtivo").textContent = ativos;
+  $("kVenc").textContent  = n.venc;
+  $("kExp").textContent   = n.exp;
+  $("kPct").textContent   = (n.todos ? Math.round(ativos / n.todos * 100) : 0) + "% do total";
+  $("centroNum").textContent = ativos;
+}
+function renderChips(n){
+  const lista = [["todos","Todos"],["ativo","🟢 Ativos"],["venc","🟡 Vencendo"],["exp","🔴 Expirados"]];
+  $("chips").innerHTML = lista.map(([k,t]) =>
+    `<button class="chip ${filtro===k?'on':''}" onclick="filtro='${k}';renderTudo()">${t}<em>${n[k]}</em></button>`).join("");
+}
+function renderGraficos(n){
+  Chart.defaults.color = "#9fb0d6";
+  Chart.defaults.font.family = "Inter";
+  const dados = [n.ativo, n.venc, n.exp];
+  if (gStatus){ gStatus.data.datasets[0].data = dados; gStatus.update(); }
+  else gStatus = new Chart($("gStatus"), {
+    type:"doughnut",
+    data:{labels:["Ativos","Vencendo","Expirados"],
+      datasets:[{data:dados, backgroundColor:["#22c55e","#f59e0b","#ef4444"], borderWidth:0, hoverOffset:8, borderRadius:6, spacing:3}]},
+    options:{cutout:"74%", maintainAspectRatio:false, plugins:{legend:{position:"bottom", labels:{usePointStyle:true, padding:18}}}}
+  });
+  const labels = [], valores = [];
+  for (let i = 0; i < 7; i++){
+    const iso = somarDias(i);
+    labels.push(i===0 ? "Hoje" : i===1 ? "Amanhã" : iso.slice(8,10)+"/"+iso.slice(5,7));
+    valores.push(contas.filter(c => c.validade && toISO(new Date(c.validade)) === iso).length);
+  }
+  if (gVenc){ gVenc.data.labels = labels; gVenc.data.datasets[0].data = valores; gVenc.update(); }
+  else {
+    const ctx = $("gVenc").getContext("2d");
+    const grad = ctx.createLinearGradient(0,0,0,250);
+    grad.addColorStop(0,"#8b5cf6"); grad.addColorStop(1,"rgba(60,224,230,.4)");
+    gVenc = new Chart(ctx, {
+      type:"bar",
+      data:{labels, datasets:[{label:"Contas vencendo", data:valores, backgroundColor:grad, borderRadius:10, maxBarThickness:42}]},
+      options:{maintainAspectRatio:false, plugins:{legend:{display:false}},
+        scales:{y:{beginAtZero:true, ticks:{stepSize:1}, grid:{color:"rgba(255,255,255,.05)"}}, x:{grid:{display:false}}}}
+    });
+  }
+}
+function quando(ms){
+  if (!ms) return "nunca";
+  const m = Math.round((Date.now()-ms)/60000);
+  if (m < 2) return "agora";
+  if (m < 60) return "há "+m+" min";
+  if (m < 1440) return "há "+Math.round(m/60)+" h";
+  return new Date(ms).toLocaleDateString("pt-BR");
+}
+function renderTabela(){
+  const termo = busca.toLowerCase().trim();
+  const lista = contas
+    .map(c => ({...c, st:calcularStatus(c)}))
+    .filter(c => filtro==="todos" || c.st.k===filtro)
+    .filter(c => (c.usuario + " " + c.nota).toLowerCase().includes(termo))
+    .sort((a,b) => a.validade - b.validade);
+  if (!lista.length){
+    $("tbody").innerHTML = `<tr><td colspan="6" class="vazio"><div>🗂️</div>Nenhum cliente encontrado</td></tr>`;
+    return;
+  }
+  $("tbody").innerHTML = lista.map(c => {
+    const d = c.st.dias;
+    const pct = Math.max(0, Math.min(100, d / 30 * 100));
+    const cor = c.st.k==="ativo" ? "var(--green)" : c.st.k==="venc" ? "var(--yellow)" : "var(--red)";
+    const txt = c.st.k==="exp" ? (c.validade ? `Venceu há ${Math.abs(d)} dia(s)` : "Sem validade") : d<=0 ? "Vence hoje" : `${d} dia(s)`;
+    const u = esc(c.usuario);
+    return `<tr>
+      <td><div class="user"><div class="avatar" style="background:${corAvatar(c.usuario)}">${u[0].toUpperCase()}</div>
+        <div><b>${u}</b><small class="${c.nota?'nota':''}">${c.nota ? esc(c.nota) : 'Desde '+fmtData(c.criado)}</small></div></div></td>
+      <td data-label="Último acesso"><span class="visto">${quando(c.visto)}</span></td>
+      <td data-label="Status"><span class="badge b-${c.st.k}">${c.st.txt}</span></td>
+      <td data-label="Restante"><div class="prog"><small>${txt}</small><div class="barra"><i style="width:${pct}%;background:${cor}"></i></div></div></td>
+      <td data-label="Validade">${c.validade ? fmtData(c.validade) : "—"}</td>
+      <td data-label="Ações"><div class="acoes">
+        <button class="ib" title="Renovar +30 dias" onclick="renovar('${u}')">🔄</button>
+        <button class="ib" title="Nova senha" onclick="abrirSenha('${u}')">🔑</button>
+        <button class="ib" title="Editar" onclick="abrirModal('${u}')">✏️</button>
+        <button class="ib del" title="Excluir" onclick="excluir('${u}')">🗑️</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+}
+function renderTudo(){
+  const n = contar();
+  renderKPIs(n); renderChips(n); renderGraficos(n); renderTabela();
+}
+
+/* ================= AÇÕES ================= */
+function abrirModal(usuario = null){
+  editando = usuario;
+  const c = contas.find(x => x.usuario === usuario);
+  $("mTitulo").textContent = c ? "Editar conta" : "Nova conta";
+  $("mSub").textContent = c ? "Defina uma nova validade ou altere a anotação." : "Crie o usuário e a senha e escolha o prazo de acesso.";
+  $("lPrazo").textContent = c ? "Somar dias à validade atual" : "Prazo de acesso";
+  $("fUser").value = c ? c.usuario : ""; $("fUser").disabled = !!c;
+  $("campoSenha").style.display = c ? "none" : "block";
+  $("fSenha").value = ""; $("fSenha").required = !c;
+  $("fData").value = c && c.validade ? toISO(new Date(c.validade)) : "";
+  $("fNota").value = c ? c.nota : "";
+  $("btnBloq").style.display = c ? "inline-flex" : "none";
+  $("btnSalvar").textContent = c ? "Salvar alterações" : "Criar conta";
+  selecionarPlano(c ? null : 30);
+  if (c) $("fData").value = c.validade ? toISO(new Date(c.validade)) : "";
+  $("modal").classList.add("show");
+  setTimeout(() => (c ? $("fData") : $("fUser")).focus(), 100);
+}
+function fecharModal(){ $("modal").classList.remove("show"); }
+function selecionarPlano(d){
+  prazo = d;
+  document.querySelectorAll(".plano").forEach(b => b.classList.toggle("on", +b.dataset.d === d));
+  if (d) $("fData").value = "";
+}
+document.querySelectorAll(".plano").forEach(b => b.onclick = () => selecionarPlano(+b.dataset.d));
+$("fData").addEventListener("change", () => { if ($("fData").value) selecionarPlano(null); });
+function gerarSenha(){ $("fSenha").value = senhaAleatoria(); }
+
+function mensagemAcesso(usuario, senha, validade){
+  return `📺 NTPlay\nUsuário: ${usuario}\nSenha: ${senha}\nVálido até: ${fmtData(validade)}\n\nBaixar o app (Android TV):\n${APK}`;
+}
+function mostrarAcesso(titulo, sub, texto){
+  $("aTitulo").textContent = titulo; $("aSub").textContent = sub;
+  acessoTexto = texto; $("aTexto").textContent = texto;
+  $("modalAcesso").classList.add("show");
+}
+function fecharAcesso(){ $("modalAcesso").classList.remove("show"); }
+function copiarAcesso(){ navigator.clipboard.writeText(acessoTexto).then(() => toast("Mensagem copiada! Cole no WhatsApp 📋"), () => toast("Não consegui copiar; selecione o texto.", true)); }
+
+async function salvar(e){
+  e.preventDefault();
+  const usuario = $("fUser").value.trim().toLowerCase();
+  const nota = $("fNota").value.trim();
+  const data = $("fData").value;
+  $("btnSalvar").disabled = true;
+  try{
+    if (editando){
+      if (prazo){ const r = await api({op:"renew", u:editando, days:prazo}); if (!r.ok) return toast(r.j.msg||"Erro", true); }
+      else if (data){ const r = await api({op:"setexp", u:editando, date:data}); if (!r.ok) return toast(r.j.msg||"Erro", true); }
+      await api({op:"note", u:editando, note:nota});
+      toast("Conta atualizada ✔"); fecharModal(); await carregar(false); return;
+    }
+    const senha = $("fSenha").value.trim();
+    if (!/^[a-z0-9._-]{3,32}$/.test(usuario)) return toast("Usuário: 3 a 32 letras/números (. _ - permitidos).", true);
+    if (senha.length < 6) return toast("A senha precisa ter no mínimo 6 caracteres.", true);
+    if (!prazo && !data) return toast("Escolha o prazo ou a data de validade.", true);
+    const body = {op:"create", u:usuario, k:await authKey(usuario, senha), note:nota};
+    if (data) body.date = data; else body.days = prazo;
+    const r = await api(body);
+    if (!r.ok) return toast(r.j.msg || "Erro ao criar", true);
+    const ate = data ? new Date(data+"T23:59:59").getTime() : Date.now() + prazo*DIA;
+    fecharModal();
+    mostrarAcesso("Conta criada ✔", "Copie e envie para a pessoa. A senha não fica salva: anote agora.", mensagemAcesso(usuario, senha, ate));
+    await carregar(false);
+  } finally { $("btnSalvar").disabled = false; }
+}
+
+async function renovar(usuario){
+  const r = await api({op:"renew", u:usuario, days:30});
+  if (!r.ok) return toast(r.j.msg || "Erro", true);
+  await carregar(false);
+  const c = contas.find(x => x.usuario === usuario);
+  toast(`${usuario} renovado até ${c ? fmtData(c.validade) : ""} 🔄`);
+}
+async function bloquearAgora(){
+  if (!editando || !confirm(`Bloquear o acesso de "${editando}" agora?`)) return;
+  const r = await api({op:"revoke", u:editando});
+  if (!r.ok) return toast(r.j.msg||"Erro", true);
+  fecharModal(); toast("Acesso bloqueado ⛔", true); carregar(false);
+}
+async function excluir(usuario){
+  if (!confirm(`Excluir a conta "${usuario}"?\nOs dados dela na nuvem serão apagados.`)) return;
+  const r = await api({op:"delete", u:usuario});
+  if (!r.ok) return toast(r.j.msg||"Erro", true);
+  toast("Conta excluída", true); carregar(false);
+}
+function abrirSenha(usuario){
+  senhaDe = usuario;
+  $("sSub").textContent = "Gerar uma nova senha para " + usuario + ".";
+  $("sSenha").value = senhaAleatoria();
+  $("modalSenha").classList.add("show");
+}
+function fecharSenha(){ $("modalSenha").classList.remove("show"); }
+async function trocarSenha(e){
+  e.preventDefault();
+  const s = $("sSenha").value.trim();
+  if (s.length < 6) return toast("Mínimo 6 caracteres.", true);
+  const r = await api({op:"setpass", u:senhaDe, k:await authKey(senhaDe, s)});
+  if (!r.ok) return toast(r.j.msg||"Erro", true);
+  fecharSenha();
+  const c = contas.find(x => x.usuario === senhaDe);
+  mostrarAcesso("Senha trocada ✔", "Copie e envie para a pessoa.", mensagemAcesso(senhaDe, s, c ? c.validade : Date.now()));
+}
+
+function exportarCSV(){
+  const linhas = [["Usuario","Anotacao","Status","Validade","Dias restantes","Ultimo acesso"]]
+    .concat(contas.map(c => { const s = calcularStatus(c); return [c.usuario, c.nota, s.txt, c.validade ? fmtData(c.validade) : "", s.dias, c.visto ? new Date(c.visto).toLocaleString("pt-BR") : "nunca"]; }));
+  const csv = linhas.map(l => l.join(";")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], {type:"text/csv"}));
+  a.download = "clientes_ntplay.csv"; a.click();
+  toast("Planilha exportada 📥");
+}
+function toast(msg, erro = false){
+  const t = document.createElement("div");
+  t.className = "toast" + (erro ? " err" : "");
+  t.textContent = msg;
+  $("toasts").appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape"){ fecharModal(); fecharAcesso(); fecharSenha(); } });
+
+/* ================= INÍCIO ================= */
+function iniciar(){
+  const h = new Date().getHours();
+  $("saudacao").textContent = (h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite") + ", Admin 👋";
+  $("dataHoje").textContent = new Date().toLocaleDateString("pt-BR", {weekday:"long", day:"numeric", month:"long", year:"numeric"});
+  setInterval(renderTudo, 60000);      // atualiza status a cada minuto
+  setInterval(() => carregar(false), 300000); // busca dados novos a cada 5 min
+}
+try{
+  const s = sessionStorage.getItem("ntplay_adm");
+  if (s){ ADM = s; carregar(false).then(ok => { if (ok){ $("login").style.display = "none"; iniciar(); } }); }
+}catch(_){}
+</script>
+</body>
+</html>

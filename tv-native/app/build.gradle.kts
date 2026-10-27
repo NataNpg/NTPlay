@@ -10,8 +10,8 @@ android {
         applicationId = "com.natanael.ntplay.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 13
-        versionName = "1.9.1"
+        versionCode = 14
+        versionName = "1.9.2"
     }
     signingConfigs {
         create("ntplay") {

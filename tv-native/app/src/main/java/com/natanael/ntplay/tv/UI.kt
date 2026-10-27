@@ -307,8 +307,6 @@ fun Header(st: AppState) {
         }
         TvButton("🔍 Buscar", Btn, 10.sp, compact = true) { st.showSearch = true }
         Spacer(Modifier.width(6.dp))
-        TvButton(if (st.syncUser.isNotEmpty()) "☁ " + st.syncUser.take(10) else "☁ Conta", Btn, 10.sp, compact = true) { st.accountDialog = true }
-        Spacer(Modifier.width(6.dp))
         TvButton("☰ Listas", Color(0xFF7C3AED), 10.sp, compact = true) { st.showLists = true }
         Spacer(Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End) {
@@ -910,6 +908,18 @@ fun ListsDialog(st: AppState) {
                 }
                 val ls = rememberLazyListState()
                 LazyColumn(Modifier.weight(1f).fillMaxHeight().mouseScroll(ls), state = ls, verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(end = 4.dp, bottom = 24.dp)) {
+                    item {
+                        Column(Modifier.fillMaxWidth().background(Color(0x1A8B5CF6), RoundedCornerShape(12.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text("☁ NUVEM  ·  conta " + st.syncUser, color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                            if (st.accessText().isNotEmpty()) Text("🗓 " + st.accessText(), color = Color(0xFF34D399), fontSize = 10.sp)
+                            Text("Suas listas, favoritos, grupos e progresso ficam salvos na conta (criptografados) e aparecem em outro aparelho.", color = Muted, fontSize = 9.sp, lineHeight = 12.sp)
+                            if (st.syncMsg.isNotEmpty()) Text(st.syncMsg, color = if (st.syncMsg.startsWith("☁")) Color(0xFF34D399) else Color(0xFFFFB4B4), fontSize = 10.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TvButton(if (st.syncBusy) "⏳ Sincronizando…" else "↻ Sincronizar agora", Pink, 10.sp, compact = true) { if (!st.syncBusy) st.scope.launch { st.syncNow(true) } }
+                                TvButton("Sair da conta", Color(0xFF7A2E3A), 10.sp, compact = true) { st.showLists = false; st.accountLogout() }
+                            }
+                        }
+                    }
                     item { Text("MINHAS LISTAS", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     item { st.lib?.let { lb -> Text("Ao vivo ${lb.live.size}  ·  Filmes ${lb.movies.size}  ·  Séries ${lb.series.size}", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold) } }
                     if (lists.isEmpty()) item { Text("Nenhuma lista ainda.", color = Muted, fontSize = 12.sp) }
@@ -1045,7 +1055,17 @@ fun LoginGate(st: AppState) {
                     OutlinedTextField(pass, { pass = it }, Modifier.fillMaxWidth(), placeholder = { Text("Senha", fontSize = 13.sp) }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), textStyle = TextStyle(fontSize = 14.sp), colors = fieldColors())
                     TvButton(if (st.syncBusy) "⏳ Entrando…" else "Entrar", Pink, 14.sp) { st.accountLogin(user, pass) }
                     if (st.accessMsg.isNotEmpty()) Text(st.accessMsg, color = if (st.accessMsg == "Entrando…") Cyan else Color(0xFFFFB4B4), fontSize = 12.sp, textAlign = TextAlign.Center)
-                    Text("Não tem acesso? Peça seu usuário e senha a quem forneceu o aplicativo.", color = Muted, fontSize = 10.sp, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(2.dp))
+                    val wa = remember { Qr.bitmap("https://wa.me/5542920028569", 240).asImageBitmap() }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Image(wa, "QR code do WhatsApp", Modifier.size(78.dp).background(Color.White, RoundedCornerShape(8.dp)).padding(4.dp))
+                        Column {
+                            Text("Quer acesso ou renovar?", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Fale pelo WhatsApp:", color = Muted, fontSize = 10.sp)
+                            Text("(42) 92002-8569", color = Cyan, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                            Text("Aponte a câmera do celular", color = Muted, fontSize = 9.sp)
+                        }
+                    }
                 }
             }
         }
