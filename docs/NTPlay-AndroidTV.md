@@ -191,3 +191,12 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Troca de senha pelo painel: os dados já salvos na nuvem daquela conta não abrem com a senha nova (a criptografia depende da senha).
 - A conta `natan` (já existente) recebeu 365 dias de validade.
 - `versionName 1.8.0` / `versionCode 11`.
+
+## Versão 1.9.0 (Android TV) — atualização automática + assinatura fixa
+
+- **Atualização automática** (`Updater.kt`, `AppState` seção "atualização automática do app", `UI.UpdateDialog`): ao abrir (após 20 s) e a cada 6 h o app lê `tv-version.json` da release `tv-latest`. Se houver versão maior, **baixa o APK sozinho** e mostra "Nova versão X — Instalar agora / Depois". O Android sempre pede a confirmação final (instalação 100% silenciosa só existe em aparelho com root/administrador). Na primeira vez pode abrir a tela "instalar apps desconhecidos": permitir para o NTPlay.
+- **Versão mínima (trava de versões antigas)**: arquivo `tv-native/min_version` (número de `versionCode`). Se for maior que a versão instalada, o app mostra a atualização como obrigatória (sem "Depois"). Para forçar todos a atualizar: editar `min_version` e dar push. Só vale para versões ≥ 1.9.0.
+- **Workflow** (`android-tv.yml`): gera `tv-version.json` (`code`, `name`, `min`) e publica junto do APK.
+- **Assinatura fixa** (`app/ntplay-release.jks`, `signingConfigs.ntplay`): antes cada compilação usava uma chave de depuração nova, e o Android recusa atualizar por cima um app com outra assinatura. Agora todas as versões usam a mesma chave. **Uma única vez** é preciso desinstalar a versão antiga e instalar a 1.9.0; dali em diante atualiza por cima. Observação: o repositório é público, então a chave está visível; o ideal é migrá-la para *GitHub Secrets*.
+- Limpeza no GitHub: artefatos de compilação antigos apagados (restou só o mais recente). A tag órfã "Lançamento" continua precisando ser apagada pelo site.
+- `versionName 1.9.0` / `versionCode 12`.

@@ -35,6 +35,13 @@ jobs:
             exit $code
           fi
       - run: cp tv-native/app/build/outputs/apk/release/app-release.apk NTPlay-TV.apk
+      - name: Arquivo de versão (usado pela atualização automática do app)
+        run: |
+          code=$(grep -oP 'versionCode = \K[0-9]+' tv-native/app/build.gradle.kts)
+          name=$(grep -oP 'versionName = "\K[^"]+' tv-native/app/build.gradle.kts)
+          min=$(tr -d '[:space:]' < tv-native/min_version)
+          echo "{\"code\":$code,\"name\":\"$name\",\"min\":${min:-0}}" > tv-version.json
+          cat tv-version.json
       - uses: actions/upload-artifact@v4
         with:
           name: NTPlay-TV-nativo
@@ -44,4 +51,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete tv-latest --yes --cleanup-tag || true
-          gh release create tv-latest NTPlay-TV.apk --title "NTPlay TV (Android TV nativo)" --notes "APK para Android TV. Baixe o arquivo NTPlay-TV.apk abaixo." --target ${{ github.sha }}
+          gh release create tv-latest NTPlay-TV.apk tv-version.json --title "NTPlay TV (Android TV nativo)" --notes "APK para Android TV. Baixe o arquivo NTPlay-TV.apk abaixo." --target ${{ github.sha }}

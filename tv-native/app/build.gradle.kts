@@ -10,13 +10,22 @@ android {
         applicationId = "com.natanael.ntplay.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 11
-        versionName = "1.8.0"
+        versionCode = 12
+        versionName = "1.9.0"
+    }
+    signingConfigs {
+        create("ntplay") {
+            // chave FIXA: sem ela cada compilação sairia com assinatura diferente e o Android recusaria a atualização por cima
+            storeFile = file("ntplay-release.jks")
+            storePassword = "ntplay-tv-2026"
+            keyAlias = "ntplay"
+            keyPassword = "ntplay-tv-2026"
+        }
     }
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("ntplay")
         }
     }
     compileOptions {

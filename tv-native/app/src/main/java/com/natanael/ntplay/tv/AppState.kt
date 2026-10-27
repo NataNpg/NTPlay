@@ -80,6 +80,8 @@ class AppState(val ctx: Context) {
         // sincronização na nuvem: ao abrir e a cada 90 s (só se a conta estiver ligada)
         scope.launch { delay(1500); while (true) { if (store.syncUser.isNotEmpty()) syncNow(false); delay(90_000L) } }
         autoUpdate()
+        // atualização do próprio app: confere ao abrir e a cada 6 h
+        scope.launch { delay(20_000); while (true) { checkUpdate(); delay(6 * 3600_000L) } }
         // presença para o painel do desenvolvedor: ao abrir e a cada 5 minutos
         scope.launch {
             delay(8000)
@@ -638,4 +640,31 @@ class AppState(val ctx: Context) {
     }
 
     fun accountLogout() { lockOut("Você saiu. Entre de novo para usar o app.") }
+
+    // ------------------------------------------------------------ atualização automática do app
+    var upd by mutableStateOf<Updater.Info?>(null)
+    var updStage by mutableIntStateOf(0)   // 0 nada, 1 baixando, 2 pronta para instalar, 3 falhou
+    var updPct by mutableIntStateOf(0)
+    var updSnooze by mutableStateOf(false)
+    val updForced: Boolean get() = upd?.let { it.min > Updater.current(ctx) } ?: false
+    private var updFile: java.io.File? = null
+
+    fun checkUpdate() {
+        if (updStage == 1) return
+        scope.launch {
+            val cur = Updater.current(ctx)
+            val i = withContext(Dispatchers.IO) { Updater.fetch() } ?: return@launch
+            if (i.code <= cur) { upd = null; updStage = 0; return@launch }
+            if (upd?.code == i.code && updStage == 2) return@launch
+            upd = i; updStage = 1; updPct = 0; updSnooze = false
+            val f = withContext(Dispatchers.IO) { Updater.download(ctx) { p -> updPct = p } }
+            if (f != null) { updFile = f; updStage = 2 } else updStage = 3
+        }
+    }
+    fun installUpdate() {
+        val f = updFile ?: Updater.apk(ctx)
+        if (!f.exists()) { checkUpdate(); return }
+        val ok = try { Updater.install(ctx, f) } catch (e: Throwable) { toast("Não consegui abrir o instalador: " + (e.message ?: "erro")); true }
+        if (!ok) toast("Permita \"instalar apps desconhecidos\" para o NTPlay e toque em Instalar de novo.")
+    }
 }

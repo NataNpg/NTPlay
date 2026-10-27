@@ -262,6 +262,7 @@ fun App(st: AppState) {
         if (st.groupDialog) GroupDialog(st)
         if (st.accountDialog) AccountDialog(st)
         }
+        if (!st.locked && !splash && st.play == null && st.upd != null && (st.updForced || !st.updSnooze) && st.updStage != 1 && st.updStage != 0) UpdateDialog(st)
         if (splash) Splash(st)
         if (st.toastMsg.isNotEmpty()) {
             Box(Modifier.fillMaxSize().padding(bottom = 48.dp), contentAlignment = Alignment.BottomCenter) {
@@ -1045,6 +1046,33 @@ fun LoginGate(st: AppState) {
                     TvButton(if (st.syncBusy) "⏳ Entrando…" else "Entrar", Pink, 14.sp) { st.accountLogin(user, pass) }
                     if (st.accessMsg.isNotEmpty()) Text(st.accessMsg, color = if (st.accessMsg == "Entrando…") Cyan else Color(0xFFFFB4B4), fontSize = 12.sp, textAlign = TextAlign.Center)
                     Text("Não tem acesso? Peça seu usuário e senha a quem forneceu o aplicativo.", color = Muted, fontSize = 10.sp, textAlign = TextAlign.Center)
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- atualização do aplicativo
+@Composable
+fun UpdateDialog(st: AppState) {
+    val i = st.upd ?: return
+    val forced = st.updForced
+    Dialog(onDismissRequest = { if (!forced) st.updSnooze = true }, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = !forced, dismissOnClickOutside = false)) {
+        Surface(Modifier.width(420.dp), shape = RoundedCornerShape(18.dp), color = PanelC) {
+            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("⬆ Nova versão " + i.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                if (st.updStage == 2) {
+                    Text(if (forced) "Esta versão do NTPlay não é mais aceita. Instale a atualização para continuar." else "A atualização já foi baixada e está pronta. Toque em Instalar; o Android vai pedir uma confirmação.", color = Muted, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TvButton("Instalar agora", Pink, 13.sp) { st.installUpdate() }
+                        if (!forced) TvButton("Depois", Btn, 12.sp) { st.updSnooze = true }
+                    }
+                } else {
+                    Text("Não consegui baixar a atualização agora. Confira a internet.", color = Color(0xFFFFB4B4), fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TvButton("Tentar de novo", Pink, 13.sp) { st.checkUpdate() }
+                        if (!forced) TvButton("Depois", Btn, 12.sp) { st.updSnooze = true }
+                    }
                 }
             }
         }
