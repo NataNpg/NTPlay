@@ -112,6 +112,13 @@ class Store(ctx: Context) {
         get() = sp.getString("sync_hash", "") ?: ""
         set(v) { sp.edit().putString("sync_hash", v).apply() }
 
+    var accessExp: Long   // validade do acesso (ms), última confirmada pelo servidor
+        get() = sp.getLong("access_exp", 0L)
+        set(v) { sp.edit().putLong("access_exp", v).apply() }
+    var lastUser: String  // último usuário que entrou (para limpar dados se outro usuário entrar)
+        get() = sp.getString("last_user", "") ?: ""
+        set(v) { sp.edit().putString("last_user", v).apply() }
+
     fun relay(): Pair<String, String> {
         var t = sp.getString("rt", null)
         var k = sp.getString("rk", null)

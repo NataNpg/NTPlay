@@ -78,7 +78,7 @@ class AppState(val ctx: Context) {
     fun start() {
         scope.launch { reload() }
         // sincronização na nuvem: ao abrir e a cada 90 s (só se a conta estiver ligada)
-        scope.launch { delay(6000); while (true) { if (store.syncUser.isNotEmpty()) syncNow(false); delay(90_000L) } }
+        scope.launch { delay(1500); while (true) { if (store.syncUser.isNotEmpty()) syncNow(false); delay(90_000L) } }
         autoUpdate()
         // presença para o painel do desenvolvedor: ao abrir e a cada 5 minutos
         scope.launch {
@@ -489,6 +489,29 @@ class AppState(val ctx: Context) {
 
     // ------------------------------------------------------------ conta + sincronização na nuvem
     var syncUser by mutableStateOf(store.syncUser)
+    var locked by mutableStateOf(store.syncUser.isEmpty() || (store.accessExp > 0 && System.currentTimeMillis() > store.accessExp))
+    var accessMsg by mutableStateOf(if (store.syncUser.isNotEmpty() && store.accessExp > 0 && System.currentTimeMillis() > store.accessExp) "Seu acesso expirou. Conecte-se à internet e entre de novo ou peça a renovação." else "")
+    fun accessText(): String = if (store.accessExp > 0) "Válido até " + java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("pt", "BR")).format(java.util.Date(store.accessExp)) else ""
+
+    private fun lockOut(msg: String) {
+        store.syncUser = ""; store.syncAuth = ""; store.syncEnc = ""; store.syncTs = 0; store.syncHash = ""
+        syncUser = ""; accessMsg = msg; locked = true; play = null; accountDialog = false
+    }
+    /** true = a falha foi de acesso (conta removida/senha trocada/expirada) e o app foi bloqueado */
+    private fun accessFailed(r: Sync.Res): Boolean {
+        if (r.ok) { if (r.exp > 0) store.accessExp = r.exp; return false }
+        if (r.code == 401 || r.code == 403) { lockOut(r.msg); return true }
+        if (r.code == 0 && store.accessExp > 0 && System.currentTimeMillis() > store.accessExp) { lockOut("Seu acesso expirou. Conecte-se à internet e entre de novo ou peça a renovação."); return true }
+        return false
+    }
+    private suspend fun wipeLocal() {
+        for (m in store.lists()) store.deleteList(m.id)
+        store.saveLists(emptyList())
+        store.favs = emptySet(); favs = emptySet()
+        store.groupsRaw = "{}"; groupsVer++
+        progMap.clear(); store.saveProgress(progMap); progVer++
+        reload()
+    }
     var syncMsg by mutableStateOf("")
     var syncBusy by mutableStateOf(false)
     var accountDialog by mutableStateOf(false)
@@ -573,6 +596,7 @@ class AppState(val ctx: Context) {
         try {
             val ak = store.syncAuth; val ek = store.syncEnc
             val g = withContext(Dispatchers.IO) { Sync.call("get", u, ak) }
+            if (accessFailed(g)) return
             if (!g.ok) { syncMsg = g.msg; return }
             val remote = if (g.data.isEmpty()) null else withContext(Dispatchers.Default) { Sync.decrypt(g.data, ek) }?.let { try { JSONObject(it) } catch (e: Exception) { null } }
             if (g.data.isNotEmpty() && remote == null) { syncMsg = "Não consegui abrir os dados da nuvem (senha diferente da usada ao salvar?)."; return }
@@ -587,31 +611,31 @@ class AppState(val ctx: Context) {
             val p = payload(now)
             val enc = withContext(Dispatchers.Default) { Sync.encrypt(p.toString(), ek) }
             val pr = withContext(Dispatchers.IO) { Sync.call("put", u, ak, enc, now) }
+            if (accessFailed(pr)) return
             if (pr.ok) { store.syncTs = now; store.syncHash = hashOf(p); syncMsg = "☁ Salvo na nuvem." } else syncMsg = pr.msg
         } catch (e: Throwable) { syncMsg = "Falha ao sincronizar: " + (e.message ?: e.javaClass.simpleName) }
         finally { syncBusy = false }
     }
 
-    fun accountLogin(user: String, pass: String, register: Boolean) {
+    fun accountLogin(user: String, pass: String) {
         val u = user.trim().lowercase()
-        if (u.length < 3) { syncMsg = "Usuário: mínimo 3 caracteres (letras, números, . _ -)."; return }
-        if (pass.length < 6) { syncMsg = "Senha: mínimo 6 caracteres."; return }
+        if (u.length < 3) { accessMsg = "Digite o usuário."; return }
+        if (pass.length < 6) { accessMsg = "Digite a senha (mínimo 6 caracteres)."; return }
         if (syncBusy) return
-        syncBusy = true; syncMsg = if (register) "Criando conta…" else "Entrando…"
+        syncBusy = true; accessMsg = "Entrando…"
         scope.launch {
             val (ak, ek) = withContext(Dispatchers.Default) { Sync.derive(u, pass) }
-            val r = withContext(Dispatchers.IO) { Sync.call(if (register) "reg" else "get", u, ak) }
-            if (!r.ok) { syncMsg = r.msg; syncBusy = false; return@launch }
+            val r = withContext(Dispatchers.IO) { Sync.call("get", u, ak) }
+            if (!r.ok) { accessMsg = r.msg; syncBusy = false; return@launch }
+            if (store.lastUser.isNotEmpty() && store.lastUser != u) wipeLocal() // outro usuário na mesma TV: não mistura os dados
+            store.lastUser = u
             store.syncUser = u; store.syncAuth = ak; store.syncEnc = ek; store.syncTs = 0; store.syncHash = ""
-            syncUser = u
+            store.accessExp = r.exp
+            syncUser = u; locked = false; accessMsg = ""; syncMsg = "Entrou! Baixando seus dados…"
             syncBusy = false
-            syncMsg = if (register) "Conta criada! Enviando seus dados…" else "Entrou! Baixando seus dados…"
             syncNow(true)
         }
     }
 
-    fun accountLogout() {
-        store.syncUser = ""; store.syncAuth = ""; store.syncEnc = ""; store.syncTs = 0; store.syncHash = ""
-        syncUser = ""; syncMsg = "Saiu da conta. Seus dados continuam neste aparelho."
-    }
+    fun accountLogout() { lockOut("Você saiu. Entre de novo para usar o app.") }
 }

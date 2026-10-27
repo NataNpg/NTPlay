@@ -22,7 +22,7 @@ object Sync {
     const val URL = "https://baylcjfedxnjnjkvaufw.supabase.co/functions/v1/ntsync"
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
-    class Res(val ok: Boolean, val code: Int, val msg: String, val data: String, val ts: Long)
+    class Res(val ok: Boolean, val code: Int, val msg: String, val data: String, val ts: Long, val exp: Long = 0)
 
     private fun pbkdf(pass: String, salt: String): ByteArray =
         SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1").generateSecret(PBEKeySpec(pass.toCharArray(), salt.toByteArray(), 40000, 256)).encoded
@@ -60,7 +60,7 @@ object Sync {
             Net.quick.newCall(req).execute().use { r ->
                 val txt = r.body?.string() ?: ""
                 val j = try { JSONObject(txt) } catch (e: Exception) { JSONObject() }
-                if (r.isSuccessful && j.optBoolean("ok")) Res(true, r.code, "", j.optString("data"), j.optLong("ts"))
+                if (r.isSuccessful && j.optBoolean("ok")) Res(true, r.code, "", j.optString("data"), j.optLong("ts"), j.optLong("exp"))
                 else Res(false, r.code, j.optString("msg").ifEmpty { "Erro do servidor (${r.code})" }, "", 0)
             }
         } catch (e: Throwable) {

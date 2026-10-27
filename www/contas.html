@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NTPlay · Contas de acesso</title>
+<style>
+:root{--bg:#070b1a;--p:#111838;--c:#3ce0e6;--v:#8b5cf6;--m:#9fb0d6;--b:#2a3166}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:#fff;padding:18px;max-width:900px;margin:auto}
+h1{color:var(--c);margin:0 0 4px}h2{font-size:16px;margin:0 0 10px}.m{color:var(--m);font-size:13px}
+.card{background:var(--p);border:1px solid var(--b);border-radius:14px;padding:14px;margin:14px 0}
+input,select{width:100%;padding:11px;border-radius:9px;border:1px solid var(--b);background:#0b1130;color:#fff;font-size:15px;margin:4px 0}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}
+button{padding:10px 14px;border:0;border-radius:9px;background:var(--v);color:#fff;font-weight:700;cursor:pointer;font-size:14px}
+button.s{background:#222b57}button.d{background:#7a2e3a}button.g{background:#0f766e}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;border-bottom:1px solid var(--b);text-align:left;vertical-align:middle}
+.ok{color:#34d399}.bad{color:#ff8a8a}.warn{color:#fbbf24}.acts{display:flex;gap:5px;flex-wrap:wrap}.acts button{padding:6px 9px;font-size:12px}
+pre{background:#0b1130;border:1px dashed var(--c);border-radius:10px;padding:10px;white-space:pre-wrap;font-size:14px}
+</style></head><body>
+<h1>NTPlay · Contas de acesso</h1>
+<div class="m">Crie o usuário e a senha de quem pode usar o aplicativo e defina por quanto tempo vale. Termina o prazo, o app bloqueia.</div>
+
+<div class="card" id="loginBox">
+  <h2>Chave de administrador</h2>
+  <input id="adm" type="password" placeholder="Cole aqui a sua chave de administrador" autocomplete="off">
+  <div class="row"><button onclick="entrar()">Entrar</button></div>
+  <div id="lmsg" class="m"></div>
+</div>
+
+<div id="painel" style="display:none">
+  <div class="card">
+    <h2>Nova conta</h2>
+    <div class="row"><input id="nu" placeholder="Usuário (3-32: letras, números . _ -)" autocapitalize="off"><input id="np" placeholder="Senha (mín. 6)"><button class="s" onclick="gerar()">Gerar senha</button></div>
+    <div class="row">
+      <select id="nd"><option value="30">1 mês (30 dias)</option><option value="60">2 meses</option><option value="90">3 meses</option><option value="180">6 meses</option><option value="365" selected>1 ano</option><option value="730">2 anos</option><option value="x">Outro (dias)…</option></select>
+      <input id="nx" type="number" min="1" max="3650" placeholder="dias" style="display:none">
+      <input id="nn" placeholder="Anotação (nome da pessoa)">
+    </div>
+    <div class="row"><button onclick="criar()">Criar conta</button></div>
+    <div id="cmsg" class="m"></div><pre id="msg" style="display:none"></pre>
+  </div>
+  <div class="card">
+    <div class="row" style="align-items:center"><h2 style="flex:3">Contas</h2><button class="s" onclick="listar()">↻ Atualizar</button></div>
+    <div style="overflow:auto"><table><thead><tr><th>Usuário</th><th>Validade</th><th>Último acesso</th><th>Ações</th></tr></thead><tbody id="tb"></tbody></table></div>
+  </div>
+</div>
+<script>
+const API='https://baylcjfedxnjnjkvaufw.supabase.co/functions/v1/ntsync';
+let ADM='';
+const $=i=>document.getElementById(i);
+const b64=b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+// mesma derivação do aplicativo (PBKDF2-SHA1, 40000 voltas, 256 bits)
+async function authKey(user,pass){
+  const u=user.trim().toLowerCase();
+  const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode('ntplay-auth:'+u),iterations:40000,hash:'SHA-1'},k,256);
+  return b64(bits);
+}
+async function api(o){
+  try{const r=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(Object.assign({a:'adm',adm:ADM},o))});
+    const j=await r.json().catch(()=>({}));return {ok:r.ok&&j.ok,j};}catch(e){return {ok:false,j:{msg:'Sem conexão: '+e.message}};}
+}
+async function entrar(){
+  ADM=$('adm').value.trim();$('lmsg').textContent='Verificando…';
+  const r=await api({op:'list'});
+  if(!r.ok){$('lmsg').innerHTML='<span class=bad>'+(r.j.msg||'Erro')+'</span>';return;}
+  try{sessionStorage.setItem('ntadm',ADM)}catch(e){}
+  $('loginBox').style.display='none';$('painel').style.display='block';draw(r.j.users);
+}
+function fmt(d){return d?new Date(d).toLocaleDateString('pt-BR'):'—'}
+function draw(us){
+  const now=Date.now();
+  $('tb').innerHTML=us.map(u=>{
+    const e=u.expires_at?new Date(u.expires_at).getTime():0, dias=Math.ceil((e-now)/864e5);
+    const st=!e?'<span class=bad>sem validade</span>':e<now?'<span class=bad>expirada em '+fmt(u.expires_at)+'</span>':'<span class="'+(dias<=7?'warn':'ok')+'">até '+fmt(u.expires_at)+' ('+dias+' d)</span>';
+    return '<tr><td><b>'+u.username+'</b><div class=m>'+(u.note||'')+'</div></td><td>'+st+'</td><td class=m>'+(u.last_seen?new Date(u.last_seen).toLocaleString('pt-BR'):'nunca')+'</td><td class=acts>'+
+    '<button class=g onclick="renovar(\''+u.username+'\',30)">+30d</button><button class=g onclick="renovar(\''+u.username+'\',90)">+90d</button><button class=g onclick="renovar(\''+u.username+'\',365)">+1 ano</button>'+
+    '<button class=s onclick="novaSenha(\''+u.username+'\')">Senha</button><button class=s onclick="revogar(\''+u.username+'\')">Bloquear</button><button class=d onclick="excluir(\''+u.username+'\')">Excluir</button></td></tr>';
+  }).join('')||'<tr><td colspan=4 class=m>Nenhuma conta ainda.</td></tr>';
+}
+async function listar(){const r=await api({op:'list'});if(r.ok)draw(r.j.users);else alert(r.j.msg||'Erro');}
+function gerar(){const c='abcdefghjkmnpqrstuvwxyz23456789';let s='';const a=crypto.getRandomValues(new Uint8Array(8));a.forEach(x=>s+=c[x%c.length]);$('np').value=s;}
+$('nd').onchange=()=>{$('nx').style.display=$('nd').value==='x'?'block':'none'};
+async function criar(){
+  const u=$('nu').value.trim().toLowerCase(),p=$('np').value,days=$('nd').value==='x'?+$('nx').value:+$('nd').value;
+  if(!/^[a-z0-9._-]{3,32}$/.test(u)){$('cmsg').innerHTML='<span class=bad>Usuário inválido.</span>';return;}
+  if(p.length<6){$('cmsg').innerHTML='<span class=bad>Senha: mínimo 6 caracteres.</span>';return;}
+  if(!(days>=1&&days<=3650)){$('cmsg').innerHTML='<span class=bad>Informe os dias (1 a 3650).</span>';return;}
+  $('cmsg').textContent='Criando…';
+  const r=await api({op:'create',u,k:await authKey(u,p),days,note:$('nn').value});
+  if(!r.ok){$('cmsg').innerHTML='<span class=bad>'+(r.j.msg||'Erro')+'</span>';return;}
+  const ate=new Date(Date.now()+days*864e5).toLocaleDateString('pt-BR');
+  $('cmsg').innerHTML='<span class=ok>Conta criada.</span> Copie e envie a mensagem abaixo:';
+  $('msg').style.display='block';$('msg').textContent='NTPlay\nUsuário: '+u+'\nSenha: '+p+'\nVálido até: '+ate;
+  $('nu').value='';$('np').value='';$('nn').value='';listar();
+}
+async function renovar(u,d){const r=await api({op:'renew',u,days:d});if(!r.ok)alert(r.j.msg||'Erro');listar();}
+async function revogar(u){if(!confirm('Bloquear o acesso de '+u+' agora?'))return;await api({op:'revoke',u});listar();}
+async function excluir(u){if(!confirm('Excluir a conta '+u+'? Os dados dela na nuvem serão apagados.'))return;await api({op:'delete',u});listar();}
+async function novaSenha(u){const p=prompt('Nova senha para '+u+' (mín. 6). Os dados já salvos na nuvem dessa conta não abrirão com a senha nova.');if(!p)return;if(p.length<6){alert('Mínimo 6 caracteres.');return;}
+  const r=await api({op:'setpass',u,k:await authKey(u,p)});alert(r.ok?'Senha trocada. Nova senha: '+p:(r.j.msg||'Erro'));}
+try{const s=sessionStorage.getItem('ntadm');if(s){$('adm').value=s;entrar();}}catch(e){}
+</script></body></html>

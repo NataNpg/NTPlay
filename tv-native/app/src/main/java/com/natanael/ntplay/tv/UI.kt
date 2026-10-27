@@ -240,12 +240,13 @@ fun App(st: AppState) {
     LaunchedEffect(Unit) {
         delay(1200)
         var w = 0
-        while (st.busy && w < 100) { delay(200); w++ } // espera a lista terminar de carregar (máx. ~20 s)
+        while (st.busy && !st.locked && w < 100) { delay(200); w++ } // espera a lista terminar de carregar (máx. ~20 s)
         w = 0
-        while (st.trendBusy && w < 50) { delay(200); w++ } // e os recomendados + capas (máx. ~10 s), para não carregar de novo dentro do app
+        while (st.trendBusy && !st.locked && w < 50) { delay(200); w++ } // e os recomendados + capas (máx. ~10 s), para não carregar de novo dentro do app
         splash = false
     }
     Box(Modifier.fillMaxSize().background(Bg)) {
+        if (st.locked) LoginGate(st) else {
         Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 30.dp)) {
             Header(st)
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -260,6 +261,7 @@ fun App(st: AppState) {
         if (st.showSearch) SearchDialog(st)
         if (st.groupDialog) GroupDialog(st)
         if (st.accountDialog) AccountDialog(st)
+        }
         if (splash) Splash(st)
         if (st.toastMsg.isNotEmpty()) {
             Box(Modifier.fillMaxSize().padding(bottom = 48.dp), contentAlignment = Alignment.BottomCenter) {
@@ -1007,20 +1009,43 @@ fun AccountDialog(st: AppState) {
                 Text("Guarda suas listas, favoritos, grupos e progresso na nuvem para usar em outro aparelho. Seus dados são criptografados no aparelho: nem o servidor consegue ler. Se esquecer a senha, não há como recuperar os dados da nuvem.", color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
                 if (st.syncUser.isNotEmpty()) {
                     Text("Conectado como  " + st.syncUser, color = Cyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    if (st.accessText().isNotEmpty()) Text("🗓 " + st.accessText(), color = Color(0xFF34D399), fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TvButton(if (st.syncBusy) "⏳ Sincronizando…" else "↻ Sincronizar agora", Pink, 12.sp) { if (!st.syncBusy) st.scope.launch { st.syncNow(true) } }
-                        TvButton("Sair da conta", Color(0xFF7A2E3A), 12.sp) { st.accountLogout() }
+                        TvButton("Sair", Color(0xFF7A2E3A), 12.sp) { st.accountLogout() }
                     }
                 } else {
                     OutlinedTextField(user, { user = it }, Modifier.fillMaxWidth(), placeholder = { Text("Usuário", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors())
                     OutlinedTextField(pass, { pass = it }, Modifier.fillMaxWidth(), placeholder = { Text("Senha (mín. 6)", fontSize = 12.sp) }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors())
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TvButton(if (st.syncBusy) "⏳…" else "Entrar", Pink, 12.sp) { st.accountLogin(user, pass, false) }
-                        TvButton("Criar conta", Btn, 12.sp) { st.accountLogin(user, pass, true) }
+                        TvButton(if (st.syncBusy) "⏳…" else "Entrar", Pink, 12.sp) { st.accountLogin(user, pass) }
                     }
                 }
                 if (st.syncMsg.isNotEmpty()) Text(st.syncMsg, color = if (st.syncMsg.startsWith("☁") || st.syncMsg.startsWith("Conta") || st.syncMsg.startsWith("Entrou")) Color(0xFF34D399) else Color(0xFFFFB4B4), fontSize = 11.sp)
                 TvButton("Fechar", Btn, 11.sp, compact = true) { st.accountDialog = false }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- tela de entrada (acesso por usuário e senha)
+@Composable
+fun LoginGate(st: AppState) {
+    var user by remember { mutableStateOf("") }
+    var pass by remember { mutableStateOf("") }
+    Box(Modifier.fillMaxSize().background(Bg)) {
+        Image(painterResource(R.drawable.splash), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.35f)
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Surface(Modifier.width(380.dp), shape = RoundedCornerShape(20.dp), color = Color(0xEE0E1430)) {
+                Column(Modifier.padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Image(painterResource(R.drawable.logo), null, Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)))
+                    Text("Entrar no NTPlay", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                    OutlinedTextField(user, { user = it }, Modifier.fillMaxWidth(), placeholder = { Text("Usuário", fontSize = 13.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 14.sp), colors = fieldColors())
+                    OutlinedTextField(pass, { pass = it }, Modifier.fillMaxWidth(), placeholder = { Text("Senha", fontSize = 13.sp) }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), textStyle = TextStyle(fontSize = 14.sp), colors = fieldColors())
+                    TvButton(if (st.syncBusy) "⏳ Entrando…" else "Entrar", Pink, 14.sp) { st.accountLogin(user, pass) }
+                    if (st.accessMsg.isNotEmpty()) Text(st.accessMsg, color = if (st.accessMsg == "Entrando…") Cyan else Color(0xFFFFB4B4), fontSize = 12.sp, textAlign = TextAlign.Center)
+                    Text("Não tem acesso? Peça seu usuário e senha a quem forneceu o aplicativo.", color = Muted, fontSize = 10.sp, textAlign = TextAlign.Center)
+                }
             }
         }
     }

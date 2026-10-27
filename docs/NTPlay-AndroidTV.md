@@ -181,3 +181,13 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **Remover (✕) menor** no "Continuar assistindo".
 - **Abertura**: agora também pré-carrega as capas dos primeiros recomendados (máx. ~6 s) antes de liberar a tela, para não "carregar de novo" depois.
 - `versionName 1.7.0` / `versionCode 10`.
+
+## Versão 1.8.0 (Android TV) — acesso por usuário e senha com validade
+
+- **Tela de entrada obrigatória** (`UI.LoginGate`, `AppState.locked`): ao abrir, se não houver conta conectada (ou o acesso expirou), o app mostra só usuário/senha. Sem login, nada do app fica acessível. Salvamento/sincronização continuam como na 1.7.0 (listas, favoritos, grupos, progresso criptografados).
+- **Contas criadas só pelo administrador, com validade** (servidor `ntsync` v2): colunas `expires_at`, `note`, `last_seen` em `ntplay_accounts`. O cadastro público (`reg`) foi fechado. Login com conta expirada/sem validade → 403 e o app bloqueia. A cada 90 s o app revalida; conta excluída, senha trocada ou expirada trava o app. Offline: continua usando a última validade confirmada (`Store.accessExp`) até vencer.
+- **Painel do administrador** `www/contas.html` (publicado em `.../NTPlay/contas.html` pelo Pages): cria conta (usuário, senha, 1/2/3/6 meses, 1/2 anos ou N dias), renova (+30/+90/+365 dias), bloqueia, troca senha, exclui, mostra último acesso. Protegido pela chave `NT_ADMIN_KEY` (segredo da Edge Function, definido no painel do Supabase; não fica no código). A senha é derivada no navegador (mesma PBKDF2 do app); o servidor só recebe a chave de login derivada.
+- **Outro usuário na mesma TV**: ao entrar com usuário diferente do anterior, os dados locais (listas, favoritos, grupos, progresso) são apagados antes de sincronizar, para não misturar contas.
+- Troca de senha pelo painel: os dados já salvos na nuvem daquela conta não abrem com a senha nova (a criptografia depende da senha).
+- A conta `natan` (já existente) recebeu 365 dias de validade.
+- `versionName 1.8.0` / `versionCode 11`.
