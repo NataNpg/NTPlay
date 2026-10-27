@@ -267,7 +267,7 @@ tbody tr:hover{background:rgba(255,255,255,.025)}
       </div>
       <div style="overflow-x:auto">
         <table>
-          <thead><tr><th>Cliente</th><th>Último acesso</th><th>Status</th><th>Tempo restante</th><th>Validade</th><th style="text-align:right">Ações</th></tr></thead>
+          <thead><tr><th>Cliente</th><th>Último acesso</th><th>Aparelhos</th><th>Status</th><th>Tempo restante</th><th>Validade</th><th style="text-align:right">Ações</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -398,12 +398,23 @@ async function carregar(avisar){
     usuario:u.username, nota:u.note || "",
     validade: u.expires_at ? new Date(u.expires_at).getTime() : 0,
     criado: u.created_at ? new Date(u.created_at).getTime() : Date.now(),
-    visto: u.last_seen ? new Date(u.last_seen).getTime() : 0
+    visto: u.last_seen ? new Date(u.last_seen).getTime() : 0,
+    aparelhos: Object.values(u.devices || {}).map(d => ({ t: Number(d.t) || 0, n: d.n || "Aparelho" })).sort((a,b) => b.t - a.t)
   }));
   logado = true;
   renderTudo();
   if (avisar) toast("Lista atualizada ✔");
   return true;
+}
+
+/* ================= APARELHOS ================= */
+const ONLINE_MS = 5 * 60 * 1000; // o app avisa o servidor a cada ~90 s
+function celulaAparelhos(c){
+  const l = c.aparelhos || [];
+  if (!l.length) return '<span class="visto">—</span>';
+  const on = l.filter(d => Date.now() - d.t < ONLINE_MS).length;
+  const tip = l.map(d => `${d.n} — ${Date.now() - d.t < ONLINE_MS ? "online agora" : quando(d.t)}`).join("\n");
+  return `<span class="visto" title="${esc(tip)}" style="cursor:help"><b style="color:${on ? "var(--green)" : "var(--muted)"}">● ${on} online</b> · ${l.length} aparelho(s)</span>`;
 }
 
 /* ================= STATUS ================= */
@@ -499,7 +510,7 @@ function renderTabela(){
     .filter(c => (c.usuario + " " + c.nota).toLowerCase().includes(termo))
     .sort((a,b) => a.validade - b.validade);
   if (!lista.length){
-    $("tbody").innerHTML = `<tr><td colspan="6" class="vazio"><div>🗂️</div>Nenhum cliente encontrado</td></tr>`;
+    $("tbody").innerHTML = `<tr><td colspan="7" class="vazio"><div>🗂️</div>Nenhum cliente encontrado</td></tr>`;
     return;
   }
   $("tbody").innerHTML = lista.map(c => {
@@ -512,6 +523,7 @@ function renderTabela(){
       <td><div class="user"><div class="avatar" style="background:${corAvatar(c.usuario)}">${u[0].toUpperCase()}</div>
         <div><b>${u}</b><small class="${c.nota?'nota':''}">${c.nota ? esc(c.nota) : 'Desde '+fmtData(c.criado)}</small></div></div></td>
       <td data-label="Último acesso"><span class="visto">${quando(c.visto)}</span></td>
+      <td data-label="Aparelhos">${celulaAparelhos(c)}</td>
       <td data-label="Status"><span class="badge b-${c.st.k}">${c.st.txt}</span></td>
       <td data-label="Restante"><div class="prog"><small>${txt}</small><div class="barra"><i style="width:${pct}%;background:${cor}"></i></div></div></td>
       <td data-label="Validade">${c.validade ? fmtData(c.validade) : "—"}</td>

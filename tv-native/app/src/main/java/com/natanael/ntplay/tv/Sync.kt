@@ -22,6 +22,9 @@ object Sync {
     const val URL = "https://baylcjfedxnjnjkvaufw.supabase.co/functions/v1/ntsync"
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
+    var dev = ""
+    var devName = ""
+
     class Res(val ok: Boolean, val code: Int, val msg: String, val data: String, val ts: Long, val exp: Long = 0)
 
     private fun pbkdf(pass: String, salt: String): ByteArray =
@@ -54,7 +57,7 @@ object Sync {
     /** a = "reg" | "get" | "put" */
     fun call(a: String, user: String, authKey: String, data: String? = null, ts: Long = 0): Res {
         return try {
-            val o = JSONObject().put("a", a).put("u", user.trim().lowercase()).put("k", authKey)
+            val o = JSONObject().put("a", a).put("u", user.trim().lowercase()).put("k", authKey).put("dev", dev).put("dn", devName)
             if (data != null) o.put("data", data).put("ts", ts)
             val req = Request.Builder().url(URL).post(o.toString().toRequestBody(JSON)).build()
             Net.quick.newCall(req).execute().use { r ->

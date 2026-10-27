@@ -20,6 +20,7 @@ val TABS = listOf("RECOMENDAÇÕES", "TV AO VIVO", "FUTEBOL", "FILMES", "SÉRIES
 
 class AppState(val ctx: Context) {
     val store = Store(ctx)
+    init { Sync.dev = store.deviceId; Sync.devName = (android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL).trim() }
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     var lib by mutableStateOf<Library?>(null)

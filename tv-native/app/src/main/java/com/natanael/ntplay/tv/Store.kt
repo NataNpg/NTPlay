@@ -115,6 +115,8 @@ class Store(ctx: Context) {
     var accessExp: Long   // validade do acesso (ms), última confirmada pelo servidor
         get() = sp.getLong("access_exp", 0L)
         set(v) { sp.edit().putLong("access_exp", v).apply() }
+    val deviceId: String  // identifica este aparelho no painel (quantas TVs usam a conta)
+        get() = sp.getString("device_id", null) ?: java.util.UUID.randomUUID().toString().replace("-", "").take(16).also { sp.edit().putString("device_id", it).apply() }
     var lastUser: String  // último usuário que entrou (para limpar dados se outro usuário entrar)
         get() = sp.getString("last_user", "") ?: ""
         set(v) { sp.edit().putString("last_user", v).apply() }

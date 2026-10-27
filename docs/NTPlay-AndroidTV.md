@@ -216,3 +216,6 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Guia de programação (EPG/XMLTV): programa atual nos cards de canais; no player ao vivo, agora/próximo, 📅 Guia, 📺 Canais e ⛶ Tela.
 - Abertura por série: o app memoriza onde você pulou a abertura e oferece "Pular abertura" nos próximos episódios.
 - versionCode automático no workflow (1000 + nº da execução).
+
+## 1.10.1
+- Painel de contas: coluna "Aparelhos" (quantos aparelhos usam a conta e quantos estão online agora; passe o mouse para ver os nomes). O app envia um ID do aparelho e o modelo a cada sincronização.
