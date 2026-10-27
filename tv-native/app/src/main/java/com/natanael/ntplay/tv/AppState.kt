@@ -77,6 +77,8 @@ class AppState(val ctx: Context) {
 
     fun start() {
         scope.launch { reload() }
+        // sincronização na nuvem: ao abrir e a cada 90 s (só se a conta estiver ligada)
+        scope.launch { delay(6000); while (true) { if (store.syncUser.isNotEmpty()) syncNow(false); delay(90_000L) } }
         autoUpdate()
         // presença para o painel do desenvolvedor: ao abrir e a cada 5 minutos
         scope.launch {
@@ -111,13 +113,31 @@ class AppState(val ctx: Context) {
             logosLater()
             trend = emptyList()
             trendBusy = true
-            scope.launch { try { trend = withContext(Dispatchers.IO) { Trending.load(ctx, l) } } catch (e: Throwable) { }; trendBusy = false }
+            scope.launch {
+                try {
+                    trend = withContext(Dispatchers.IO) { Trending.load(ctx, l) }
+                    // pré-carrega capas dos primeiros itens para a tela inicial já abrir pronta (máx. ~6 s)
+                    kotlinx.coroutines.withTimeoutOrNull(6000) {
+                        val first = trend.flatMap { it.items.take(8) }.filter { it.kind != 'l' }.distinctBy { it.key }.take(40)
+                        withContext(Dispatchers.IO) {
+                            val sem = kotlinx.coroutines.sync.Semaphore(6)
+                            first.map { it0 -> scope.launch(Dispatchers.IO) { sem.acquire(); try {
+                                var img = it0.logo.ifEmpty { Meta.cached(store, it0)?.img ?: "" }
+                                if (img.isEmpty()) img = try { Meta.get(store, it0)?.img ?: "" } catch (e: Throwable) { "" }
+                                if (img.isNotEmpty()) coil.Coil.imageLoader(ctx).execute(coil.request.ImageRequest.Builder(ctx).data(img).build())
+                            } catch (e: Throwable) { } finally { sem.release() } } }.forEach { it1 -> it1.join() }
+                        }
+                    }
+                } catch (e: Throwable) { }
+                trendBusy = false
+            }
         } catch (e: Throwable) {
             status = "Erro ao ler a lista"
             toast("Erro ao ler a lista: " + (e.message ?: e.javaClass.simpleName))
         }
         busy = false
         listsVer++
+        syncSoon()
     }
 
     private fun countItems(f: java.io.File): Int {
@@ -252,7 +272,7 @@ class AppState(val ctx: Context) {
         return m
     }
     private fun writeGroups(m: Map<String, List<String>>) {
-        val o = JSONObject(); for ((k, v) in m) o.put(k, JSONArray(v)); store.groupsRaw = o.toString(); groupsVer++
+        val o = JSONObject(); for ((k, v) in m) o.put(k, JSONArray(v)); store.groupsRaw = o.toString(); groupsVer++; syncSoon()
     }
     fun groupNames(): List<String> { @Suppress("UNUSED_EXPRESSION") groupsVer; return readGroups().keys.toList() }
     fun groupCount(name: String): Int = readGroups()[name]?.size ?: 0
@@ -313,7 +333,8 @@ class AppState(val ctx: Context) {
         return listOf(venc, stTxt, if ((p[2].toIntOrNull() ?: 0) > 0) "${p[3]}/${p[2]} telas" else "").filter { it.isNotEmpty() }.joinToString(" · ")
     }
 
-    fun toggleFav(key: String) {
+    fun toggleFav(key: String) { toggleFav0(key); syncSoon() }
+    private fun toggleFav0(key: String) {
         val s = HashSet(favs); val added = !s.remove(key); if (added) s.add(key)
         favs = s; store.favs = s
         toast(if (added) "★ Adicionado à Minha lista" else "Removido da Minha lista")
@@ -464,5 +485,133 @@ class AppState(val ctx: Context) {
             withContext(Dispatchers.Default) { for (o in l.live) if (o.logo.isEmpty()) Logos.find(o.title)?.let { o.logo = it; n++ } }
             if (n > 0) logoVer++
         }
+    }
+
+    // ------------------------------------------------------------ conta + sincronização na nuvem
+    var syncUser by mutableStateOf(store.syncUser)
+    var syncMsg by mutableStateOf("")
+    var syncBusy by mutableStateOf(false)
+    var accountDialog by mutableStateOf(false)
+    private var syncJob: kotlinx.coroutines.Job? = null
+    @Volatile private var blockPush = false
+
+    fun syncSoon() {
+        if (store.syncUser.isEmpty()) return
+        syncJob?.cancel()
+        syncJob = scope.launch { delay(10_000); syncNow(false) }
+    }
+
+    /** conteúdo sincronizado: listas com link, favoritos, grupos e progresso (progresso fora da detecção de mudança) */
+    private fun payload(withTs: Long): JSONObject {
+        val o = JSONObject()
+        val la = JSONArray()
+        for (m in store.lists().filter { it.url.isNotEmpty() }.sortedBy { it.url }) la.put(JSONObject().put("name", m.name).put("url", m.url).put("active", m.active))
+        o.put("lists", la)
+        o.put("favs", JSONArray(store.favs.sorted()))
+        o.put("groups", JSONObject(store.groupsRaw.ifEmpty { "{}" }))
+        val pr = JSONObject()
+        for ((u, p) in progMap.entries.sortedByDescending { it.value.ts }.take(150)) pr.put(u, JSONObject().put("t", p.t).put("d", p.d).put("ts", p.ts).put("done", p.done).put("k", p.k).put("n", p.title))
+        o.put("prog", pr)
+        o.put("ts", withTs)
+        return o
+    }
+    private fun hashOf(o: JSONObject): String {
+        val g = o.getJSONObject("groups"); val keys = g.keys().asSequence().sorted().toList()
+        val sb = StringBuilder()
+        sb.append(o.getJSONArray("lists").toString()).append('|').append(o.getJSONArray("favs").toString()).append('|')
+        for (k in keys) sb.append(k).append('=').append(g.getJSONArray(k).toString()).append(';')
+        return Sync.sha(sb.toString())
+    }
+
+    private suspend fun applyRemote(r: JSONObject, merge: Boolean) {
+        // favoritos
+        val rf = HashSet<String>(); r.optJSONArray("favs")?.let { for (i in 0 until it.length()) rf.add(it.getString(i)) }
+        val nf = if (merge) HashSet(store.favs).also { it.addAll(rf) } else rf
+        store.favs = nf; favs = nf
+        // grupos
+        val rg = r.optJSONObject("groups") ?: JSONObject()
+        if (merge) {
+            val m = readGroups()
+            for (k in rg.keys()) { val l = m.getOrPut(k) { ArrayList() }; val a = rg.getJSONArray(k); for (i in 0 until a.length()) if (!l.contains(a.getString(i))) l.add(a.getString(i)) }
+            val o = JSONObject(); for ((k, v) in m) o.put(k, JSONArray(v)); store.groupsRaw = o.toString()
+        } else store.groupsRaw = rg.toString()
+        groupsVer++
+        // progresso (mantém o mais recente)
+        r.optJSONObject("prog")?.let { pr ->
+            for (u in pr.keys()) { val p = pr.getJSONObject(u); val ts = p.optLong("ts"); val old = progMap[u]
+                if (old == null || ts > old.ts) progMap[u] = Prog(p.optLong("t"), p.optLong("d"), ts, p.optBoolean("done"), p.optString("k"), p.optString("n")) }
+            store.saveProgress(progMap); progVer++
+        }
+        // listas
+        val rl = r.optJSONArray("lists")
+        val remoteUrls = HashSet<String>()
+        if (rl != null) {
+            for (i in 0 until rl.length()) {
+                val x = rl.getJSONObject(i); val url = x.getString("url"); remoteUrls.add(url)
+                val have = store.lists().firstOrNull { it.url == url }
+                if (have == null) {
+                    addUrl(url, x.optString("name"))
+                    var w = 0
+                    while (w < 450 && store.lists().none { it.url == url }) { delay(200); w++ ; if (!busy && w > 15) break }
+                    if (store.lists().none { it.url == url }) blockPush = true
+                } else if (have.active != x.optBoolean("active", true)) {
+                    val l = store.lists(); l.firstOrNull { it.id == have.id }?.active = x.optBoolean("active", true); store.saveLists(l)
+                    reload()
+                }
+            }
+            if (!merge) {
+                val l = store.lists(); val rm = l.filter { it.url.isNotEmpty() && it.url !in remoteUrls }
+                if (rm.isNotEmpty()) { l.removeAll(rm); store.saveLists(l); for (m in rm) store.deleteList(m.id); reload() }
+            }
+        }
+        listsVer++
+    }
+
+    suspend fun syncNow(manual: Boolean) {
+        val u = store.syncUser; if (u.isEmpty() || syncBusy) return
+        syncBusy = true; blockPush = false
+        try {
+            val ak = store.syncAuth; val ek = store.syncEnc
+            val g = withContext(Dispatchers.IO) { Sync.call("get", u, ak) }
+            if (!g.ok) { syncMsg = g.msg; return }
+            val remote = if (g.data.isEmpty()) null else withContext(Dispatchers.Default) { Sync.decrypt(g.data, ek) }?.let { try { JSONObject(it) } catch (e: Exception) { null } }
+            if (g.data.isNotEmpty() && remote == null) { syncMsg = "Não consegui abrir os dados da nuvem (senha diferente da usada ao salvar?)."; return }
+            val local = payload(0)
+            val changed = hashOf(local) != store.syncHash
+            if (remote != null && g.ts > store.syncTs) {
+                applyRemote(remote, merge = changed)
+                if (blockPush) { syncMsg = "Algumas listas da nuvem não baixaram; vou tentar de novo."; return }
+                if (!changed) { store.syncTs = g.ts; store.syncHash = hashOf(payload(0)); syncMsg = "☁ Atualizado da nuvem."; return }
+            } else if (!changed && remote != null) { if (manual) syncMsg = "☁ Tudo em dia."; return }
+            val now = System.currentTimeMillis()
+            val p = payload(now)
+            val enc = withContext(Dispatchers.Default) { Sync.encrypt(p.toString(), ek) }
+            val pr = withContext(Dispatchers.IO) { Sync.call("put", u, ak, enc, now) }
+            if (pr.ok) { store.syncTs = now; store.syncHash = hashOf(p); syncMsg = "☁ Salvo na nuvem." } else syncMsg = pr.msg
+        } catch (e: Throwable) { syncMsg = "Falha ao sincronizar: " + (e.message ?: e.javaClass.simpleName) }
+        finally { syncBusy = false }
+    }
+
+    fun accountLogin(user: String, pass: String, register: Boolean) {
+        val u = user.trim().lowercase()
+        if (u.length < 3) { syncMsg = "Usuário: mínimo 3 caracteres (letras, números, . _ -)."; return }
+        if (pass.length < 6) { syncMsg = "Senha: mínimo 6 caracteres."; return }
+        if (syncBusy) return
+        syncBusy = true; syncMsg = if (register) "Criando conta…" else "Entrando…"
+        scope.launch {
+            val (ak, ek) = withContext(Dispatchers.Default) { Sync.derive(u, pass) }
+            val r = withContext(Dispatchers.IO) { Sync.call(if (register) "reg" else "get", u, ak) }
+            if (!r.ok) { syncMsg = r.msg; syncBusy = false; return@launch }
+            store.syncUser = u; store.syncAuth = ak; store.syncEnc = ek; store.syncTs = 0; store.syncHash = ""
+            syncUser = u
+            syncBusy = false
+            syncMsg = if (register) "Conta criada! Enviando seus dados…" else "Entrou! Baixando seus dados…"
+            syncNow(true)
+        }
+    }
+
+    fun accountLogout() {
+        store.syncUser = ""; store.syncAuth = ""; store.syncEnc = ""; store.syncTs = 0; store.syncHash = ""
+        syncUser = ""; syncMsg = "Saiu da conta. Seus dados continuam neste aparelho."
     }
 }

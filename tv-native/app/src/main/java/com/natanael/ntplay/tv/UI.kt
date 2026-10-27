@@ -1,6 +1,7 @@
 package com.natanael.ntplay.tv
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.Indication
 import androidx.compose.foundation.IndicationInstance
@@ -95,6 +96,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -240,7 +242,7 @@ fun App(st: AppState) {
         var w = 0
         while (st.busy && w < 100) { delay(200); w++ } // espera a lista terminar de carregar (máx. ~20 s)
         w = 0
-        while (st.trendBusy && w < 30) { delay(200); w++ } // e os recomendados (máx. ~6 s), para não carregar de novo dentro do app
+        while (st.trendBusy && w < 50) { delay(200); w++ } // e os recomendados + capas (máx. ~10 s), para não carregar de novo dentro do app
         splash = false
     }
     Box(Modifier.fillMaxSize().background(Bg)) {
@@ -257,6 +259,7 @@ fun App(st: AppState) {
         if (st.showLists) ListsDialog(st)
         if (st.showSearch) SearchDialog(st)
         if (st.groupDialog) GroupDialog(st)
+        if (st.accountDialog) AccountDialog(st)
         if (splash) Splash(st)
         if (st.toastMsg.isNotEmpty()) {
             Box(Modifier.fillMaxSize().padding(bottom = 48.dp), contentAlignment = Alignment.BottomCenter) {
@@ -300,6 +303,8 @@ fun Header(st: AppState) {
             }
         }
         TvButton("🔍 Buscar", Btn, 10.sp, compact = true) { st.showSearch = true }
+        Spacer(Modifier.width(6.dp))
+        TvButton(if (st.syncUser.isNotEmpty()) "☁ " + st.syncUser.take(10) else "☁ Conta", Btn, 10.sp, compact = true) { st.accountDialog = true }
         Spacer(Modifier.width(6.dp))
         TvButton("☰ Listas", Color(0xFF7C3AED), 10.sp, compact = true) { st.showLists = true }
         Spacer(Modifier.width(12.dp))
@@ -351,7 +356,11 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
         val q = Util.quality(item.title)
         val sub = listOfNotNull(y.ifEmpty { null }, if (item.kind == 's') "Série" else null, q.ifEmpty { null }).joinToString(" · ")
         if (sub.isNotEmpty()) Text(sub, Modifier.padding(start = 2.dp), color = Muted, fontSize = 9.sp, maxLines = 1)
-        if (onRemove != null) TvButton("✕ Remover", Btn, 8.sp, compact = true, modifier = Modifier.padding(top = 3.dp), onClick = onRemove)
+        if (onRemove != null) {
+            val rfi = rememberFocus()
+            Text("✕", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 3.dp).tvClick(rfi, CircleShape, 1.15f, onClick = onRemove).background(if (rfi.on) Pink else Btn, CircleShape).padding(horizontal = 6.dp, vertical = 2.dp))
+        }
     }
 }
 
@@ -573,9 +582,9 @@ fun CatBtn(name: String, n: Int, sel: Boolean, onClick: () -> Unit) {
 @Composable
 fun Recom(st: AppState, lib: Library) {
     val ver = st.progVer
-    val cw = remember(ver, lib) { st.continueList().filter { it.first.kind != 'l' } }
+    val cw = remember(ver, lib) { st.continueList() }
     val favs = remember(st.favs, lib) { lib.every.filter { st.favs.contains(it.key) } }
-    val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
+    val favL = favs.filter { it.kind == 'l' }; val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
     val trend = remember(st.trend) { st.trend.map { Trending.Row(it.title, it.items.filter { x -> x.kind != 'l' }) }.filter { it.items.isNotEmpty() } }
     val heroes = remember(lib, trend) {
         val out = LinkedHashMap<String, Item>()
@@ -603,6 +612,7 @@ fun Recom(st: AppState, lib: Library) {
             }
         }
         for (r in trend) item { ShelfRow(r.title, r.items.size, null) { items(r.items.take(40), key = { it.key }) { it2 -> CardFor(st, it2, r.items) } } }
+        if (favL.isNotEmpty()) item { ShelfRow("★ Canais favoritos", favL.size, null) { items(favL, key = { it.key }) { it2 -> CardFor(st, it2, favL) } } }
         if (favM.isNotEmpty()) item { ShelfRow("★ Filmes favoritos", favM.size, null) { items(favM, key = { it.key }) { it2 -> CardFor(st, it2, favM) } } }
         if (favS.isNotEmpty()) item { ShelfRow("★ Séries favoritas", favS.size, null) { items(favS, key = { it.key }) { it2 -> CardFor(st, it2, favS) } } }
         if (favs.isEmpty()) item { Text("Dica: segure o botão OK (ou aperte Menu) em qualquer canal, filme ou série para adicionar aos favoritos.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
@@ -984,3 +994,34 @@ fun AnimeScreen(st: AppState, lib: Library) {
 }
 
 private data class Quad(val a: String, val b: String, val c: Int, val d: Color)
+
+// ---------------------------------------------------------------- conta / nuvem
+@Composable
+fun AccountDialog(st: AppState) {
+    var user by remember { mutableStateOf("") }
+    var pass by remember { mutableStateOf("") }
+    Dialog(onDismissRequest = { st.accountDialog = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxWidth(0.55f).wrapContentHeight(), shape = RoundedCornerShape(18.dp), color = PanelC) {
+            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("☁ Conta NTPlay", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Guarda suas listas, favoritos, grupos e progresso na nuvem para usar em outro aparelho. Seus dados são criptografados no aparelho: nem o servidor consegue ler. Se esquecer a senha, não há como recuperar os dados da nuvem.", color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+                if (st.syncUser.isNotEmpty()) {
+                    Text("Conectado como  " + st.syncUser, color = Cyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TvButton(if (st.syncBusy) "⏳ Sincronizando…" else "↻ Sincronizar agora", Pink, 12.sp) { if (!st.syncBusy) st.scope.launch { st.syncNow(true) } }
+                        TvButton("Sair da conta", Color(0xFF7A2E3A), 12.sp) { st.accountLogout() }
+                    }
+                } else {
+                    OutlinedTextField(user, { user = it }, Modifier.fillMaxWidth(), placeholder = { Text("Usuário", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors())
+                    OutlinedTextField(pass, { pass = it }, Modifier.fillMaxWidth(), placeholder = { Text("Senha (mín. 6)", fontSize = 12.sp) }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors())
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TvButton(if (st.syncBusy) "⏳…" else "Entrar", Pink, 12.sp) { st.accountLogin(user, pass, false) }
+                        TvButton("Criar conta", Btn, 12.sp) { st.accountLogin(user, pass, true) }
+                    }
+                }
+                if (st.syncMsg.isNotEmpty()) Text(st.syncMsg, color = if (st.syncMsg.startsWith("☁") || st.syncMsg.startsWith("Conta") || st.syncMsg.startsWith("Entrou")) Color(0xFF34D399) else Color(0xFFFFB4B4), fontSize = 11.sp)
+                TvButton("Fechar", Btn, 11.sp, compact = true) { st.accountDialog = false }
+            }
+        }
+    }
+}

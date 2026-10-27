@@ -95,6 +95,23 @@ class Store(ctx: Context) {
         get() = sp.getBoolean("updstart", false)
         set(v) { sp.edit().putBoolean("updstart", v).apply() }
 
+    // conta de sincronização (a senha NÃO é guardada; só as duas chaves derivadas)
+    var syncUser: String
+        get() = sp.getString("sync_user", "") ?: ""
+        set(v) { sp.edit().putString("sync_user", v).apply() }
+    var syncAuth: String
+        get() = sp.getString("sync_auth", "") ?: ""
+        set(v) { sp.edit().putString("sync_auth", v).apply() }
+    var syncEnc: String
+        get() = sp.getString("sync_enc", "") ?: ""
+        set(v) { sp.edit().putString("sync_enc", v).apply() }
+    var syncTs: Long
+        get() = sp.getLong("sync_ts", 0L)
+        set(v) { sp.edit().putLong("sync_ts", v).apply() }
+    var syncHash: String
+        get() = sp.getString("sync_hash", "") ?: ""
+        set(v) { sp.edit().putString("sync_hash", v).apply() }
+
     fun relay(): Pair<String, String> {
         var t = sp.getString("rt", null)
         var k = sp.getString("rk", null)

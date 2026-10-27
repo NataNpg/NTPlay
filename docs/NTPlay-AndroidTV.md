@@ -169,3 +169,15 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **Abertura sem recarregar** (`UI.App`, `AppState.trendBusy`): a tela de abertura agora espera também os recomendados (máx. ~6 s) além da lista, para não "carregar de novo" dentro do app.
 - **Recomendados só filmes e séries**: removidas "TV ao vivo" e "Canais favoritos"; "Continuar assistindo" ignora canais; "Filmes/Séries" genéricos só aparecem se não houver recomendados (sem internet).
 - `versionName 1.6.1` / `versionCode 9`.
+
+## Versão 1.7.0 (Android TV) — conta na nuvem (login/senha), abertura mais completa
+
+- **Conta NTPlay + sincronização** (`Sync.kt`, `AppState` seção "conta + sincronização", `UI.AccountDialog`, botão **☁ Conta** no cabeçalho): usuário e senha; salva **listas (só as que têm link), favoritos, grupos e progresso "continuar assistindo"** para usar em outro aparelho.
+  - **Servidor grátis**: projeto Supabase `baylcjfedxnjnjkvaufw` (região ca-central-1), tabela `public.ntplay_accounts` (RLS ligado, sem acesso direto pela API) e Edge Function `ntsync` (`verify_jwt=false`, usa a service role internamente). Endpoint: `https://baylcjfedxnjnjkvaufw.supabase.co/functions/v1/ntsync`. Ações: `reg` (criar conta), `get`, `put`. Limites: 500 contas, 2 MB por conta, bloqueio de 15 min após 8 senhas erradas. Plano grátis do Supabase pausa o projeto após ~7 dias sem uso (reativar no painel).
+  - **Privacidade**: a senha nunca sai da TV. `Sync.derive` gera 2 chaves (PBKDF2): uma só para o login (o servidor guarda apenas hash+salt dela) e outra que **criptografa os dados com AES-256-GCM** antes do envio. O servidor só vê texto cifrado; o dono do servidor não lê as listas dos usuários. Esqueceu a senha = dados da nuvem irrecuperáveis.
+  - **Regra de sincronização**: a cada 90 s, ao abrir e ~10 s após mudar favoritos/grupos/listas. Se a nuvem é mais nova e nada mudou local → aplica a nuvem; se os dois mudaram → une (favoritos/grupos/listas) e envia; se só local mudou → envia. Listas que faltam são baixadas; se alguma falhar, não sobrescreve a nuvem.
+  - Ainda **não** integrado ao app de PC/web (só TV por enquanto).
+- **Recomendados**: "Continuar assistindo" e "Canais favoritos" voltaram.
+- **Remover (✕) menor** no "Continuar assistindo".
+- **Abertura**: agora também pré-carrega as capas dos primeiros recomendados (máx. ~6 s) antes de liberar a tela, para não "carregar de novo" depois.
+- `versionName 1.7.0` / `versionCode 10`.
