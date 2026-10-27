@@ -30,7 +30,8 @@ object Util {
 
     fun cleanT(s: String): String = ws.replace(words.replace(paren.replace(s, " "), " "), " ").trim()
 
-    fun yearOf(s: String): String = Regex("\\((\\d{4})\\)").find(s)?.groupValues?.get(1) ?: ""
+    private val yrR = Regex("\\((\\d{4})\\)")
+    fun yearOf(s: String): String = yrR.find(s)?.groupValues?.get(1) ?: ""
 
     private val qR = Regex("\\b(4k|uhd|2160p|fhd|1080p|hd|720p|sd|h\\.?265|hevc)\\b", RegexOption.IGNORE_CASE)
 

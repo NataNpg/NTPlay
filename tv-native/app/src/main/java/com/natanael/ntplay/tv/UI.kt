@@ -236,9 +236,11 @@ fun showTitle(it: Item): String = if (it.kind == 'l') it.title else Util.cleanT(
 fun App(st: AppState) {
     var splash by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
-        delay(1800)
+        delay(1200)
         var w = 0
         while (st.busy && w < 100) { delay(200); w++ } // espera a lista terminar de carregar (máx. ~20 s)
+        w = 0
+        while (st.trendBusy && w < 30) { delay(200); w++ } // e os recomendados (máx. ~6 s), para não carregar de novo dentro do app
         splash = false
     }
     Box(Modifier.fillMaxSize().background(Bg)) {
@@ -439,29 +441,74 @@ fun Browse(st: AppState) {
     }
     val tab = st.tab
     val groups = when (tab) { "TV AO VIVO" -> lib.liveGroups; "FILMES" -> lib.movieGroups; "SÉRIES" -> lib.serieGroups; else -> null }
+    val yearBase: List<Item>? = when (tab) {
+        "FILMES" -> if (st.group.isEmpty()) lib.movies else groups?.firstOrNull { it.first == st.group }?.second
+        "SÉRIES" -> if (st.group.isEmpty()) lib.series else groups?.firstOrNull { it.first == st.group }?.second
+        "ANIMES" -> lib.anime
+        else -> null
+    }
+    val years = remember(lib, tab, st.group, yearBase) {
+        if (yearBase == null) emptyList() else yearBase.groupingBy { yearOfItem(st, it) }.eachCount().filterKeys { it.isNotEmpty() }.toList().sortedByDescending { it.first }
+    }
     Row(Modifier.fillMaxSize().padding(top = 6.dp)) {
         if (groups != null) Sidebar(st, groups, when (tab) { "TV AO VIVO" -> lib.live.size; "FILMES" -> lib.movies.size; else -> lib.series.size }, tab)
-        Box(Modifier.weight(1f).fillMaxHeight()) {
-            if (groups != null) {
-                if (st.group.isEmpty()) {
-                    val ls = savedListState(st, "shelves:" + tab)
-                    LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp)) {
-                        items(groups.take(80), key = { it.first }) { g ->
-                            ShelfRow(g.first, g.second.size, { st.group = g.first }) {
-                                items(g.second.take(30), key = { it.key }) { it2 -> CardFor(st, it2, g.second) }
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+            if (yearBase != null) Row(Modifier.fillMaxWidth().padding(end = 16.dp, bottom = 2.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                if (st.yearSel.isNotEmpty()) { TvButton("✕ Limpar", Btn, 10.sp, compact = true) { st.yearSel = "" }; Spacer(Modifier.width(8.dp)) }
+                TvButton("📅 Ano: " + (st.yearSel.ifEmpty { "Todos" }), if (st.yearSel.isNotEmpty()) Pink else Btn, 10.sp, compact = true) { st.yearDialog = true }
+            }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                if (groups != null) {
+                    if (st.yearSel.isNotEmpty() && yearBase != null) {
+                        val f = remember(yearBase, st.yearSel) { yearBase.filter { yearOfItem(st, it) == st.yearSel } }
+                        GridOf(st, f.take(900), (if (st.group.isEmpty()) tab else st.group) + " · " + st.yearSel)
+                    } else if (st.group.isEmpty()) {
+                        val ls = savedListState(st, "shelves:" + tab)
+                        LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp)) {
+                            items(groups.take(80), key = { it.first }) { g ->
+                                ShelfRow(g.first, g.second.size, { st.group = g.first }) {
+                                    items(g.second.take(30), key = { it.key }) { it2 -> CardFor(st, it2, g.second) }
+                                }
                             }
                         }
+                    } else {
+                        val l = groups.firstOrNull { it.first == st.group }?.second ?: emptyList()
+                        GridOf(st, l, st.group)
                     }
-                } else {
-                    val l = groups.firstOrNull { it.first == st.group }?.second ?: emptyList()
-                    GridOf(st, l, st.group)
+                } else when (tab) {
+                    "FUTEBOL" -> FutebolScreen(st, lib)
+                    "INFANTIL" -> GridOf(st, lib.kids.take(600), "Infantil")
+                    "ANIMES" -> AnimeScreen(st, lib)
+                    "FAVORITOS" -> FavoritesScreen(st, lib)
+                    else -> Recom(st, lib)
                 }
-            } else when (tab) {
-                "FUTEBOL" -> FutebolScreen(st, lib)
-                "INFANTIL" -> GridOf(st, lib.kids.take(600), "Infantil")
-                "ANIMES" -> AnimeScreen(st, lib)
-                "FAVORITOS" -> FavoritesScreen(st, lib)
-                else -> Recom(st, lib)
+            }
+        }
+    }
+    if (st.yearDialog) YearDialog(st, years)
+}
+
+fun yearOfItem(st: AppState, it: Item): String {
+    val y = Util.yearOf(it.title)
+    if (y.isNotEmpty()) return y
+    val c = Meta.cached(st.store, it)?.y ?: ""
+    return if (c.length == 4 && c.all { ch -> ch.isDigit() }) c else ""
+}
+
+@Composable
+fun YearDialog(st: AppState, years: List<Pair<String, Int>>) {
+    Dialog(onDismissRequest = { st.yearDialog = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxWidth(0.7f).fillMaxHeight(0.8f), shape = RoundedCornerShape(18.dp), color = PanelC) {
+            Column(Modifier.padding(20.dp)) {
+                Text("Filtrar por ano de lançamento", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                Text(if (years.isEmpty()) "Nenhum título desta seção traz o ano no nome." else "Só aparecem anos que existem na sua lista.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
+                val gs = rememberLazyGridState()
+                LazyVerticalGrid(columns = GridCells.Adaptive(110.dp), state = gs, modifier = Modifier.weight(1f).mouseScroll(gs), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { TvButton("Todos", Btn, 12.sp, selected = st.yearSel.isEmpty()) { st.yearSel = ""; st.yearDialog = false } }
+                    items(years, key = { it.first }) { (y, n) ->
+                        TvButton("$y  ($n)", Btn, 12.sp, selected = st.yearSel == y) { st.yearSel = y; st.yearDialog = false }
+                    }
+                }
             }
         }
     }
@@ -526,10 +573,10 @@ fun CatBtn(name: String, n: Int, sel: Boolean, onClick: () -> Unit) {
 @Composable
 fun Recom(st: AppState, lib: Library) {
     val ver = st.progVer
-    val cw = remember(ver, lib) { st.continueList() }
+    val cw = remember(ver, lib) { st.continueList().filter { it.first.kind != 'l' } }
     val favs = remember(st.favs, lib) { lib.every.filter { st.favs.contains(it.key) } }
-    val favL = favs.filter { it.kind == 'l' }; val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
-    val trend = st.trend
+    val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
+    val trend = remember(st.trend) { st.trend.map { Trending.Row(it.title, it.items.filter { x -> x.kind != 'l' }) }.filter { it.items.isNotEmpty() } }
     val heroes = remember(lib, trend) {
         val out = LinkedHashMap<String, Item>()
         for (r in trend) for (i in r.items.take(4)) if (i.kind != 'l') out.putIfAbsent(i.key, i)
@@ -556,13 +603,11 @@ fun Recom(st: AppState, lib: Library) {
             }
         }
         for (r in trend) item { ShelfRow(r.title, r.items.size, null) { items(r.items.take(40), key = { it.key }) { it2 -> CardFor(st, it2, r.items) } } }
-        if (favL.isNotEmpty()) item { ShelfRow("★ Canais favoritos", favL.size, null) { items(favL, key = { it.key }) { it2 -> CardFor(st, it2, favL) } } }
         if (favM.isNotEmpty()) item { ShelfRow("★ Filmes favoritos", favM.size, null) { items(favM, key = { it.key }) { it2 -> CardFor(st, it2, favM) } } }
         if (favS.isNotEmpty()) item { ShelfRow("★ Séries favoritas", favS.size, null) { items(favS, key = { it.key }) { it2 -> CardFor(st, it2, favS) } } }
         if (favs.isEmpty()) item { Text("Dica: segure o botão OK (ou aperte Menu) em qualquer canal, filme ou série para adicionar aos favoritos.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
-        if (lib.movies.isNotEmpty()) item { ShelfRow("Filmes", lib.movies.size, { st.selectTab("FILMES") }) { items(lib.movies.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.movies) } } }
-        if (lib.series.isNotEmpty()) item { ShelfRow("Séries", lib.series.size, { st.selectTab("SÉRIES") }) { items(lib.series.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.series) } } }
-        if (lib.live.isNotEmpty()) item { ShelfRow("TV ao vivo", lib.live.size, { st.selectTab("TV AO VIVO") }) { items(lib.live.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.live) } } }
+        if (trend.isEmpty() && lib.movies.isNotEmpty()) item { ShelfRow("Filmes", lib.movies.size, { st.selectTab("FILMES") }) { items(lib.movies.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.movies) } } }
+        if (trend.isEmpty() && lib.series.isNotEmpty()) item { ShelfRow("Séries", lib.series.size, { st.selectTab("SÉRIES") }) { items(lib.series.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.series) } } }
     }
 }
 
@@ -829,7 +874,9 @@ fun GroupDialog(st: AppState) {
 @Composable
 fun ListsDialog(st: AppState) {
     val (topic, key) = remember { st.store.relay() }
-    val link = Util.SEND_BASE + "#t=" + topic + "&k=" + key
+    val local = remember { LocalServer.start { c, n -> st.onRelay(c, n) } }
+    DisposableEffect(Unit) { onDispose { LocalServer.stop() } }
+    val link = local ?: (Util.SEND_BASE + "#t=" + topic + "&k=" + key)
     val qr = remember(link) { Qr.bitmap(link, 360).asImageBitmap() }
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
@@ -845,7 +892,7 @@ fun ListsDialog(st: AppState) {
                     Text("ENVIAR PELO CELULAR", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
                     Image(qr, "QR code", Modifier.size(150.dp).background(Color.White, RoundedCornerShape(10.dp)).padding(8.dp))
-                    Text("Aponte a câmera do celular, cole o link da lista e envie. Ela chega aqui sozinha.", color = Color(0xDDFFFFFF), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+                    Text(if (local != null) "Celular e TV no mesmo Wi‑Fi: aponte a câmera, cole o link da lista e envie. Funciona sem internet externa." else "Aponte a câmera do celular, cole o link da lista e envie. Ela chega aqui sozinha.", color = Color(0xDDFFFFFF), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
                     Text("⏳ Aguardando o celular…", color = Cyan, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
                 }
                 val ls = rememberLazyListState()
@@ -925,7 +972,8 @@ fun AnimeScreen(st: AppState, lib: Library) {
                         .background(if (src == k) col else if (fi.on) FocusBg else Color(0x22FFFFFF), RoundedCornerShape(50)).padding(horizontal = 14.dp, vertical = 6.dp))
             }
         }
-        val l = when (src) { "CR" -> cr; "FN" -> fn; else -> lib.anime.take(600) }
+        val l0 = when (src) { "CR" -> cr; "FN" -> fn; else -> lib.anime }
+        val l = if (st.yearSel.isNotEmpty()) l0.filter { yearOfItem(st, it) == st.yearSel } else l0.take(600)
         val name = when (src) { "CR" -> "Crunchyroll"; "FN" -> "Funimation Now"; else -> "Animes" }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (l.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

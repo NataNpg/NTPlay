@@ -290,8 +290,10 @@ fun FutebolScreen(st: AppState, lib: Library) {
 private fun GameCard(st: AppState, g: Fut.Game, sports: List<Item>, epgVer: Int) {
     @Suppress("UNUSED_EXPRESSION") epgVer
     val chs = if (g.state == "post") emptyList() else Fut.channelsFor(g, sports)
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(10.dp))
-        .background(if (g.state == "in") Color(0x332CC66B) else Color(0xFF111A3A), RoundedCornerShape(10.dp)).padding(10.dp)) {
+    val cfi = rememberFocus()
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)
+        .tvClick(cfi, RoundedCornerShape(10.dp), 1.03f) { if (chs.isNotEmpty()) st.playItem(chs[0], null, sports) else st.toast("Sem canal deste jogo na sua lista") }
+        .clip(RoundedCornerShape(10.dp)).background(if (g.state == "in") Color(0x332CC66B) else Color(0xFF111A3A), RoundedCornerShape(10.dp)).padding(10.dp)) {
         Text(Fut.status(g), color = if (g.state == "in") Color(0xFF34D399) else Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         Spacer(Modifier.height(3.dp))
         TeamRow(g.homeLogo, g.home, if (g.state == "pre") "" else g.homeScore)
@@ -300,11 +302,9 @@ private fun GameCard(st: AppState, g: Fut.Game, sports: List<Item>, epgVer: Int)
             Spacer(Modifier.height(5.dp))
             if (chs.isNotEmpty()) {
                 Text("📺 Canal", color = Color(0xFF34D399), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                for (ch in chs.take(3)) {
-                    val fi = rememberFocus()
-                    Text("▶ " + ch.title, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 3.dp).fillMaxWidth().tvClick(fi, RoundedCornerShape(7.dp)) { st.playItem(ch, null, sports) }
-                            .background(if (fi.on) Pink else Color(0x558B5CF6), RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 5.dp))
+                for ((ix, ch) in chs.take(3).withIndex()) {
+                    Text((if (ix == 0) "▶ " else "• ") + ch.title, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 3.dp).fillMaxWidth().background(if (cfi.on && ix == 0) Pink else Color(0x558B5CF6), RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 5.dp))
                 }
             } else Text("📺 Canal não encontrado na sua lista", color = Color(0x66FFFFFF), fontSize = 9.sp, maxLines = 1)
         }

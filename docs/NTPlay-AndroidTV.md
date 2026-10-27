@@ -160,3 +160,12 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **Etiqueta LEG / DUB** (`Util.audioTag`, `PosterCard`): selo no canto do card de filme/série — LEG (legendado, ciano) ou DUB (dublado, roxo), detectado no título/grupo/1º episódio.
 - **Animes por provedor** (`UI.AnimeScreen`, `Util.animeSrc`): botões Todos / Crunchyroll / Funimation Now filtram os animes cujo grupo ou nome cita o provedor; conteúdos desses provedores entram na aba Animes.
 - `versionName 1.6.0` / `versionCode 8`.
+
+## Versão 1.6.1 (Android TV) — Futebol navegável, filtro por ano, QR local, abertura sem recarga
+
+- **Futebol com controle remoto** (`Futebol.kt`): cada card de jogo agora é focável (antes só o topo tinha itens focáveis, então o D-pad não descia). OK no card abre o 1º canal do jogo.
+- **Filtro por ano** (`UI.Browse`, `YearDialog`, `yearOfItem`, `AppState.yearSel`): botão "📅 Ano" no canto superior direito de Filmes, Séries e Animes. Lista só os anos presentes (ano no nome `(2023)` ou no cache de metadados); "✕ Limpar" remove. Zera ao trocar de aba. `Util.yearOf` agora usa regex pré-compilado.
+- **QR code pela rede local** (`LocalServer.kt`, `ListsDialog`): ao abrir Listas, a TV sobe um mini servidor HTTP na porta 8765 com token aleatório; o QR aponta para `http://IP-da-TV:8765/token`. O celular (mesmo Wi‑Fi) abre a página, cola o link/M3U e envia direto, sem internet nem GitHub. Servidor para ao fechar o diálogo. Sem rede local, cai no QR antigo (GitHub).
+- **Abertura sem recarregar** (`UI.App`, `AppState.trendBusy`): a tela de abertura agora espera também os recomendados (máx. ~6 s) além da lista, para não "carregar de novo" dentro do app.
+- **Recomendados só filmes e séries**: removidas "TV ao vivo" e "Canais favoritos"; "Continuar assistindo" ignora canais; "Filmes/Séries" genéricos só aparecem se não houver recomendados (sem internet).
+- `versionName 1.6.1` / `versionCode 9`.

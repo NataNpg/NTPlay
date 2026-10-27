@@ -48,6 +48,9 @@ class AppState(val ctx: Context) {
     var epsLoading by mutableStateOf(false)
     var logoVer by mutableIntStateOf(0)
     var trend by mutableStateOf<List<Trending.Row>>(emptyList())
+    var trendBusy by mutableStateOf(false)
+    var yearSel by mutableStateOf("")
+    var yearDialog by mutableStateOf(false)
     var epsErr by mutableStateOf("")
     var queue: List<Item> = emptyList()
     val scroll = HashMap<String, Pair<Int, Int>>() // posição de rolagem por tela (volta onde parou)
@@ -59,7 +62,7 @@ class AppState(val ctx: Context) {
     }
 
     fun selectTab(t: String) {
-        tab = t; group = ""; detail = null; store.tab = t
+        tab = t; group = ""; detail = null; store.tab = t; yearSel = ""
     }
 
     val canBack: Boolean get() = play != null || detail != null || group.isNotEmpty()
@@ -107,7 +110,8 @@ class AppState(val ctx: Context) {
             status = "${l.live.size} canais • ${l.movies.size} filmes • ${l.series.size} séries"
             logosLater()
             trend = emptyList()
-            scope.launch { try { trend = withContext(Dispatchers.IO) { Trending.load(ctx, l) } } catch (e: Throwable) { } }
+            trendBusy = true
+            scope.launch { try { trend = withContext(Dispatchers.IO) { Trending.load(ctx, l) } } catch (e: Throwable) { }; trendBusy = false }
         } catch (e: Throwable) {
             status = "Erro ao ler a lista"
             toast("Erro ao ler a lista: " + (e.message ?: e.javaClass.simpleName))
