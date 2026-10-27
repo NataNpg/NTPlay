@@ -22,6 +22,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.9
+      - name: Número da versão (sobe sozinho a cada compilação)
+        run: echo "NT_VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
       - name: Chave de assinatura (GitHub Secrets)
         env:
           KS_B64: ${{ secrets.NT_KEYSTORE_B64 }}
@@ -49,7 +51,7 @@ jobs:
       - run: cp tv-native/app/build/outputs/apk/release/app-release.apk NTPlay-TV.apk
       - name: Arquivo de versão (usado pela atualização automática do app)
         run: |
-          code=$(grep -oP 'versionCode = \K[0-9]+' tv-native/app/build.gradle.kts)
+          code=$NT_VERSION_CODE
           name=$(grep -oP 'versionName = "\K[^"]+' tv-native/app/build.gradle.kts)
           min=$(tr -d '[:space:]' < tv-native/min_version)
           echo "{\"code\":$code,\"name\":\"$name\",\"min\":${min:-0}}" > tv-version.json

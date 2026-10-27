@@ -388,6 +388,8 @@ fun LiveCard(st: AppState, item: Item, w: Dp, onClick: () -> Unit) {
             if (st.favs.contains(item.key)) Text("★", Modifier.align(Alignment.TopEnd).padding(6.dp), color = Color(0xFFFFC107), fontSize = 12.sp)
         }
         Text(item.title, Modifier.padding(top = 6.dp, start = 2.dp), color = if (fi.on) Color.White else Color(0xDDFFFFFF), fontSize = 11.sp, fontWeight = if (fi.on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        @Suppress("UNUSED_VARIABLE") val ev = st.epgVer
+        Epg.nowTitle(item)?.let { Text("▶ " + it, Modifier.padding(start = 2.dp), color = Cyan, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
 }
 
@@ -891,6 +893,9 @@ fun ListsDialog(st: AppState) {
     val qr = remember(link) { Qr.bitmap(link, 360).asImageBitmap() }
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
+    var xHost by remember { mutableStateOf("") }
+    var xUser by remember { mutableStateOf("") }
+    var xPass by remember { mutableStateOf("") }
     val lists = remember(st.listsVer, st.busy) { st.store.lists() }
     LaunchedEffect(Unit) { st.refreshAccounts() }
     LaunchedEffect(topic) { Relay.listen(topic, key) { c, n -> st.onRelay(c, n) } }
@@ -936,6 +941,21 @@ fun ListsDialog(st: AppState) {
                             TvButton("🗑 Excluir", Color(0xFF7A2E3A), 9.sp, compact = true) { st.deleteList(m.id) }
                         }
                     }
+                    item { Spacer(Modifier.height(4.dp)); Text("ADICIONAR POR XTREAM CODES (servidor, usuário e senha)", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                    item { OutlinedTextField(xHost, { xHost = it }, Modifier.fillMaxWidth(), placeholder = { Text("Servidor  http://servidor.com:8080", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors()) }
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(xUser, { xUser = it }, Modifier.weight(1f), placeholder = { Text("Usuário", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors())
+                            OutlinedTextField(xPass, { xPass = it }, Modifier.weight(1f), placeholder = { Text("Senha", fontSize = 12.sp) }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors())
+                        }
+                    }
+                    item { TvButton(if (st.busy) "⏳ Entrando…" else "🔑 Entrar e adicionar (Xtream)", Color(0xFF7C3AED), 12.sp) {
+                        if (!st.busy) {
+                            val h = xHost.trim().trimEnd('/').let { if (it.contains("://")) it else "http://$it" }
+                            if (xHost.isBlank() || xUser.isBlank() || xPass.isBlank()) st.toast("Preencha servidor, usuário e senha.")
+                            else st.addUrl(h + "/get.php?username=" + Net.enc(xUser.trim()) + "&password=" + Net.enc(xPass.trim()) + "&type=m3u_plus&output=ts", name.ifBlank { xUser.trim() })
+                        }
+                    } }
                     item { Spacer(Modifier.height(4.dp)); Text("ADICIONAR NOVA LISTA", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     item { OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), placeholder = { Text("Nome da lista (opcional)", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors()) }
                     item { OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), placeholder = { Text("Link M3U  http://...", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors()) }

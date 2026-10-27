@@ -166,22 +166,26 @@ object Fut {
 
     class Prog2(val title: String, val start: Long, val stop: Long)
     /** programa atual e próximo de um canal (para o painel do player ao vivo) */
-    suspend fun epgOf(ch: Item): Pair<Prog2?, Prog2?> = withContext(Dispatchers.IO) {
-        val m = credRe.find(ch.eps.firstOrNull()?.url ?: "") ?: return@withContext null to null
+    suspend fun epgList(ch: Item, limit: Int = 12): List<Prog2> = withContext(Dispatchers.IO) {
+        val m = credRe.find(ch.eps.firstOrNull()?.url ?: "") ?: return@withContext emptyList()
         val base = m.groupValues[1]; val u = Net.enc(Uri.decode(m.groupValues[2])); val p = Net.enc(Uri.decode(m.groupValues[3])); val id = m.groupValues[4]
-        val t = Net.getQuick("$base/player_api.php?username=$u&password=$p&action=get_short_epg&stream_id=$id&limit=5") ?: return@withContext null to null
+        val t = Net.getQuick("$base/player_api.php?username=$u&password=$p&action=get_short_epg&stream_id=$id&limit=$limit") ?: return@withContext emptyList()
         try {
-            val arr = JSONObject(t).optJSONArray("epg_listings") ?: return@withContext null to null
-            val ns = System.currentTimeMillis() / 1000
-            var cur: Prog2? = null; var nxt: Prog2? = null
+            val arr = JSONObject(t).optJSONArray("epg_listings") ?: return@withContext emptyList()
+            val out = ArrayList<Prog2>()
             for (i in 0 until arr.length()) {
                 val o = arr.optJSONObject(i) ?: continue
                 val s0 = o.optString("start_timestamp").toLongOrNull() ?: 0; val s1 = o.optString("stop_timestamp").toLongOrNull() ?: 0
-                val pr = Prog2(b64(o.optString("title")).trim(), s0 * 1000, s1 * 1000)
-                if (s0 <= ns && s1 > ns && cur == null) cur = pr else if (s0 > ns && nxt == null) nxt = pr
+                out.add(Prog2(b64(o.optString("title")).trim(), s0 * 1000, s1 * 1000))
             }
-            cur to nxt
-        } catch (e: Exception) { null to null }
+            out.sortedBy { it.start }
+        } catch (e: Exception) { emptyList() }
+    }
+
+    suspend fun epgOf(ch: Item): Pair<Prog2?, Prog2?> {
+        val l = epgList(ch, 5); val ns = System.currentTimeMillis()
+        val cur = l.firstOrNull { it.start <= ns && it.stop > ns }
+        return cur to l.firstOrNull { it.start > ns }
     }
 
     fun status(g: Game): String = when {

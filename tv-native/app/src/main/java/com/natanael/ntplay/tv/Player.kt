@@ -1,5 +1,10 @@
 package com.natanael.ntplay.tv
 
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.ColumnScope
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -132,6 +137,10 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     var audioLabel by remember(req.ep.url) { mutableStateOf("") }
     var epgNow by remember(req.ep.url) { mutableStateOf<Fut.Prog2?>(null) }
     var epgNext by remember(req.ep.url) { mutableStateOf<Fut.Prog2?>(null) }
+    var guide by remember(req.ep.url) { mutableStateOf(false) }
+    var chans by remember(req.ep.url) { mutableStateOf(false) }
+    var resize by remember { mutableIntStateOf(0) }
+    val overlay = guide || chans
     var nSubs by remember(req.ep.url) { mutableIntStateOf(0) }
     var nAudio by remember(req.ep.url) { mutableIntStateOf(0) }
     val rootFocus = remember { FocusRequester() }
@@ -167,7 +176,16 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     }
 
     LaunchedEffect(player) { load(url, if (req.resume > 0) req.resume else 0L) }
-    LaunchedEffect(req.ep.url) { if (live) { val r = Fut.epgOf(req.item); epgNow = r.first; epgNext = r.second } else { epgNow = null; epgNext = null } }
+    LaunchedEffect(req.ep.url, st.epgVer) {
+        if (!live) { epgNow = null; epgNext = null; return@LaunchedEffect }
+        while (true) {
+            val x = Epg.nowNext(req.item)
+            if (x.first != null || x.second != null) {
+                epgNow = x.first?.let { Fut.Prog2(it.title, it.start, it.stop) }; epgNext = x.second?.let { Fut.Prog2(it.title, it.start, it.stop) }
+            } else { val r = try { Fut.epgOf(req.item) } catch (e: Throwable) { null to null }; epgNow = r.first; epgNext = r.second }
+            delay(60_000)
+        }
+    }
 
     fun show() { ui = true; lastAct = System.currentTimeMillis() }
     fun close() { st.saveProg(req, player.currentPosition, player.duration.coerceAtLeast(0)); st.closePlayer() }
@@ -203,7 +221,9 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     }
 
     val skipIntroSec = st.store.skipIntro
-    val showSkipIntro = !live && err.isEmpty() && dur > 6 * 60_000 && pos in 5_000L..(5 * 60_000L)
+    val introMemo = remember(req.item.key) { if (req.item.kind == 's') st.store.introMem(req.item.key) else null }
+    val showSkipIntro = !live && err.isEmpty() && dur > 6 * 60_000 &&
+        (if (introMemo != null) pos in maxOf(0L, introMemo.first - 1_500L)..(introMemo.second - 1_500L) else pos in 5_000L..(5 * 60_000L))
     val nextReq = remember(req.ep.url) { if (live) null else st.next(req) }
     val creditsAt = if (dur > 0) maxOf(dur - (if (req.item.kind == 's') 90_000L else 6 * 60_000L), (dur * 0.93).toLong()) else Long.MAX_VALUE
     val showSkipCredits = !live && err.isEmpty() && dur > 6 * 60_000 && pos >= creditsAt && pos < dur - 3_000
@@ -216,13 +236,19 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     val floatIntro = showSkipIntro && introAt > 0 && nowMs - introAt < 5_000
     val floatCredits = showSkipCredits && creditsAt2 > 0 && nowMs - creditsAt2 < 5_000
 
-    fun skipIntro() { player.seekTo(player.currentPosition + skipIntroSec * 1000L) }
+    fun skipIntro() {
+        val at = player.currentPosition
+        val to = if (introMemo != null && at < introMemo.second) introMemo.second else at + skipIntroSec * 1000L
+        // primeira vez nesta série: memoriza onde a abertura começa e termina para os próximos episódios
+        if (req.item.kind == 's' && introMemo == null) st.store.setIntroMem(req.item.key, at, to)
+        player.seekTo(to)
+    }
     fun skipCredits() {
         if (nextReq != null) { st.markDone(req); st.play = nextReq }
         else { st.markDone(req); close() }
     }
 
-    BackHandler(true) { if (ui && err.isEmpty() && playing) ui = false else close() }
+    BackHandler(true) { if (guide) guide = false else if (chans) chans = false else if (ui && err.isEmpty() && playing) ui = false else close() }
 
     DisposableEffect(player) {
         val l = object : Player.Listener {
@@ -289,8 +315,8 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
         }
     }
     // esconde o painel sozinho
-    LaunchedEffect(ui, lastAct, err) {
-        if (ui && err.isEmpty()) { delay(5000); if (player.isPlaying) ui = false }
+    LaunchedEffect(ui, lastAct, err, overlay) {
+        if (ui && err.isEmpty() && !overlay) { delay(5000); if (player.isPlaying) ui = false }
     }
     // foco: painel aberto -> botão play; fechado -> tela
     LaunchedEffect(ui) {
@@ -312,7 +338,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                     Key.ChannelUp, Key.PageUp, Key.MediaNext -> { zap(true); return@onPreviewKeyEvent true }
                     Key.ChannelDown, Key.PageDown, Key.MediaPrevious -> { zap(false); return@onPreviewKeyEvent true }
                 }
-                if (ui) return@onPreviewKeyEvent false
+                if (ui || overlay) return@onPreviewKeyEvent false
                 when (e.key) {
                     Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
                         when { floatIntro -> skipIntro(); floatCredits -> skipCredits(); else -> show() }
@@ -339,8 +365,10 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                     setShutterBackgroundColor(android.graphics.Color.BLACK)
                 }
             },
-            update = { v -> v.player = player }
+            update = { v -> v.player = player; v.resizeMode = when (resize) { 1 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM; 2 -> AspectRatioFrameLayout.RESIZE_MODE_FILL; else -> AspectRatioFrameLayout.RESIZE_MODE_FIT } }
         )
+        if (live && guide) GuidePanel(st, req.item, epgNow) { guide = false }
+        if (live && chans) ChannelsPanel(st, req.item) { chans = false }
         // clique/toque do mouse abre e fecha o painel
         Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { if (ui) ui = false else show() } })
 
@@ -401,6 +429,11 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                         TvButton("10s ⏩", Btn, 10.sp, compact = true) { seek(10_000); show() }
                         if (st.next(req) != null) TvButton("⏭ Próximo", Btn, 10.sp, compact = true) { zap(true) }
                     }
+                    if (live) {
+                        TvButton("📅 Guia", Btn, 10.sp, compact = true) { guide = true; chans = false }
+                        TvButton("📺 Canais", Btn, 10.sp, compact = true) { chans = true; guide = false }
+                    }
+                    if (live) TvButton("⛶ Tela: " + when (resize) { 1 -> "Zoom"; 2 -> "Esticar"; else -> "Ajustar" }, Btn, 10.sp, compact = true) { resize = (resize + 1) % 3; show() }
                     TvButton("CC Legenda: $subLabel" + if (nSubs > 0) "" else " (—)", Btn, 10.sp, compact = true) { cycleSub(); show() }
                     if (nAudio > 1) TvButton("🔊 Áudio: $audioLabel", Btn, 10.sp, compact = true) { cycleAudio(); show() }
                     TvButton(if (st.favs.contains(req.item.key)) "★ Favorito" else "☆ Favoritar", Btn, 10.sp, compact = true) { st.toggleFav(req.item.key) }
@@ -536,4 +569,85 @@ private fun bestDisplayMode(act: Activity, w: Int, h: Int, fps: Float): Int {
         resPenalty * 100000f + fpsPenalty
     }
     return best?.modeId ?: 0
+}
+
+@Composable
+private fun PanelShell(title: String, onClose: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color(0x99000000)), contentAlignment = Alignment.CenterEnd) {
+        Surface(Modifier.fillMaxHeight(0.86f).width(430.dp).padding(end = 28.dp), shape = RoundedCornerShape(18.dp), color = Color(0xF20E1430)) {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    TvButton("✕ Fechar", Btn, 10.sp, compact = true, onClick = onClose)
+                }
+                Spacer(Modifier.height(8.dp))
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun GuidePanel(st: AppState, item: Item, now: Fut.Prog2?, onClose: () -> Unit) {
+    var list by remember(item.key, st.epgVer) { mutableStateOf<List<Fut.Prog2>?>(null) }
+    LaunchedEffect(item.key, st.epgVer) {
+        val x = Epg.programs(item)
+        list = if (x.isNotEmpty()) x.map { Fut.Prog2(it.title, it.start, it.stop) } else try { Fut.epgList(item, 14) } catch (e: Throwable) { emptyList() }
+    }
+    PanelShell("📅 Guia · " + item.title, onClose) {
+        val l = list
+        val ns = System.currentTimeMillis()
+        when {
+            l == null -> Text("Carregando a programação…", color = Muted, fontSize = 12.sp)
+            l.isEmpty() -> Text("Este canal não tem guia de programação no seu provedor.", color = Muted, fontSize = 12.sp, lineHeight = 16.sp)
+            else -> {
+                val vis = l.filter { it.stop > ns }
+                val ls = rememberLazyListState()
+                val first = remember { FocusRequester() }
+                LaunchedEffect(Unit) { delay(80); try { first.requestFocus() } catch (e: Exception) { } }
+                LazyColumn(Modifier.weight(1f), state = ls, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    itemsIndexed(vis) { i, p ->
+                        val on = p.start <= ns
+                        val fi = rememberFocus()
+                        Column(Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier).tvClick(fi, RoundedCornerShape(10.dp), 1.0f) { }
+                            .background(if (fi.on) FocusBg else if (on) Color(0x338B5CF6) else Color(0x14FFFFFF), RoundedCornerShape(10.dp)).padding(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(hhmm(p.start) + " – " + hhmm(p.stop), color = if (on) Cyan else Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                if (on) Text("   ● AGORA", color = Pink, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+                            }
+                            Text(p.title, color = Color.White, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            if (on && p.stop > p.start) {
+                                val pr = ((ns - p.start).toFloat() / (p.stop - p.start)).coerceIn(0f, 1f)
+                                Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(3.dp).background(Color(0x44FFFFFF), RoundedCornerShape(2.dp))) { Box(Modifier.fillMaxWidth(pr).fillMaxHeight().background(Pink, RoundedCornerShape(2.dp))) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChannelsPanel(st: AppState, item: Item, onClose: () -> Unit) {
+    val q = remember(item.key) { st.queue.filter { it.kind == 'l' }.ifEmpty { listOf(item) } }
+    val idx = q.indexOfFirst { it.key == item.key }.coerceAtLeast(0)
+    val ls = rememberLazyListState(initialFirstVisibleItemIndex = maxOf(0, idx - 2))
+    val cur = remember { FocusRequester() }
+    LaunchedEffect(Unit) { delay(120); try { cur.requestFocus() } catch (e: Exception) { } }
+    @Suppress("UNUSED_VARIABLE") val ev = st.epgVer
+    PanelShell("📺 Canais (" + q.size + ")", onClose) {
+        LazyColumn(Modifier.weight(1f), state = ls, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            itemsIndexed(q, key = { _, c -> c.key }) { i, c ->
+                val fi = rememberFocus()
+                val now = Epg.nowTitle(c)
+                Column(Modifier.fillMaxWidth().then(if (i == idx) Modifier.focusRequester(cur) else Modifier)
+                    .tvClick(fi, RoundedCornerShape(10.dp), 1.0f) { onClose(); if (c.key != item.key) st.playItem(c, null, q) }
+                    .background(if (fi.on) FocusBg else if (i == idx) Color(0x338B5CF6) else Color(0x14FFFFFF), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 7.dp)) {
+                    Text((if (i == idx) "▶ " else "") + c.title, color = Color.White, fontSize = 13.sp, fontWeight = if (i == idx) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (now != null) Text(now, color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
 }

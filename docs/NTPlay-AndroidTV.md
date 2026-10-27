@@ -210,3 +210,9 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **Painel de contas** (`www/contas.html`) refeito no novo design (cartões, gráficos, status, busca, filtros), nas cores/logo do NTPlay, ligado ao servidor real: criar (7/30/90/365 dias ou data), editar validade/anotação, renovar +30 dias, bloquear agora, nova senha, excluir, exportar CSV, último acesso. Não mostra nem guarda senhas (só na hora de criar/trocar, para copiar a mensagem de acesso). A chave de administrador é verificada no servidor (não está mais no código).
 - Servidor `ntsync` v4: novas operações `setexp` (data exata), `note`, e `create` aceita `date`.
 - `versionName 1.9.2` / `versionCode 14`.
+
+## 1.10.0
+- Xtream Codes (servidor, usuário e senha) na aba ☰ Listas.
+- Guia de programação (EPG/XMLTV): programa atual nos cards de canais; no player ao vivo, agora/próximo, 📅 Guia, 📺 Canais e ⛶ Tela.
+- Abertura por série: o app memoriza onde você pulou a abertura e oferece "Pular abertura" nos próximos episódios.
+- versionCode automático no workflow (1000 + nº da execução).

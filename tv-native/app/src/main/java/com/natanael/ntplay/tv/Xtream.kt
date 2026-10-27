@@ -91,7 +91,7 @@ object Xtream {
             if (r.peek() != JsonToken.BEGIN_ARRAY) { r.skipValue(); return 0 }
             r.beginArray()
             while (r.hasNext()) {
-                var name = ""; var id = ""; var icon = ""; var cat = ""; var ext = ""
+                var name = ""; var id = ""; var icon = ""; var cat = ""; var ext = ""; var epgId = ""
                 r.beginObject()
                 while (r.hasNext()) {
                     when (r.nextName()) {
@@ -100,6 +100,7 @@ object Xtream {
                         "stream_icon", "cover" -> icon = str(r)
                         "category_id" -> cat = str(r)
                         "container_extension" -> ext = str(r)
+                        "epg_channel_id" -> epgId = str(r)
                         else -> r.skipValue()
                     }
                 }
@@ -112,7 +113,7 @@ object Xtream {
                     else -> "${c.base}/series/$u/$p/$id$SERIES_EXT"
                 }
                 val g = cats[cat] ?: "Sem grupo"
-                w.write("#EXTINF:-1 tvg-logo=\"${clean(icon)}\" group-title=\"${clean(g)}\",${clean(name)}\n$link\n")
+                w.write("#EXTINF:-1 " + (if (kind == 'l' && epgId.isNotEmpty()) "tvg-id=\"${clean(epgId)}\" " else "") + "tvg-logo=\"${clean(icon)}\" group-title=\"${clean(g)}\",${clean(name)}\n$link\n")
                 n++
                 if (n % 2000 == 0) onCount?.invoke(n)
             }

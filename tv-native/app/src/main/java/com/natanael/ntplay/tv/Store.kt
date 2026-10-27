@@ -119,6 +119,21 @@ class Store(ctx: Context) {
         get() = sp.getString("last_user", "") ?: ""
         set(v) { sp.edit().putString("last_user", v).apply() }
 
+    // abertura por série: memoriza onde o usuário pulou ("início|fim" em ms)
+    fun introMem(key: String): Pair<Long, Long>? {
+        val v = try { JSONObject(sp.getString("intro", "{}") ?: "{}").optString(key) } catch (e: Exception) { "" }
+        val p = v.split('|'); if (p.size != 2) return null
+        val a = p[0].toLongOrNull() ?: return null; val b = p[1].toLongOrNull() ?: return null
+        return if (b > a) a to b else null
+    }
+    fun setIntroMem(key: String, start: Long, end: Long) {
+        try {
+            val o = JSONObject(sp.getString("intro", "{}") ?: "{}")
+            if (o.length() > 300) { val k = o.keys().asSequence().take(100).toList(); for (x in k) o.remove(x) }
+            o.put(key, "$start|$end"); sp.edit().putString("intro", o.toString()).apply()
+        } catch (e: Exception) { }
+    }
+
     fun relay(): Pair<String, String> {
         var t = sp.getString("rt", null)
         var k = sp.getString("rk", null)

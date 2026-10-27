@@ -10,8 +10,9 @@ android {
         applicationId = "com.natanael.ntplay.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 14
-        versionName = "1.9.2"
+        // versionCode sobe sozinho a cada compilação no GitHub (NT_VERSION_CODE = 1000 + nº da execução); local usa 14
+        versionCode = (System.getenv("NT_VERSION_CODE") ?: "14").toInt()
+        versionName = "1.10.0"
     }
     signingConfigs {
         create("ntplay") {

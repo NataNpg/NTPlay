@@ -49,6 +49,7 @@ class AppState(val ctx: Context) {
     var logoVer by mutableIntStateOf(0)
     var trend by mutableStateOf<List<Trending.Row>>(emptyList())
     var trendBusy by mutableStateOf(false)
+    var epgVer by mutableIntStateOf(0)
     var yearSel by mutableStateOf("")
     var yearDialog by mutableStateOf(false)
     var epsErr by mutableStateOf("")
@@ -80,6 +81,7 @@ class AppState(val ctx: Context) {
         // sincronização na nuvem: ao abrir e a cada 90 s (só se a conta estiver ligada)
         scope.launch { delay(1500); while (true) { if (store.syncUser.isNotEmpty()) syncNow(false); delay(90_000L) } }
         autoUpdate()
+        scope.launch { delay(90_000); while (true) { lib?.let { try { Epg.load(store, it); epgVer++ } catch (e: Throwable) { } }; delay(3 * 3600_000L) } }
         // atualização do próprio app: confere ao abrir e a cada 6 h
         scope.launch { delay(20_000); while (true) { checkUpdate(); delay(6 * 3600_000L) } }
         // presença para o painel do desenvolvedor: ao abrir e a cada 5 minutos
@@ -113,6 +115,7 @@ class AppState(val ctx: Context) {
             group = ""
             status = "${l.live.size} canais • ${l.movies.size} filmes • ${l.series.size} séries"
             logosLater()
+            scope.launch { try { Epg.load(store, l, true); epgVer++ } catch (e: Throwable) { } }
             trend = emptyList()
             trendBusy = true
             scope.launch {

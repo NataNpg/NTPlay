@@ -14,6 +14,7 @@ class Item(
     val adult: Boolean
 ) {
     var ns = 1
+    var tvgId = ""
     val norm: String by lazy(LazyThreadSafetyMode.NONE) { Util.norm(title) }
 }
 
@@ -44,7 +45,7 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
             val sm = LinkedHashMap<String, Item>()
             val seenLive = HashSet<String>()
             for (f in files) {
-                M3u.parse(f) { rawName, url, rawGroup, logo ->
+                M3u.parse(f) { rawName, url, rawGroup, logo, tvgId ->
                     val name = if (b64) Util.maybeB64(rawName) else rawName
                     val group = if (b64) Util.maybeB64(rawGroup) else rawGroup
                     val adult = adultByName && Util.isAdult("$name $group")
@@ -61,7 +62,7 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
                             o.eps.add(Ep(name, url, s, e))
                             if (o.logo.isEmpty()) o.logo = logo
                         }
-                        else -> if (seenLive.add(url)) live.add(Item('l', "l:$url", name, Util.cleanG(group), logo, arrayListOf(Ep(name, url, 0, 0)), adult))
+                        else -> if (seenLive.add(url)) live.add(Item('l', "l:$url", name, Util.cleanG(group), logo, arrayListOf(Ep(name, url, 0, 0)), adult).also { it.tvgId = tvgId })
                     }
                 }
             }
@@ -96,7 +97,8 @@ object M3u {
         return if (e < 0) "" else l.substring(s, e)
     }
 
-    fun parse(file: File, cb: (String, String, String, String) -> Unit) {
+    fun parse(file: File, cb: (String, String, String, String, String) -> Unit) {
+        var tvg = ""
         var name = ""
         var group = ""
         var logo = ""
@@ -109,6 +111,7 @@ object M3u {
                 if (l.startsWith("#EXTINF")) {
                     has = true
                     logo = attr(l, "tvg-logo")
+                    tvg = attr(l, "tvg-id")
                     group = attr(l, "group-title")
                     val q = l.lastIndexOf('"')
                     val c = l.indexOf(',', if (q > 0) q else 0)
@@ -123,8 +126,8 @@ object M3u {
                 if (l[0] == '#') continue
                 if (!(l.startsWith("http://") || l.startsWith("https://"))) continue
                 val n = if (has && name.isNotEmpty()) name else l.substringAfterLast('/').substringBefore('?').ifEmpty { "Canal" }
-                cb(n, l, group.ifEmpty { "Sem grupo" }, logo)
-                has = false; name = ""; group = ""; logo = ""
+                cb(n, l, group.ifEmpty { "Sem grupo" }, logo, tvg)
+                has = false; name = ""; group = ""; logo = ""; tvg = ""
             }
         }
     }
