@@ -151,3 +151,12 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **Provedores com estatísticas** (`ListsDialog`): mostra Ao vivo / Filmes / Séries da biblioteca, mantém por lista o vencimento/telas (conta Xtream) e as ações Atualizar/Excluir.
 - **Atualização automática das listas** (`AppState.autoUpdate`): em Preferências, "Atualizar ao abrir o app" e "Atualização automática" (6/12/24 h). Re-sincroniza listas Xtream (via `get_series`/`player_api`) ou baixa a M3U de novo. Desligada por padrão.
 - `versionName 1.5.0` / `versionCode 7`.
+
+## Versão 1.6.0 (Android TV) — novo visual, abertura, Futebol compacto, LEG/DUB, animes por provedor
+
+- **Nova identidade visual**: paleta azul-marinho escuro com ciano e roxo (do logo). Cores em `UI.kt` (`Bg`, `Bg2`, `PanelC`, `CardC`, `Pink` agora roxo `#8B5CF6`, `Cyan`, `Btn`, `FocusBg`). Ícone do app, logo do cabeçalho e banner da TV trocados pelo novo logo (`res/drawable-nodpi/logo.png`, `banner.png`, `mipmap-*`).
+- **Abertura com logo** (`UI.Splash`): tela cheia com a arte (`res/drawable-nodpi/splash.jpg`) enquanto a lista carrega em segundo plano; some quando termina (mín. 1,8 s, máx. ~20 s), mostrando o status.
+- **Futebol compacto** (`Futebol.kt`): cards menores, 3 por linha; abaixo dos times aparece o "📺 Canal" que passa o jogo (ou aviso se não houver na lista).
+- **Etiqueta LEG / DUB** (`Util.audioTag`, `PosterCard`): selo no canto do card de filme/série — LEG (legendado, ciano) ou DUB (dublado, roxo), detectado no título/grupo/1º episódio.
+- **Animes por provedor** (`UI.AnimeScreen`, `Util.animeSrc`): botões Todos / Crunchyroll / Funimation Now filtram os animes cujo grupo ou nome cita o provedor; conteúdos desses provedores entram na aba Animes.
+- `versionName 1.6.0` / `versionCode 8`.

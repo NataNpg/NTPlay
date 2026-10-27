@@ -78,10 +78,29 @@ object Util {
         return 'l'
     }
 
+    private val crR = Regex("crunchy\\s*roll", RegexOption.IGNORE_CASE)
+    private val fnR = Regex("funimation", RegexOption.IGNORE_CASE)
+    private val legR = Regex("\\b(leg|legendad[oa]s?)\\b|\\[l\\]|\\(l\\)", RegexOption.IGNORE_CASE)
+    private val dubR = Regex("\\b(dub|dublad[oa]s?|dual)\\b|\\[d\\]|\\(d\\)", RegexOption.IGNORE_CASE)
+
+    /** "CR" = Crunchyroll, "FN" = Funimation Now, "" = outro */
+    fun animeSrc(it: Item): String {
+        val s = it.group + " " + it.title
+        return if (crR.containsMatchIn(s)) "CR" else if (fnR.containsMatchIn(s)) "FN" else ""
+    }
+
+    /** "DUB" (dublado), "LEG" (legendado) ou "" */
+    fun audioTag(it: Item): String {
+        val s = it.title + " " + it.group + " " + (it.eps.firstOrNull()?.name ?: "")
+        if (dubR.containsMatchIn(s)) return "DUB"
+        if (legR.containsMatchIn(s)) return "LEG"
+        return ""
+    }
+
     fun theme(it: Item): String {
         val t = if (it.kind == 'l') it.group + " " + it.title else it.group
         if (kids.containsMatchIn(t)) return "INFANTIL"
-        if (animeR.containsMatchIn(t)) return "ANIMES"
+        if (animeR.containsMatchIn(t) || (it.kind != 'l' && animeSrc(it).isNotEmpty())) return "ANIMES"
         return ""
     }
 

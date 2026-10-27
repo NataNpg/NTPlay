@@ -1,6 +1,7 @@
 package com.natanael.ntplay.tv
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.Indication
 import androidx.compose.foundation.IndicationInstance
 import androidx.compose.foundation.LocalIndication
@@ -99,17 +100,17 @@ import java.util.Date
 import java.util.Locale
 
 // ---------------------------------------------------------------- tema
-val Bg = Color(0xFF0D0D12)
-val Bg2 = Color(0xFF17171F)
-val PanelC = Color(0xFF1B1B24)
-val CardC = Color(0xFF24242F)
-val Pink = Color(0xFFE93A7D)
-val Cyan = Color(0xFF22D3EE)
-val Purple = Color(0xFFA855F7)
-val Muted = Color(0xFF9AA4B8)
-val Dark = Color(0xFF0D0D12)
-val Btn = Color(0xFF34343F)
-val FocusBg = Color(0xFF4C4C60)
+val Bg = Color(0xFF070B1A)
+val Bg2 = Color(0xFF0E1430)
+val PanelC = Color(0xFF111838)
+val CardC = Color(0xFF182046)
+val Pink = Color(0xFF8B5CF6)
+val Cyan = Color(0xFF3CE0E6)
+val Purple = Color(0xFFB27CFF)
+val Muted = Color(0xFF9FB0D6)
+val Dark = Color(0xFF070B1A)
+val Btn = Color(0xFF222B57)
+val FocusBg = Color(0xFF3B3F86)
 
 /** sem "camada branca" do Material ao focar: o foco é desenhado por nós */
 /** tamanho geral da interface (1.0 = original) */
@@ -233,6 +234,13 @@ fun showTitle(it: Item): String = if (it.kind == 'l') it.title else Util.cleanT(
 // ---------------------------------------------------------------- app
 @Composable
 fun App(st: AppState) {
+    var splash by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        delay(1800)
+        var w = 0
+        while (st.busy && w < 100) { delay(200); w++ } // espera a lista terminar de carregar (máx. ~20 s)
+        splash = false
+    }
     Box(Modifier.fillMaxSize().background(Bg)) {
         Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 30.dp)) {
             Header(st)
@@ -247,9 +255,10 @@ fun App(st: AppState) {
         if (st.showLists) ListsDialog(st)
         if (st.showSearch) SearchDialog(st)
         if (st.groupDialog) GroupDialog(st)
+        if (splash) Splash(st)
         if (st.toastMsg.isNotEmpty()) {
             Box(Modifier.fillMaxSize().padding(bottom = 48.dp), contentAlignment = Alignment.BottomCenter) {
-                Surface(shape = RoundedCornerShape(14.dp), color = Color(0xF01C2438)) {
+                Surface(shape = RoundedCornerShape(14.dp), color = Color(0xF0151C40)) {
                     Text(st.toastMsg, Modifier.padding(horizontal = 20.dp, vertical = 12.dp), color = Color.White, fontSize = 14.sp)
                 }
             }
@@ -290,7 +299,7 @@ fun Header(st: AppState) {
         }
         TvButton("🔍 Buscar", Btn, 10.sp, compact = true) { st.showSearch = true }
         Spacer(Modifier.width(6.dp))
-        TvButton("☰ Listas", Color(0xFFFF5A00), 10.sp, compact = true) { st.showLists = true }
+        TvButton("☰ Listas", Color(0xFF7C3AED), 10.sp, compact = true) { st.showLists = true }
         Spacer(Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End) {
             Text(clock, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -327,6 +336,9 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
             } else {
                 Text(showTitle(item), Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xDDFFFFFF), fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
+            val tag = Util.audioTag(item)
+            if (tag.isNotEmpty()) Text(tag, Modifier.align(Alignment.TopStart).padding(6.dp).background(if (tag == "DUB") Color(0xE68B5CF6) else Color(0xE63CE0E6), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+                color = if (tag == "DUB") Color.White else Color(0xFF05101F), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
             if (st.favs.contains(item.key)) Text("★", Modifier.align(Alignment.TopEnd).padding(6.dp).background(Color(0x99000000), CircleShape).padding(horizontal = 6.dp, vertical = 2.dp), color = Color(0xFFFFC107), fontSize = 12.sp)
             if (prog > 0f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x66000000))) {
                 Box(Modifier.fillMaxWidth(prog.coerceIn(0f, 1f)).fillMaxHeight().background(Pink))
@@ -349,7 +361,7 @@ fun LiveCard(st: AppState, item: Item, w: Dp, onClick: () -> Unit) {
     Column(Modifier.width(w)) {
         Box(
             Modifier.tvClick(fi, RoundedCornerShape(12.dp), onLong = { st.toggleFav(item.key) }, onClick = onClick).clip(RoundedCornerShape(12.dp))
-                .background(Brush.linearGradient(listOf(CardC, Color(0xFF2E2E3B)))).aspectRatio(16f / 10f).fillMaxWidth()
+                .background(Brush.linearGradient(listOf(CardC, Color(0xFF243064)))).aspectRatio(16f / 10f).fillMaxWidth()
         ) {
             if (img.isNotEmpty()) {
                 AsyncImage(
@@ -420,7 +432,7 @@ fun Browse(st: AppState) {
                 Spacer(Modifier.height(6.dp))
                 if (!st.busy) Text("Adicione o link da sua lista M3U ou envie pelo celular com o QR code.", color = Muted, fontSize = 13.sp)
                 Spacer(Modifier.height(18.dp))
-                if (!st.busy) TvButton("☰ Carregar lista M3U", Color(0xFFFF5A00), 15.sp) { st.showLists = true }
+                if (!st.busy) TvButton("☰ Carregar lista M3U", Color(0xFF7C3AED), 15.sp) { st.showLists = true }
             }
         }
         return
@@ -447,7 +459,7 @@ fun Browse(st: AppState) {
             } else when (tab) {
                 "FUTEBOL" -> FutebolScreen(st, lib)
                 "INFANTIL" -> GridOf(st, lib.kids.take(600), "Infantil")
-                "ANIMES" -> GridOf(st, lib.anime.take(600), "Animes")
+                "ANIMES" -> AnimeScreen(st, lib)
                 "FAVORITOS" -> FavoritesScreen(st, lib)
                 else -> Recom(st, lib)
             }
@@ -571,7 +583,7 @@ fun Hero(st: AppState, item: Item, idx: Int = 0, total: Int = 1, onPrev: () -> U
     val img = item.logo.ifEmpty { info?.img ?: "" }
     Box(Modifier.fillMaxWidth().height(230.dp).padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(18.dp)).background(tint(item.title))) {
         if (img.isNotEmpty()) AsyncImage(img, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f }, contentScale = ContentScale.Crop)
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Bg, Color(0xCC0D0D12), Color.Transparent))))
+        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Bg, Color(0xCC070B1A), Color.Transparent))))
         Row(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
                 Text(if (item.kind == 's') "SÉRIE EM DESTAQUE" else "FILME EM DESTAQUE", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
@@ -626,7 +638,7 @@ fun DetailScreen(st: AppState, item: Item) {
 
     Box(Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp))) {
         if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.16f }, contentScale = ContentScale.Crop)
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x660D0D12), Bg))))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x66070B1A), Bg))))
         Row(Modifier.fillMaxSize().padding(18.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
             // coluna de informações
             Column(if (serie) Modifier.weight(0.42f) else Modifier.weight(1f)) {
@@ -652,7 +664,7 @@ fun DetailScreen(st: AppState, item: Item) {
                 if (needEps && st.epsErr.isNotEmpty()) Text(st.epsErr + " Toque em \"Carregar episódios\" para tentar de novo.", color = Color(0xFFFF9A9A), fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
             }
             // coluna de episódios (altura inteira)
-            if (serie) Column(Modifier.weight(0.58f).fillMaxHeight().background(Color(0xAA17171F), RoundedCornerShape(16.dp)).padding(12.dp)) {
+            if (serie) Column(Modifier.weight(0.58f).fillMaxHeight().background(Color(0xAA0E1430), RoundedCornerShape(16.dp)).padding(12.dp)) {
                 Text("EPISÓDIOS", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
                 if (needEps) {
                     Text(if (st.epsLoading) "Carregando episódios…" else "Episódios ainda não carregados.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
@@ -859,7 +871,7 @@ fun ListsDialog(st: AppState) {
                     item { OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), placeholder = { Text("Link M3U  http://...", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors()) }
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            TvButton(if (st.busy) "⏳ Baixando…" else "+ Adicionar lista", Color(0xFFFF5A00)) { if (!st.busy) st.addUrl(url, name) }
+                            TvButton(if (st.busy) "⏳ Baixando…" else "+ Adicionar lista", Color(0xFF7C3AED)) { if (!st.busy) st.addUrl(url, name) }
                             TvButton("Fechar", Btn) { st.showLists = false }
                         }
                     }
@@ -881,3 +893,46 @@ fun ListsDialog(st: AppState) {
         }
     }
 }
+
+// ---------------------------------------------------------------- abertura
+@Composable
+fun Splash(st: AppState) {
+    Box(Modifier.fillMaxSize().background(Bg).focusable()) {
+        Image(painterResource(R.drawable.splash), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 36.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            androidx.compose.material3.CircularProgressIndicator(color = Cyan, strokeWidth = 3.dp, modifier = Modifier.size(26.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(if (st.busy) st.status else "Abrindo…", color = Color(0xCCFFFFFF), fontSize = 12.sp)
+        }
+    }
+}
+
+// ---------------------------------------------------------------- animes (Crunchyroll / Funimation Now)
+@Composable
+fun AnimeScreen(st: AppState, lib: Library) {
+    var src by remember { mutableStateOf("") }
+    val cr = remember(lib) { lib.anime.filter { Util.animeSrc(it) == "CR" } }
+    val fn = remember(lib) { lib.anime.filter { Util.animeSrc(it) == "FN" } }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.padding(start = 16.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((k, lab, n, col) in listOf(
+                Quad("", "Todos", lib.anime.size, Pink),
+                Quad("CR", "Crunchyroll", cr.size, Color(0xFFF47521)),
+                Quad("FN", "Funimation Now", fn.size, Color(0xFF6D28D9)))) {
+                val fi = rememberFocus()
+                Text("$lab  $n", fontSize = 12.sp, color = Color.White, fontWeight = if (src == k) FontWeight.Bold else FontWeight.Medium,
+                    modifier = Modifier.tvClick(fi, RoundedCornerShape(50)) { src = k }
+                        .background(if (src == k) col else if (fi.on) FocusBg else Color(0x22FFFFFF), RoundedCornerShape(50)).padding(horizontal = 14.dp, vertical = 6.dp))
+            }
+        }
+        val l = when (src) { "CR" -> cr; "FN" -> fn; else -> lib.anime.take(600) }
+        val name = when (src) { "CR" -> "Crunchyroll"; "FN" -> "Funimation Now"; else -> "Animes" }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            if (l.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Nenhum conteúdo de $name encontrado nas suas listas.", color = Muted, fontSize = 14.sp)
+            } else GridOf(st, l, name)
+        }
+    }
+}
+
+private data class Quad(val a: String, val b: String, val c: Int, val d: Color)

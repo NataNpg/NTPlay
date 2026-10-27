@@ -251,7 +251,7 @@ fun FutebolScreen(st: AppState, lib: Library) {
                         items(airing, key = { Fut.baseKey(it.first.title) }) { (ch, prog) ->
                             val fi = rememberFocus()
                             Column(Modifier.width(150.dp).tvClick(fi, RoundedCornerShape(10.dp)) { st.playItem(ch, null, sports) }
-                                .background(if (fi.on) FocusBg else Color(0xFF17263F), RoundedCornerShape(10.dp)).padding(10.dp)) {
+                                .background(if (fi.on) FocusBg else Color(0xFF16224A), RoundedCornerShape(10.dp)).padding(10.dp)) {
                                 Text("📺 " + ch.title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text("⚽ " + prog, color = Color(0xAA34D399), fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
@@ -275,7 +275,12 @@ fun FutebolScreen(st: AppState, lib: Library) {
                         Spacer(Modifier.width(8.dp)); Text("${list.size} jogo${if (list.size > 1) "s" else ""}", color = Muted, fontSize = 11.sp)
                     }
                 }
-                items(list, key = { "${lg}_${it.home}_${it.away}_${it.timeMs}" }) { game -> GameCard(st, game, sports, epgVer) }
+                items(list.chunked(3), key = { r -> "${lg}_${r.first().home}_${r.first().away}_${r.first().timeMs}" }) { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        for (game in row) Box(Modifier.weight(1f)) { GameCard(st, game, sports, epgVer) }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
             }
         }
     }
@@ -285,34 +290,32 @@ fun FutebolScreen(st: AppState, lib: Library) {
 private fun GameCard(st: AppState, g: Fut.Game, sports: List<Item>, epgVer: Int) {
     @Suppress("UNUSED_EXPRESSION") epgVer
     val chs = if (g.state == "post") emptyList() else Fut.channelsFor(g, sports)
-    Column(Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(12.dp))
-        .background(if (g.state == "in") Color(0x332CC66B) else Color(0xFF141A28), RoundedCornerShape(12.dp)).padding(12.dp)) {
-        Text(Fut.status(g), color = if (g.state == "in") Color(0xFF34D399) else Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(4.dp))
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(10.dp))
+        .background(if (g.state == "in") Color(0x332CC66B) else Color(0xFF111A3A), RoundedCornerShape(10.dp)).padding(10.dp)) {
+        Text(Fut.status(g), color = if (g.state == "in") Color(0xFF34D399) else Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Spacer(Modifier.height(3.dp))
         TeamRow(g.homeLogo, g.home, if (g.state == "pre") "" else g.homeScore)
         TeamRow(g.awayLogo, g.away, if (g.state == "pre") "" else g.awayScore)
-        if (g.venue.isNotEmpty()) Text(g.venue, color = Color(0x77FFFFFF), fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
-        if (chs.isNotEmpty()) {
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (ch in chs) {
+        if (g.state != "post") {
+            Spacer(Modifier.height(5.dp))
+            if (chs.isNotEmpty()) {
+                Text("📺 Canal", color = Color(0xFF34D399), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                for (ch in chs.take(3)) {
                     val fi = rememberFocus()
                     Text("▶ " + ch.title, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.tvClick(fi, RoundedCornerShape(8.dp)) { st.playItem(ch, null, sports) }
-                            .background(if (fi.on) Pink else Color(0x55E93A7D), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
+                        modifier = Modifier.padding(top = 3.dp).fillMaxWidth().tvClick(fi, RoundedCornerShape(7.dp)) { st.playItem(ch, null, sports) }
+                            .background(if (fi.on) Pink else Color(0x558B5CF6), RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 5.dp))
                 }
-            }
-        } else if (g.state == "in") {
-            Spacer(Modifier.height(4.dp)); Text("Nenhum canal da sua lista está passando este jogo", color = Color(0x66FFFFFF), fontSize = 10.sp)
+            } else Text("📺 Canal não encontrado na sua lista", color = Color(0x66FFFFFF), fontSize = 9.sp, maxLines = 1)
         }
     }
 }
 
 @Composable
 private fun TeamRow(logo: String, name: String, score: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (logo.isNotEmpty()) { AsyncImage(logo, null, Modifier.size(22.dp)); Spacer(Modifier.width(8.dp)) } else Spacer(Modifier.width(30.dp))
-        Text(name, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (score.isNotEmpty()) Text(score, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+    Row(Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (logo.isNotEmpty()) { AsyncImage(logo, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)) } else Spacer(Modifier.width(24.dp))
+        Text(name, color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (score.isNotEmpty()) Text(score, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
     }
 }
