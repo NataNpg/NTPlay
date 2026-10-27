@@ -6,3 +6,4 @@ www/vendor/
 www/config.js
 *.log
 .DS_Store
+*.jks

@@ -10,22 +10,26 @@ android {
         applicationId = "com.natanael.ntplay.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 12
-        versionName = "1.9.0"
+        versionCode = 13
+        versionName = "1.9.1"
     }
     signingConfigs {
         create("ntplay") {
-            // chave FIXA: sem ela cada compilação sairia com assinatura diferente e o Android recusaria a atualização por cima
-            storeFile = file("ntplay-release.jks")
-            storePassword = "ntplay-tv-2026"
-            keyAlias = "ntplay"
-            keyPassword = "ntplay-tv-2026"
+            // chave FIXA e SECRETA (vem dos GitHub Secrets na compilação). Sem ela, cada build teria assinatura diferente
+            // e o Android recusaria a atualização por cima.
+            val ks = System.getenv("NT_KS_FILE")
+            if (ks != null && file(ks).exists()) {
+                storeFile = file(ks)
+                storePassword = System.getenv("NT_KS_PASS")
+                keyAlias = "ntplay"
+                keyPassword = System.getenv("NT_KS_PASS")
+            }
         }
     }
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("ntplay")
+            signingConfig = if (System.getenv("NT_KS_FILE") != null) signingConfigs.getByName("ntplay") else signingConfigs.getByName("debug")
         }
     }
     compileOptions {

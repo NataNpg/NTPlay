@@ -22,6 +22,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.9
+      - name: Chave de assinatura (GitHub Secrets)
+        env:
+          KS_B64: ${{ secrets.NT_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.NT_KS_PASS }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_PASS" ]; then
+            echo "::error title=Faltam os secrets::Crie NT_KEYSTORE_B64 e NT_KS_PASS em Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/ntplay-release.jks"
+          echo "NT_KS_FILE=$RUNNER_TEMP/ntplay-release.jks" >> "$GITHUB_ENV"
+          echo "NT_KS_PASS=$KS_PASS" >> "$GITHUB_ENV"
       - name: Compilar APK
         shell: bash
         working-directory: tv-native
