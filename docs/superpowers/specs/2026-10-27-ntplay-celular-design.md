@@ -1,7 +1,8 @@
 # NTPlay Celular — app nativo Android para telefone
 
 Spec de desenho. Autor: Natanael G Silva · 27/10/2026
-Repositório `natanpg/NTPlay`
+Reconferida em 30/10/2026 contra a TV 1.10.6 — os três alvos de remendo seguem idênticos.
+Repositório `NataNpg/NTPlay`
 
 ---
 
@@ -32,7 +33,8 @@ dispara. A release `tv-latest` permanece como está, e não existe nada a revert
 2. Entra com uma conta existente e, em menos de um minuto, já mostra as listas que
    estavam na TV — sem o usuário cadastrar nada de novo.
 3. Abre canal ao vivo, filme e episódio de série, com os mesmos servidores do usuário.
-4. O app de TV continua intocado: mesma release, mesmo APK, mesmo `versionCode`.
+4. O app de TV continua intocado: mesma release, mesmo APK, mesmo `versionCode`
+   (1.10.6 / 1037 em 30/10/2026).
 
 ### Fora de escopo nesta versão
 
@@ -90,7 +92,7 @@ vão todos para o mesmo pacote novo, as chamadas entre eles continuam válidas.
 |---|---|---|
 | `AppState.kt` (linha 19) | `val TABS = listOf("RECOMENDAÇÕES", …)` | `val TABS = listOf("INÍCIO", "FILMES", "SÉRIES", "TV", "BUSCA")` |
 | `Presence.kt` (linha 86) | `put("p", "tv")` e `put("v", "tv-" + ver)` | `"mob"` e `"mob-" + ver` |
-| `Updater.kt` (linhas 16 e 25) | `tv-latest` e `tv-version.json` | `mob-latest` e `mob-version.json` |
+| `Updater.kt` (linhas 16 e 25) | `tv-latest` e `tv-version.json` | `mob-latest` e `mob-version.json`, e o endereço passa a usar `NataNpg` (a TV ainda usa `natanpg` minúsculo e depende do redirecionamento do GitHub — pendência 6 do documento geral; o celular nasce sem essa dívida) |
 
 **Cada remendo verifica antes de trocar.** Se o trecho procurado não for encontrado — por
 exemplo, porque uma versão futura da TV reescreveu aquela linha — a tarefa lança
@@ -131,8 +133,8 @@ Tudo em retrato, menos o player.
 | **Entrada** | Usuário e senha em retrato; QR code e WhatsApp (42) 92002-8569 para pedir acesso ou renovação. Mesma regra da TV: sem conta válida, nada é acessível. |
 | **Início** | Prateleiras horizontais: Continuar assistindo (com ✕ para remover), Destaques, Em alta, Lançamentos, e Favoritos separados em Canais / Filmes / Séries. |
 | **Filmes** / **Séries** | Grade de 3 capas por linha, fita de categorias rolando na horizontal no topo, filtros 📅 Ano e selo LEG/DUB (reaproveitados de `Util.audioTag` e `Util.yearOf`). Puxar para baixo atualiza a lista. |
-| **TV** | Lista vertical (não grade): logo do canal, nome e o programa que está passando agora, lido por `get_short_epg` via `Epg`. Fita de categorias no topo. |
-| **Busca** | Campo no topo; resultados agrupados em Filmes / Séries / Canais. |
+| **TV** | Lista vertical (não grade): logo do canal, nome e o programa que está passando agora, via `Epg` (XMLTV, com `get_short_epg` de reserva). Fita de categorias no topo e **campo de filtro próprio**, que peneira a lista de canais na própria tela — é a forma de achar canal por nome no celular, e não encosta no motor. |
+| **Busca** | Campo no topo; resultados agrupados em Filmes / Séries. **Sem canais ao vivo**, igual à TV desde a 1.10.6 (`AppState.search` varre `movies + series`) — assim o `AppState` é copiado sem remendo nenhum na busca. Canal se acha pelo campo próprio da aba TV. |
 | **Detalhes** | Capa grande no topo, sinopse, nota e ano; botões Assistir, ★ Favoritar e ＋ Grupo. Série com seletor de temporada e episódios em lista, carregados sob demanda. |
 | **Menu ☰ (topo)** | Listas e provedores (com vencimento e telas da conta Xtream), Conta e nuvem, Preferências, Favoritos e grupos, Infantil, Animes. |
 
@@ -167,6 +169,13 @@ Sem mudança de modelo. O celular usa o mesmo `Store` (mesmas chaves de SharedPr
 no espaço dele), o mesmo `Sync` com as mesmas regras de união, e as mesmas mensagens de
 erro detalhadas do `Net` (vários User-Agents, troca https→http).
 
+**Correções herdadas de graça.** Como o motor é copiado da TV no estado em que ela está,
+o celular nasce com o que foi consertado lá até a 1.10.6. A mais importante é a da 1.10.3:
+`Item.norm` passou de `LazyThreadSafetyMode.NONE` para `PUBLICATION` dentro de
+`Library.kt`. Era o que fechava o app na busca, levou duas tentativas para ser achado na
+TV, e é um defeito de corrida entre threads que seria bem difícil de diagnosticar de novo
+num app novo.
+
 Única diferença deliberada: **memória de imagens**. O celular tem bem mais RAM que o stick
 de TV, então o Coil usa `ARGB_8888` em vez de `RGB565` e um cache de disco maior — capas
 mais nítidas, sem o risco que justificou a restrição na TV (versão 1.2.1).
@@ -179,7 +188,7 @@ mais nítidas, sem o risco que justificou a restrição na TV (versão 1.2.1).
 |---|---|---|
 | Pasta | `tv-native/` | `mobile-native/` |
 | `applicationId` | `com.natanael.ntplay.tv` | `com.natanael.ntplay.mobile` |
-| Versão | `1.10.1` | `1.0.0` |
+| Versão | `1.10.6` (código 1037) | `1.0.0` |
 | Workflow | `android-tv.yml` | `android-mobile.yml` (novo) |
 | Dispara em | `tv-native/**` | `mobile-native/**` e manualmente |
 | Release | `tv-latest` | `mob-latest` |
@@ -218,3 +227,22 @@ O risco que resta é todo do lado do celular:
    compilando no GitHub Actions, e os testes de verdade são feitos no aparelho.
 3. **Player de toque é código novo.** É a maior parte do trabalho original e a que mais
    vai precisar de iteração com o aparelho na mão.
+
+4. **Mais aparelhos por conta.** Este é o efeito que não aparece no código. Hoje cada
+   cliente usa a conta numa TV; com o celular, passa a usar em dois aparelhos, e os dois
+   recebem o **mesmo blob da nuvem**, logo a mesma lista com as mesmas credenciais. O que
+   limita não é o NTPlay nem o Supabase: é o `max_connections` do provedor da lista
+   (seção 8 do documento geral — a conta `teste` já bate no teto de 20 aparelhos e é isso
+   que causa o "fica carregando"). Lançar o celular **aumenta essa pressão**, e vale
+   avisar os clientes de lista de 1 tela que TV e celular não tocam ao mesmo tempo.
+   Efeito colateral já conhecido: aparelhos da mesma conta gravam no mesmo registro a cada
+   90 s, então favoritos e "continuar assistindo" de um sobrescrevem os do outro.
+
+### Oportunidade relacionada (fora desta spec)
+
+A pendência 1 do documento geral é que as versões de **PC e web/celular não têm login** —
+quem não consegue conta na TV usa essas versões sem barreira. A versão web/celular
+(Capacitor, pasta `www/`) é exatamente o que este app nativo substitui, com login
+obrigatório. Depois que o celular estiver no ar e testado, retirar a página web do ar
+fecha metade daquela porta sem perder nada para o usuário legítimo. Decisão separada, a
+tomar depois — não faz parte deste trabalho.
