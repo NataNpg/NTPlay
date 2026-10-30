@@ -10,3 +10,5 @@ www/config.js
 
 .superpowers/
 mobile-native/app/build/
+__pycache__/
+*.pyc
