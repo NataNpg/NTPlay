@@ -44,6 +44,7 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
             val mv = ArrayList<Item>()
             val sm = LinkedHashMap<String, Item>()
             val seenLive = HashSet<String>()
+            val seenMovie = HashSet<String>()
             for (f in files) {
                 M3u.parse(f) { rawName, url, rawGroup, logo, tvgId ->
                     val name = if (b64) Util.maybeB64(rawName) else rawName
@@ -51,7 +52,9 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
                     val adult = adultByName && Util.isAdult("$name $group")
                     if (adult && !showAdult) return@parse
                     when (Util.guess(url, group, name)) {
-                        'm' -> mv.add(Item('m', "m:$url", name, Util.cleanG(group), logo, arrayListOf(Ep(name, url, 0, 0)), adult))
+                        // o mesmo filme costuma vir em mais de uma categoria (ou em mais de uma lista).
+                        // duas vezes a mesma "key" derruba o app nas grades do Compose, então entra só uma vez.
+                        'm' -> if (seenMovie.add("m:$url")) mv.add(Item('m', "m:$url", name, Util.cleanG(group), logo, arrayListOf(Ep(name, url, 0, 0)), adult))
                         's' -> {
                             val i = Util.epInfo(name)
                             val t = i?.first ?: name

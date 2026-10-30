@@ -470,6 +470,9 @@ class AppState(val ctx: Context) {
         return withContext(Dispatchers.Default) {
             val first = ArrayList<Item>(); val rest = ArrayList<Item>()
             for (it in l.every) {
+                // as duas listas cheias: nada mais entra, então para de varrer
+                // (evita normalizar o nome da biblioteca inteira à toa)
+                if (first.size >= 150 && rest.size >= 150) break
                 val t = it.norm
                 if (t.startsWith(n)) { first.add(it); if (first.size >= 150) break }
                 else if (rest.size < 150) {
@@ -477,7 +480,8 @@ class AppState(val ctx: Context) {
                     if (t.contains(n) || g.contains(n)) rest.add(it)
                 }
             }
-            (first + rest).take(200)
+            // última barreira: chave repetida na grade do Compose fecha o app
+            (first + rest).distinctBy { it.key }.take(200)
         }
     }
 

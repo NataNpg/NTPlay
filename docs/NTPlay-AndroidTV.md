@@ -219,3 +219,10 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 
 ## 1.10.1
 - Painel de contas: coluna "Aparelhos" (quantos aparelhos usam a conta e quantos estão online agora; passe o mouse para ver os nomes). O app envia um ID do aparelho e o modelo a cada sincronização.
+
+## 1.10.2
+- **Correção: o app fechava ao buscar filme ou série.** Filmes entravam na biblioteca sem checagem de repetição, ao contrário dos canais ao vivo (`seenLive`) e das séries (`LinkedHashMap`). Painéis Xtream listam o mesmo `stream_id` em mais de uma categoria (o mesmo filme em "LANÇAMENTOS" e em "AÇÃO"), e duas listas ligadas ao mesmo tempo repetem a lista inteira — nos dois casos nasciam dois `Item` com a chave `m:<mesma-url>`.
+  Navegando por categoria o problema não aparece, porque cada grade mostra um grupo só. **A busca é o único lugar que junta tudo numa lista só**: o `LazyVerticalGrid` usa `items(res, key = { it.key })` e chave repetida no Compose lança `IllegalArgumentException`, fechando o app. A mesma raiz atingia a prateleira "🆕 Lançamentos de filmes" e a aba Favoritos (ao favoritar um filme duplicado).
+  Corrigido em `Library.build` (`seenMovie`), com uma segunda barreira no `AppState.search` (`distinctBy { it.key }`).
+- Busca mais leve: para de varrer quando as duas listas de resultado enchem, em vez de normalizar o nome da biblioteca inteira.
+- `versionName 1.10.2`.
