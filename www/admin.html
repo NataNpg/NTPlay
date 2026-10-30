@@ -1,111 +1,86 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex,nofollow">
-<title>NTPlay Painel</title>
-<link rel="icon" href="img/favicon.png">
-<style>
-:root{--bg:#070d1c;--card:#0d1a33;--card2:#102244;--line:#ffffff14;--tx:#e8eefc;--mut:#8ea0c4;--pk:#e93a7d;--gr:#34d399;--yl:#fbbf24;--rd:#f87171;--bl:#60a5fa}
-*{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
-button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer;border:0;background:none}
-header{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);background:#0a1530;position:sticky;top:0;z-index:5}
-header img{width:32px;height:32px}header h1{font-size:18px;font-weight:800}header h1 span{color:var(--pk)}header .sp{flex:1}
-.bt{padding:8px 14px;border-radius:10px;background:#ffffff12;border:1px solid var(--line);font-size:13px}.bt:hover{background:#ffffff22}.bt.pk{background:var(--pk);border-color:var(--pk);font-weight:700}
-main{max-width:1180px;margin:0 auto;padding:18px 16px 40px}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:18px}
-.st{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}.st b{display:block;font-size:30px;font-weight:800;line-height:1.1}.st small{color:var(--mut);font-size:12px}
-.st.on b{color:var(--gr)}.st.pl b{color:var(--pk)}
-.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.ch{padding:6px 13px;border-radius:99px;background:#ffffff0f;border:1px solid var(--line);font-size:12px}.ch.on{background:var(--pk);border-color:var(--pk);font-weight:700}
-.bar input{flex:1;min-width:180px;padding:8px 12px;border-radius:10px;background:var(--card);border:1px solid var(--line);outline:0}
-.muted{color:var(--mut);font-size:12px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
-.dv{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}.dv.live{border-color:#34d39955}
-.dh{display:flex;align-items:center;gap:10px}.ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:19px;background:var(--card2);flex:none}
-.dh .n{flex:1;min-width:0}.dh .n b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dh .n small{color:var(--mut);font-size:11px}
-.dot{width:9px;height:9px;border-radius:50%;background:#64748b;flex:none}.dot.on{background:var(--gr);box-shadow:0 0 0 4px #34d39922}
-.tags{display:flex;gap:6px;flex-wrap:wrap}.tg{font-size:11px;padding:2px 8px;border-radius:6px;background:#ffffff10;color:var(--mut)}.tg.w{background:#e93a7d22;color:#ff8fbb}
-table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:var(--mut);font-weight:600;padding:4px 6px;border-bottom:1px solid var(--line)}td{padding:6px;border-bottom:1px solid #ffffff08;vertical-align:top}
-td.nm{font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}td.hs{color:var(--mut);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bdg{font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;white-space:nowrap}.bdg.g{color:var(--gr);background:#064e3b66}.bdg.y{color:var(--yl);background:#78350f66}.bdg.r{color:var(--rd);background:#7f1d1d66}.bdg.n{color:var(--mut);background:#ffffff10}
-h2{font-size:15px;margin:26px 0 10px}
-.srv{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}.srv div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;gap:10px}.srv span{color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.login{max-width:560px;margin:60px auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}.login h2{margin:0 0 6px}.login textarea{width:100%;height:120px;margin:12px 0;padding:10px;border-radius:10px;background:#060c1a;border:1px solid var(--line);font:12px monospace;outline:0}
-.err{color:var(--rd);font-size:12px;margin-top:8px}.empty{padding:50px 10px;text-align:center;color:var(--mut)}
-.chart{display:flex;gap:6px;align-items:flex-end;height:150px;overflow-x:auto;padding:4px 2px;background:var(--card);border:1px solid var(--line);border-radius:12px}
-.col{flex:1;min-width:26px;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%}
-.col .bk{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
-.col .bar{width:62%;min-height:2px;border-radius:4px 4px 0 0;background:linear-gradient(#5B8CFF,#22D3EE)}
-.col .bar.hl{background:linear-gradient(#e93a7d,#ff8fbb)}
-.col .v{font-size:10px;color:var(--mut);height:12px}.col .x{font-size:9px;color:var(--mut);white-space:nowrap}
-@media(max-width:520px){.grid{grid-template-columns:1fr}header{padding:12px}.st b{font-size:24px}}
-</style>
+  <meta charset="UTF-8">
+  <title>NTPlay - Painel Unificado</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: #fff;
+    }
+    .menu-abas {
+      display: flex;
+      background-color: #1f1f1f;
+      border-bottom: 2px solid #333;
+    }
+    .botao-aba {
+      flex: 1;
+      padding: 15px;
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 16px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.3s;
+    }
+    .botao-aba:hover {
+      background-color: #2a2a2a;
+      color: #fff;
+    }
+    .botao-aba.ativo {
+      color: #00e676;
+      border-bottom: 3px solid #00e676;
+      background-color: #2a2a2a;
+    }
+    .conteudo-aba {
+      display: none;
+      width: 100%;
+      height: calc(100vh - 55px);
+    }
+    .conteudo-aba.visivel {
+      display: block;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+  </style>
 </head>
 <body>
-<header><img src="img/icon.png" alt=""><h1>NTPlay <span>Painel</span></h1><span class="sp"></span><span class="muted" id="upd"></span><button class="bt" id="rf">↻</button><button class="bt" id="out" hidden title="Apagar a chave deste navegador">Sair</button></header>
-<main id="m"></main>
-<script>
-const TOPIC='ntplay-pres-381affd473dafb5cac';
-const $=s=>document.querySelector(s),esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const unb=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return Uint8Array.from(atob(s),c=>c.charCodeAt(0))};
-let KEY=null,DATA=[],F={per:'7d'},T=null,lastRx=0;
-const DAY=864e5,ONLINE=7*60000,RET=180*DAY;
-/* histórico anônimo guardado no navegador (o serviço de avisos só retém ~12 h) */
-const DB=new Promise((ok,no)=>{const r=indexedDB.open('ntadmin',2);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('ev'))r.result.createObjectStore('ev',{keyPath:'k'})};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
-const tx=(m,f)=>DB.then(db=>new Promise((ok,no)=>{const t=db.transaction('ev',m),r=f(t.objectStore('ev'));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error)}));
-const dbAll=()=>tx('readonly',s=>s.getAll());
-const dbPut=evs=>tx('readwrite',s=>{evs.forEach(e=>s.put(e))});
-const dbDelOld=cut=>tx('readwrite',s=>{const rq=s.openCursor();rq.onsuccess=e=>{const c=e.target.result;if(!c)return;if(c.value.t<cut)c.delete();c.continue()}});
-async function loadKey(txt){const j=JSON.parse(txt);const jwk=j.prv||j;return crypto.subtle.importKey('jwk',jwk,{name:'ECDH',namedCurve:'P-256'},false,['deriveBits'])}
-async function open1(m){const p=m.split('.');if(p[0]!='ntp1'||p.length!=4)return null;const C=crypto.subtle;
-  const eph=await C.importKey('raw',unb(p[1]),{name:'ECDH',namedCurve:'P-256'},false,[]);const sh=await C.deriveBits({name:'ECDH',public:eph},KEY,256);
-  const k=await C.importKey('raw',await C.digest('SHA-256',sh),'AES-GCM',false,['decrypt']);
-  return JSON.parse(new TextDecoder().decode(await C.decrypt({name:'AES-GCM',iv:unb(p[2])},k,unb(p[3]))))}
-async function fetchNew(){const since=lastRx?Math.floor(lastRx/1000):Math.floor((Date.now()-12*36e5)/1000);
-  const r=await fetch('https://ntfy.sh/'+TOPIC+'/json?poll=1&since='+since,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);
-  const neu=[];for(const l of (await r.text()).split('\n')){if(!l.trim())continue;let j;try{j=JSON.parse(l)}catch(e){continue}if(j.event!='message'||!j.message)continue;
-    try{const o=await open1(j.message.trim());if(o&&o.id&&o.t){const e={k:o.id+'|'+o.t,id:o.id,p:o.p||'?',v:o.v||'',t:o.t,rx:j.time*1000};neu.push(e);if(e.rx>lastRx)lastRx=e.rx}}catch(e){}}
-  if(neu.length)await dbPut(neu);return neu.length}
-const PL={pc:['💻','PC Windows'],android:['📱','Android'],ios:['📱','iPhone/iPad'],androidtv:['📺','Android TV (web)'],tv:['📺','Android TV'],web:['🌐','Navegador'],'web-celular':['🌐','Navegador (celular)'],'?':['❔','Desconhecido']};
-const dkey=t=>{const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
-const nD=n=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+n);return d};
-// último evento de cada id (id é diário, então "id distinto" = um aparelho naquele dia)
-function lastById(evs){const m=new Map();evs.forEach(e=>{const o=m.get(e.id);if(!o||e.t>o.t)m.set(e.id,e)});return m}
-function bars(rows,fmt){const max=Math.max(1,...rows.map(r=>r[1]));
-  return'<div class="chart">'+rows.map(r=>'<div class="col"><span class="v">'+(r[1]||'')+'</span><div class="bk"><div class="bar'+(r[2]?' hl':'')+'" style="height:'+(r[1]/max*100).toFixed(1)+'%"></div></div><span class="x">'+esc(r[0])+'</span></div>').join('')+'</div>'}
-function render(){const now=Date.now(),evs=DATA;
-  const last=lastById(evs);
-  const on=[...last.values()].filter(e=>!e.off&&now-e.t<ONLINE);
-  // aparelhos distintos por dia (id é diário) — base honesta: não dá para deduplicar aparelhos entre dias
-  const perDay=i=>{const d0=nD(-i).getTime(),d1=nD(-i+1).getTime(),ss=new Set();evs.forEach(e=>{if(e.t>=d0&&e.t<d1)ss.add(e.id)});return ss.size};
-  const cnt30=[];for(let i=0;i<30;i++)cnt30.push(perDay(i));
-  const avg7=Math.round(cnt30.slice(0,7).reduce((a,b)=>a+b,0)/7),peak30=Math.max(0,...cnt30);
-  const stats=[['on','usando agora',on.length],['','ativos hoje',cnt30[0]],['','média/dia (7 dias)',avg7],['','pico num dia (30 dias)',peak30]];
-  let h='<div class="stats">'+stats.map(s=>'<div class="st'+(s[0]?' '+s[0]:'')+'"><b>'+s[2]+'</b><small>'+s[1]+'</small></div>').join('')+'</div>';
-  // aparelhos ativos por dia (14 dias) — id distinto por dia
-  const days=[];for(let i=13;i>=0;i--){const d0=nD(-i).getTime(),d1=nD(-i+1).getTime(),s=new Set();evs.forEach(e=>{if(e.t>=d0&&e.t<d1)s.add(e.id)});
-    days.push([new Date(d0).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),s.size,i==0])}
-  h+='<h2>Aparelhos ativos por dia</h2>'+bars(days)+'<p class="muted">cada barra = aparelhos diferentes que usaram o app naquele dia (últimos 14 dias).</p>';
-  // horário de pico (7 dias) — aparelho-dia distinto por hora
-  const hrs=Array.from({length:24},()=>new Set()),w7=now-7*DAY,hn=new Date().getHours();
-  evs.forEach(e=>{if(e.t>=w7){const d=new Date(e.t);hrs[d.getHours()].add(e.id+'|'+dkey(e.t))}});
-  h+='<h2>Horário de pico <span class="muted" style="font-weight:400">(últimos 7 dias)</span></h2>'+bars(hrs.map((s,i)=>[String(i).padStart(2,'0')+'h',s.size,i==hn]))+'<p class="muted">cada barra = aparelhos ativos naquela hora do dia (somando os 7 dias).</p>';
-  // plataformas — aparelhos distintos de hoje por plataforma
-  const pm=new Map();[...last.values()].forEach(e=>{if(e.t>=nD(0).getTime())pm.set(e.p,(pm.get(e.p)||0)+1)});
-  if(pm.size){h+='<h2>Plataformas <span class="muted" style="font-weight:400">(aparelhos de hoje)</span></h2><div class="srv">'+[...pm].sort((a,b)=>b[1]-a[1]).map(([k,n])=>{const p=PL[k]||['❔',k];return'<div><span>'+p[0]+' '+esc(p[1])+'</span><b>'+n+'</b></div>'}).join('')+'</div>'}
-  // versões (ativos 7 dias)
-  const vm=new Map();[...last.values()].forEach(e=>{if(e.t>=nD(0).getTime()&&e.v)vm.set(e.v,(vm.get(e.v)||0)+1)});
-  if(vm.size){h+='<h2>Versões <span class="muted" style="font-weight:400">(hoje)</span></h2><div class="srv">'+[...vm].sort((a,b)=>b[1]-a[1]).map(([k,n])=>'<div><span>v'+esc(k)+'</span><b>'+n+'</b></div>').join('')+'</div>'}
-  h+='<p class="muted" style="margin-top:22px">Contagem anônima: os aparelhos enviam só uma marca de uso com identificador que troca a cada dia — sem nome, lista, o que assistem, usuário ou senha. O histórico fica neste navegador (até '+(RET/DAY)+' dias); como o serviço de avisos só retém ~12 h, abra o painel de vez em quando para não haver buracos.</p>';
-  $('#m').innerHTML=h}
-async function refresh(){$('#upd').textContent='atualizando…';try{await fetchNew();await dbDelOld(Date.now()-RET);DATA=await dbAll();render();$('#upd').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}catch(e){$('#upd').textContent='erro: '+e.message;if(DATA.length)render()}}
-function login(err){$('#out').hidden=true;$('#m').innerHTML='<div class="login"><h2>Entrar no painel</h2><p class="muted">Cole o conteúdo do arquivo <b>ntplay-painel-chave.json</b> (ou escolha o arquivo). A chave fica só neste navegador.</p><textarea id="k" placeholder="{&quot;prv&quot;: …}"></textarea><input type="file" id="kf" accept=".json,.txt"><div style="margin-top:12px"><button class="bt pk" id="go">Entrar</button></div>'+(err?'<p class="err">'+esc(err)+'</p>':'')+'</div>';
-  $('#kf').onchange=async e=>{const f=e.target.files[0];if(f)$('#k').value=await f.text()};
-  $('#go').onclick=async()=>{try{KEY=await loadKey($('#k').value.trim());localStorage.ntAdminKey=$('#k').value.trim();start()}catch(e){login('Chave inválida.')}}}
-async function start(){$('#out').hidden=false;try{DATA=await dbAll()}catch(e){}await refresh();clearInterval(T);T=setInterval(refresh,30000)}
-$('#rf').onclick=()=>KEY&&refresh();$('#out').onclick=()=>{delete localStorage.ntAdminKey;KEY=null;clearInterval(T);login()};
-(async()=>{const k=localStorage.ntAdminKey;if(!k)return login();try{KEY=await loadKey(k);start()}catch(e){login('A chave salva não funcionou.')}})();
-</script>
+
+  <nav class="menu-abas">
+    <button class="botao-aba ativo" onclick="alternarAba('admin', this)">Painel Admin</button>
+    <button class="botao-aba" onclick="alternarAba('contas', this)">Gerenciar Contas</button>
+  </nav>
+
+  <!-- Seção do Painel Admin -->
+  <div id="aba-admin" class="conteudo-aba visivel">
+    <!-- Se você já tiver o código do admin, ele pode ficar aqui diretamente, ou carregado como abaixo -->
+    <iframe src="admin.html"></iframe>
+  </div>
+
+  <!-- Seção de Contas -->
+  <div id="aba-contas" class="conteudo-aba">
+    <iframe src="contas.html"></iframe>
+  </div>
+
+  <script>
+    function alternarAba(aba, elemento) {
+      document.querySelectorAll('.conteudo-aba').forEach(conteudo => {
+        conteudo.classList.remove('visivel');
+      });
+      document.querySelectorAll('.botao-aba').forEach(btn => {
+        btn.classList.remove('ativo');
+      });
+
+      document.getElementById('aba-' + aba).classList.add('visivel');
+      elemento.classList.add('ativo');
+    }
+  </script>
+
 </body>
 </html>
