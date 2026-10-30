@@ -10,7 +10,17 @@ package com.natanael.ntplay.mobile
 class AcctInfo(val exp: Long, val status: String, val maxCon: Int, val active: Int, val ts: Long)
 
 /** Lê o registro, ou null se não houver nada guardado ou o formato não for o esperado. */
-fun parseAccount(raw: String): AcctInfo? = null
+fun parseAccount(raw: String): AcctInfo? {
+    val p = raw.split('|')
+    if (p.size < 5) return null
+    return AcctInfo(
+        exp = p[0].toLongOrNull() ?: 0L,
+        status = p[1],
+        maxCon = p[2].toIntOrNull() ?: 0,
+        active = p[3].toIntOrNull() ?: 0,
+        ts = p[4].toLongOrNull() ?: 0L,
+    )
+}
 
 /**
  * O aviso de conta de uma tela só, ou null quando não há o que avisar.
@@ -21,4 +31,8 @@ fun parseAccount(raw: String): AcctInfo? = null
  *
  * Só avisa com maxCon exatamente 1: zero significa que o servidor não informou.
  */
-fun oneScreenWarning(raw: String): String? = null
+fun oneScreenWarning(raw: String): String? {
+    val a = parseAccount(raw) ?: return null
+    if (a.maxCon != 1) return null
+    return "Esta lista permite 1 tela por vez: TV e celular não podem assistir ao mesmo tempo."
+}
