@@ -3,6 +3,30 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// ----------------------------------------------------------------- motor vindo do app de TV
+// O motor (M3U, Xtream, metadados, nuvem) mora em tv-native/ e NÃO é duplicado aqui: é copiado
+// na compilação, com o pacote trocado e três remendos. A lógica está em tools/gen_core.py, que
+// tem testes próprios (python3 -m unittest discover -s tools) — é a parte mais arriscada deste
+// projeto e, como script, dá para testá-la sem SDK do Android.
+// Se a TV mudar e um remendo deixar de bater, o script falha e esta compilação para.
+val tvSrc = layout.projectDirectory.dir("../../tv-native/app/src/main/java/com/natanael/ntplay/tv")
+val coreGen = layout.buildDirectory.dir("generated/core")
+
+val generateCore by tasks.registering(Exec::class) {
+    description = "Copia o motor de tv-native/ trocando o pacote para com.natanael.ntplay.core"
+    inputs.dir(tvSrc)
+    inputs.file(layout.projectDirectory.file("../tools/gen_core.py"))
+    outputs.dir(coreGen)
+    commandLine(
+        "python3",
+        layout.projectDirectory.file("../tools/gen_core.py").asFile.absolutePath,
+        tvSrc.asFile.absolutePath,
+        coreGen.get().dir("com/natanael/ntplay/core").asFile.absolutePath,
+    )
+}
+
+tasks.named("preBuild") { dependsOn(generateCore) }
+
 android {
     namespace = "com.natanael.ntplay.mobile"
     compileSdk = 34
@@ -39,6 +63,7 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions { jvmTarget = "17" }
+    sourceSets["main"].java.srcDir(coreGen)
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
