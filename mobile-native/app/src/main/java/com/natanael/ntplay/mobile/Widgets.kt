@@ -57,6 +57,26 @@ fun CategoryStrip(cats: List<String>, selected: String, onPick: (String) -> Unit
     }
 }
 
+/**
+ * Fita do filtro por ano. Escolhido um ano, a fita colapsa num único chip com ✕ para limpar —
+ * assim a lista de anos não fica ocupando a tela do celular depois de já ter sido usada.
+ */
+@Composable
+fun YearStrip(years: List<String>, selected: String, onPick: (String) -> Unit) {
+    LazyRow(
+        Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item {
+            Chip(if (selected.isEmpty()) "📅 Ano" else "📅 $selected  ✕", selected.isNotEmpty()) {
+                onPick("")
+            }
+        }
+        if (selected.isEmpty()) items(years) { y -> Chip(y, false) { onPick(y) } }
+    }
+}
+
 @Composable
 fun Chip(label: String, on: Boolean, onClick: () -> Unit) {
     Text(

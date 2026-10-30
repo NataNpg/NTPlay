@@ -3,7 +3,6 @@ package com.natanael.ntplay.mobile
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -62,16 +61,7 @@ private fun CatalogScreen(
     Column(Modifier.fillMaxSize()) {
         if (groups.size > 1) CategoryStrip(categoriesOf(groups), cat) { cat = it }
 
-        if (anos.isNotEmpty()) {
-            androidx.compose.foundation.lazy.LazyRow(
-                Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-            ) {
-                item { Chip(if (year.isEmpty()) "📅 Ano" else "📅 $year  ✕", year.isNotEmpty()) { year = "" } }
-                if (year.isEmpty()) items(anos) { a -> Chip(a, false) { year = a } }
-            }
-        }
+        if (anos.isNotEmpty()) YearStrip(anos, year) { year = it }
 
         if (shown.isEmpty()) {
             EmptyState(
