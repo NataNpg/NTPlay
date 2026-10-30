@@ -251,3 +251,8 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
   - Quem tiver iniciado o teste na 1.10.4 volta à tela de entrada ao atualizar. As chaves `trial_exp`/`trial_used` ficam no SharedPreferences sem uso e não atrapalham.
 - Mantidas da 1.10.4: o botão focado com fundo branco e texto escuro (`UI.TvButton`).
 - `versionName 1.10.5`.
+
+## 1.10.6
+- **Busca só de filmes, séries e animes** (`AppState.search`): varre `movies + series` em vez de `every`, então canais ao vivo não aparecem mais no resultado (os animes estão dentro de filmes/séries, então continuam vindo). Cartões da busca agora têm sempre 112 dp e abrem a tela de detalhes.
+- **Atualização ao reabrir o app** (`MainActivity.onResume`): a checagem só acontecia 20 s depois de criar o `AppState` e de 6 em 6 h. Na TV o app fica na memória, então sair e voltar NÃO recriava o `AppState` e a versão nova só aparecia até 6 h depois. Agora confere toda vez que o app volta para a frente, no máximo uma vez a cada 10 min.
+- `versionName 1.10.6`.

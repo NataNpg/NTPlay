@@ -783,7 +783,7 @@ fun SearchDialog(st: AppState) {
         Surface(Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.9f), shape = RoundedCornerShape(18.dp), color = PanelC) {
             Column(Modifier.padding(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(q, { q = it }, Modifier.weight(1f), placeholder = { Text("Buscar canais, filmes e séries…") }, singleLine = true, colors = fieldColors())
+                    OutlinedTextField(q, { q = it }, Modifier.weight(1f), placeholder = { Text("Buscar filmes, séries e animes…") }, singleLine = true, colors = fieldColors())
                     Spacer(Modifier.width(10.dp))
                     TvButton("Fechar", Btn) { st.showSearch = false }
                 }
@@ -795,9 +795,9 @@ fun SearchDialog(st: AppState) {
                 val gs = rememberLazyGridState()
                 LazyVerticalGrid(columns = GridCells.Adaptive(112.dp), modifier = Modifier.mouseScroll(gs), state = gs, contentPadding = PaddingValues(6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(res, key = { it.key }) { it2 ->
-                        PosterCard(st, it2, if (it2.kind == 'l') 150.dp else 112.dp) {
+                        PosterCard(st, it2, 112.dp) {
                             st.showSearch = false
-                            if (it2.kind == 'l') st.playItem(it2, null, res) else { st.queue = res; st.openDetail(it2) }
+                            st.queue = res; st.openDetail(it2)
                         }
                     }
                 }

@@ -34,6 +34,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Procura atualização toda vez que o app volta para a frente. Sem isto, a checagem só acontecia
+    // 20 s depois de criar o AppState e de 6 em 6 h — e na TV o app fica na memória, então reabrir
+    // não recriava nada e a versão nova só aparecia horas depois.
+    private var lastCheck = 0L
+    override fun onResume() {
+        super.onResume()
+        val st = state ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastCheck < 10 * 60_000L) return
+        lastCheck = now
+        st.checkUpdate()
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val st = state
         val p = st?.play

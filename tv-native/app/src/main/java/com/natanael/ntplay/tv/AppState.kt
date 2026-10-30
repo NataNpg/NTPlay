@@ -469,7 +469,8 @@ class AppState(val ctx: Context) {
         if (n.length < 2) return emptyList()
         return withContext(Dispatchers.Default) {
             val first = ArrayList<Item>(); val rest = ArrayList<Item>()
-            for (it in l.every) {
+            // só filmes e séries (os animes estão dentro desses dois); canais ao vivo ficam de fora
+            for (it in l.movies.asSequence() + l.series.asSequence()) {
                 // as duas listas cheias: nada mais entra, então para de varrer
                 // (evita normalizar o nome da biblioteca inteira à toa)
                 if (first.size >= 150 && rest.size >= 150) break
