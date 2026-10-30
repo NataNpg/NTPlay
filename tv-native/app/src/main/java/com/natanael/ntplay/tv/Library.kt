@@ -15,7 +15,12 @@ class Item(
 ) {
     var ns = 1
     var tvgId = ""
-    val norm: String by lazy(LazyThreadSafetyMode.NONE) { Util.norm(title) }
+    // PUBLICATION, nunca NONE: três threads leem isto ao mesmo tempo — os cards de canal
+    // na thread principal (Epg.nowTitle), a busca em Dispatchers.Default e o Epg.load em
+    // Dispatchers.IO. Com NONE o lazy do Kotlin não tem @Volatile: uma thread enxerga
+    // initializer já nulo e _value ainda não publicado, e o `initializer!!()` lança NPE.
+    // Util.norm é puro, então rodar duas vezes não faz mal; PUBLICATION publica com CAS.
+    val norm: String by lazy(LazyThreadSafetyMode.PUBLICATION) { Util.norm(title) }
 }
 
 class Library(val live: List<Item>, val movies: List<Item>, val series: List<Item>) {

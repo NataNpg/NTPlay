@@ -226,3 +226,13 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
   Corrigido em `Library.build` (`seenMovie`), com uma segunda barreira no `AppState.search` (`distinctBy { it.key }`).
 - Busca mais leve: para de varrer quando as duas listas de resultado enchem, em vez de normalizar o nome da biblioteca inteira.
 - `versionName 1.10.2`.
+
+## 1.10.3
+- **Correção real do app fechando na busca** (a 1.10.2 não resolveu). `Item.norm` era `by lazy(LazyThreadSafetyMode.NONE)`, e três threads leem esse campo ao mesmo tempo:
+  1. a thread principal, nos cards de canal (`UI.PosterCard` → `Epg.nowTitle`, introduzido na 1.10.0);
+  2. `Dispatchers.Default`, em `AppState.search`, que percorre `lib.every`;
+  3. `Dispatchers.IO`, em `Epg.load`, que lê `c.norm` de todos os canais ao vivo.
+  O `UnsafeLazyImpl` do Kotlin (modo `NONE`) não tem `@Volatile`: uma thread pode enxergar `initializer` já anulado por outra e `_value` ainda não publicado, e aí o `initializer!!()` lança `NullPointerException`. Como é corrida, fechava de forma intermitente — e só na busca, porque é o único lugar que varre a biblioteca inteira enquanto os cards e o EPG leem o mesmo campo.
+  Trocado para `LazyThreadSafetyMode.PUBLICATION`: publica com CAS sobre campo volátil, sem trava. `Util.norm` é puro, então rodar duas vezes é inofensivo.
+- Tela de entrada e ☰ Listas: bloco único `ContatoTeste` (QR code do WhatsApp + número), agora com o texto "Peça seu teste do aplicativo ou da lista".
+- `versionName 1.10.3`.

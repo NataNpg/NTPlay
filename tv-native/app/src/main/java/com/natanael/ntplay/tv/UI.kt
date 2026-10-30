@@ -910,6 +910,10 @@ fun ListsDialog(st: AppState) {
                     Image(qr, "QR code", Modifier.size(150.dp).background(Color.White, RoundedCornerShape(10.dp)).padding(8.dp))
                     Text(if (local != null) "Celular e TV no mesmo Wi‑Fi: aponte a câmera, cole o link da lista e envie. Funciona sem internet externa." else "Aponte a câmera do celular, cole o link da lista e envie. Ela chega aqui sozinha.", color = Color(0xDDFFFFFF), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
                     Text("⏳ Aguardando o celular…", color = Cyan, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x22FFFFFF)))
+                    Spacer(Modifier.height(10.dp))
+                    ContatoTeste(compact = true)
                 }
                 val ls = rememberLazyListState()
                 LazyColumn(Modifier.weight(1f).fillMaxHeight().mouseScroll(ls), state = ls, verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(end = 4.dp, bottom = 24.dp)) {
@@ -1076,18 +1080,24 @@ fun LoginGate(st: AppState) {
                     TvButton(if (st.syncBusy) "⏳ Entrando…" else "Entrar", Pink, 14.sp) { st.accountLogin(user, pass) }
                     if (st.accessMsg.isNotEmpty()) Text(st.accessMsg, color = if (st.accessMsg == "Entrando…") Cyan else Color(0xFFFFB4B4), fontSize = 12.sp, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(2.dp))
-                    val wa = remember { Qr.bitmap("https://wa.me/5542920028569", 240).asImageBitmap() }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Image(wa, "QR code do WhatsApp", Modifier.size(78.dp).background(Color.White, RoundedCornerShape(8.dp)).padding(4.dp))
-                        Column {
-                            Text("Quer acesso ou renovar?", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text("Fale pelo WhatsApp:", color = Muted, fontSize = 10.sp)
-                            Text("(42) 92002-8569", color = Cyan, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
-                            Text("Aponte a câmera do celular", color = Muted, fontSize = 9.sp)
-                        }
-                    }
+                    ContatoTeste()
                 }
             }
+        }
+    }
+}
+
+/** QR code + telefone para pedir teste do aplicativo ou da lista. Usado na entrada e em ☰ Listas. */
+@Composable
+fun ContatoTeste(compact: Boolean = false) {
+    val wa = remember { Qr.bitmap("https://wa.me/5542920028569", 240).asImageBitmap() }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Image(wa, "QR code do WhatsApp", Modifier.size(if (compact) 62.dp else 78.dp).background(Color.White, RoundedCornerShape(8.dp)).padding(4.dp))
+        Column {
+            Text("Peça seu teste", color = Color.White, fontSize = if (compact) 11.sp else 12.sp, fontWeight = FontWeight.Bold)
+            Text("do aplicativo ou da lista", color = Muted, fontSize = if (compact) 9.sp else 10.sp)
+            Text("(42) 92002-8569", color = Cyan, fontSize = if (compact) 12.sp else 13.sp, fontWeight = FontWeight.ExtraBold)
+            Text("Aponte a câmera do celular", color = Muted, fontSize = 9.sp)
         }
     }
 }
