@@ -49,7 +49,24 @@ val CARD_W = 108.dp
  * @param busy true enquanto a lista está carregando (aí quem aparece é o indicador de progresso)
  * @param listCount quantas listas o usuário cadastrou
  */
-fun emptyMessage(tab: String, lib: Library?, busy: Boolean, listCount: Int): String? = null
+fun emptyMessage(tab: String, lib: Library?, busy: Boolean, listCount: Int): String? {
+    if (busy) return null                                  // quem fala agora é o indicador de progresso
+    if (listCount == 0) return "Adicione uma lista para começar"
+    if (lib == null) return "Não foi possível carregar sua lista. Toque em ☰ Listas para atualizar."
+
+    // A aba Busca tem o próprio estado inicial ("busque filmes e séries"), que não é desta regra.
+    if (tab == "BUSCA") return null
+
+    if (lib.live.isEmpty() && lib.movies.isEmpty() && lib.series.isEmpty()) {
+        return "Sua lista carregou vazia. Toque em ☰ Listas para atualizar ou trocar de lista."
+    }
+    return when (tab) {
+        "FILMES" -> if (lib.movies.isEmpty()) "Esta lista não tem filmes." else null
+        "SÉRIES" -> if (lib.series.isEmpty()) "Esta lista não tem séries." else null
+        "TV" -> if (lib.live.isEmpty()) "Esta lista não tem canal ao vivo." else null
+        else -> null                                        // INÍCIO: há conteúdo em alguma aba
+    }
+}
 
 @Composable
 fun EmptyState(msg: String, action: String? = null, onAction: (() -> Unit)? = null) {
