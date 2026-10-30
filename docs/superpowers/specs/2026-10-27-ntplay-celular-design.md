@@ -238,6 +238,17 @@ O risco que resta é todo do lado do celular:
    Efeito colateral já conhecido: aparelhos da mesma conta gravam no mesmo registro a cada
    90 s, então favoritos e "continuar assistindo" de um sobrescrevem os do outro.
 
+   **Decidido:** o celular **avisa na tela** quando a conta Xtream da lista reporta
+   `max_connections: 1`, explicando que TV e celular não podem assistir ao mesmo tempo.
+   O dado já vem do `Xtream` (é o mesmo que alimenta "telas em uso" em ☰ Listas), então é
+   só apresentação — nenhum remendo no motor.
+
+   **Não entra nesta versão:** a sobrescrita do progresso entre aparelhos da mesma conta
+   fica como está hoje na TV. Resolver de verdade exigiria mudar o formato do blob na
+   nuvem (progresso por aparelho em vez de um só por conta), o que mexeria no `Sync` e,
+   por consequência, no app de TV — justamente o que esta spec se compromete a não fazer.
+   Fica anotado para quando houver uma mudança de formato planejada nos dois lados.
+
 ### Oportunidade relacionada (fora desta spec)
 
 A pendência 1 do documento geral é que as versões de **PC e web/celular não têm login** —
