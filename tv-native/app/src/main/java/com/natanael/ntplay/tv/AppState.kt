@@ -80,7 +80,7 @@ class AppState(val ctx: Context) {
     fun start() {
         scope.launch { reload() }
         // sincronização na nuvem: ao abrir e a cada 90 s (só se a conta estiver ligada)
-        scope.launch { delay(1500); while (true) { if (store.syncUser.isNotEmpty()) syncNow(false); delay(90_000L) } }
+        scope.launch { delay(1500); while (true) { trialCheck(); if (store.syncUser.isNotEmpty()) syncNow(false); delay(90_000L) } }
         autoUpdate()
         scope.launch { delay(90_000); while (true) { lib?.let { try { Epg.load(store, it); epgVer++ } catch (e: Throwable) { } }; delay(3 * 3600_000L) } }
         // atualização do próprio app: confere ao abrir e a cada 6 h
@@ -498,14 +498,40 @@ class AppState(val ctx: Context) {
     }
 
     // ------------------------------------------------------------ conta + sincronização na nuvem
+    // Teste de 1 dia: conferido só aqui no aparelho, sem servidor e sem nuvem.
+    // Quem entra assim usa a PRÓPRIA lista; nada é salvo na conta de ninguém.
+    // Para girar a senha, troque TRIAL_PASS e publique uma versão nova.
+    private val TRIAL_USER = "demo"
+    private val TRIAL_PASS = "ntplay2026"
+    private val TRIAL_MS = 24 * 3600_000L
+    private val TRIAL_TAG = "·teste"   // o · não é aceito em usuário de verdade, então nunca colide
+    fun trialOn(): Boolean = store.trialExp > 0 && System.currentTimeMillis() < store.trialExp
+    private val TRIAL_END = "Seu teste de 1 dia terminou. Peça seu acesso pelo WhatsApp abaixo."
+
     var syncUser by mutableStateOf(store.syncUser)
-    var locked by mutableStateOf(store.syncUser.isEmpty() || (store.accessExp > 0 && System.currentTimeMillis() > store.accessExp))
-    var accessMsg by mutableStateOf(if (store.syncUser.isNotEmpty() && store.accessExp > 0 && System.currentTimeMillis() > store.accessExp) "Seu acesso expirou. Conecte-se à internet e entre de novo ou peça a renovação." else "")
-    fun accessText(): String = if (store.accessExp > 0) "Válido até " + java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("pt", "BR")).format(java.util.Date(store.accessExp)) else ""
+    var locked by mutableStateOf(!trialOn() && (store.syncUser.isEmpty() || (store.accessExp > 0 && System.currentTimeMillis() > store.accessExp)))
+    var accessMsg by mutableStateOf(when {
+        store.trialExp > 0 && !trialOn() -> TRIAL_END
+        store.syncUser.isNotEmpty() && store.accessExp > 0 && System.currentTimeMillis() > store.accessExp -> "Seu acesso expirou. Conecte-se à internet e entre de novo ou peça a renovação."
+        else -> ""
+    })
+    fun accessText(): String = when {
+        trialOn() -> "Teste até " + java.text.SimpleDateFormat("dd/MM 'às' HH:mm", java.util.Locale("pt", "BR")).format(java.util.Date(store.trialExp))
+        store.accessExp > 0 -> "Válido até " + java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("pt", "BR")).format(java.util.Date(store.accessExp))
+        else -> ""
+    }
+
+    /** trava o app assim que o teste de 1 dia vence (checado junto do ciclo de 90 s) */
+    private fun trialCheck() {
+        if (store.trialExp > 0 && !trialOn() && syncUser.isEmpty() && !locked) {
+            locked = true; play = null; showLists = false; accountDialog = false; accessMsg = TRIAL_END
+        }
+    }
 
     private fun lockOut(msg: String) {
         store.syncUser = ""; store.syncAuth = ""; store.syncEnc = ""; store.syncTs = 0; store.syncHash = ""
-        syncUser = ""; accessMsg = msg; locked = true; play = null; accountDialog = false
+        store.trialExp = 0   // encerra o teste junto (trialUsed continua, então não dá para reiniciar)
+        syncUser = ""; accessMsg = msg; locked = true; play = null; accountDialog = false; showLists = false
     }
     /** true = a falha foi de acesso (conta removida/senha trocada/expirada) e o app foi bloqueado */
     private fun accessFailed(r: Sync.Res): Boolean {
@@ -632,6 +658,8 @@ class AppState(val ctx: Context) {
         if (u.length < 3) { accessMsg = "Digite o usuário."; return }
         if (pass.length < 6) { accessMsg = "Digite a senha (mínimo 6 caracteres)."; return }
         if (syncBusy) return
+        // teste de 1 dia: resolvido aqui mesmo, sem tocar no servidor
+        if (u == TRIAL_USER && pass == TRIAL_PASS) { startTrial(); return }
         syncBusy = true; accessMsg = "Entrando…"
         scope.launch {
             val (ak, ek) = withContext(Dispatchers.Default) { Sync.derive(u, pass) }
@@ -641,13 +669,32 @@ class AppState(val ctx: Context) {
             store.lastUser = u
             store.syncUser = u; store.syncAuth = ak; store.syncEnc = ek; store.syncTs = 0; store.syncHash = ""
             store.accessExp = r.exp
+            store.trialExp = 0   // entrou com conta de verdade: o teste deixa de valer
             syncUser = u; locked = false; accessMsg = ""; syncMsg = "Entrou! Baixando seus dados…"
             syncBusy = false
             syncNow(true)
         }
     }
 
-    fun accountLogout() { lockOut("Você saiu. Entre de novo para usar o app.") }
+    /** libera o app por 1 dia só neste aparelho: sem conta, sem nuvem, cada um põe a própria lista */
+    private fun startTrial() {
+        if (trialOn()) { locked = false; accessMsg = ""; return }
+        if (store.trialUsed) { accessMsg = "Este aparelho já usou o teste de 1 dia. Peça seu acesso pelo WhatsApp abaixo."; return }
+        syncBusy = true; accessMsg = ""
+        scope.launch {
+            if (store.lastUser.isNotEmpty() && store.lastUser != TRIAL_TAG) wipeLocal()
+            store.lastUser = TRIAL_TAG
+            store.trialExp = System.currentTimeMillis() + TRIAL_MS
+            store.trialUsed = true
+            store.syncUser = ""; store.syncAuth = ""; store.syncEnc = ""; store.syncTs = 0; store.syncHash = ""; store.accessExp = 0
+            syncUser = ""; locked = false
+            syncMsg = "Teste de 1 dia liberado. Adicione a sua lista aqui."
+            syncBusy = false
+            showLists = true
+        }
+    }
+
+    fun accountLogout() { lockOut(if (trialOn()) "Você saiu do teste." else "Você saiu. Entre de novo para usar o app.") }
 
     // ------------------------------------------------------------ atualização automática do app
     var upd by mutableStateOf<Updater.Info?>(null)

@@ -236,3 +236,12 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
   Trocado para `LazyThreadSafetyMode.PUBLICATION`: publica com CAS sobre campo volátil, sem trava. `Util.norm` é puro, então rodar duas vezes é inofensivo.
 - Tela de entrada e ☰ Listas: bloco único `ContatoTeste` (QR code do WhatsApp + número), agora com o texto "Peça seu teste do aplicativo ou da lista".
 - `versionName 1.10.3`.
+
+## 1.10.4
+- **Teste de 1 dia, só no aparelho** (`AppState` seção conta, `Store.trialExp`/`trialUsed`): entrar com o usuário `demo` e a senha `ntplay2026` libera o app por 24 h **sem tocar no servidor** e sem nuvem. Quem entra assim **põe a própria lista** — por isso não disputa as conexões (`max_connections`) da sua lista nem mistura favoritos com ninguém. Vencido o prazo, o app volta à tela de entrada sozinho (checado junto do ciclo de 90 s).
+  - `trialUsed` impede repetir o teste no mesmo aparelho; limpar os dados do app ou reinstalar reinicia (é a limitação de não usar servidor).
+  - Entrar com conta de verdade zera o teste; sair do teste também.
+  - Usuário/senha ficam em `TRIAL_USER`/`TRIAL_PASS` no `AppState` — troque e publique para girar a senha.
+  - O nome `demo` não pode ser criado como conta no painel, senão o teste local tomaria a frente.
+- **Botão focado legível** (`UI.TvButton`): focado ou sob o mouse, fundo branco e texto escuro. O comentário do código já dizia isso, mas o texto era sempre branco — em TV com cor estourada (stick saturado) o roxo virava branco e o botão sumia.
+- `versionName 1.10.4`.
