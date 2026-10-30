@@ -120,12 +120,6 @@ class Store(ctx: Context) {
     var lastUser: String  // último usuário que entrou (para limpar dados se outro usuário entrar)
         get() = sp.getString("last_user", "") ?: ""
         set(v) { sp.edit().putString("last_user", v).apply() }
-    var trialExp: Long    // fim do teste de 1 dia (ms); 0 = sem teste. Só no aparelho, não vai ao servidor.
-        get() = sp.getLong("trial_exp", 0L)
-        set(v) { sp.edit().putLong("trial_exp", v).apply() }
-    var trialUsed: Boolean  // já usou o teste neste aparelho (impede repetir sem limpar os dados do app)
-        get() = sp.getBoolean("trial_used", false)
-        set(v) { sp.edit().putBoolean("trial_used", v).apply() }
 
     // abertura por série: memoriza onde o usuário pulou ("início|fim" em ms)
     fun introMem(key: String): Pair<Long, Long>? {

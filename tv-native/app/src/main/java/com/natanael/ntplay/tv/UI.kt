@@ -921,18 +921,13 @@ fun ListsDialog(st: AppState) {
                 LazyColumn(Modifier.weight(1f).fillMaxHeight().mouseScroll(ls), state = ls, verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(end = 4.dp, bottom = 24.dp)) {
                     item {
                         Column(Modifier.fillMaxWidth().background(Color(0x1A8B5CF6), RoundedCornerShape(12.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            val trial = st.trialOn()
-                            Text(if (trial) "🧪 TESTE DE 1 DIA" else "☁ NUVEM  ·  conta " + st.syncUser, color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                            Text("☁ NUVEM  ·  conta " + st.syncUser, color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
                             if (st.accessText().isNotEmpty()) Text("🗓 " + st.accessText(), color = Color(0xFF34D399), fontSize = 10.sp)
-                            Text(
-                                if (trial) "Teste só neste aparelho: adicione a sua própria lista abaixo. Nada é salvo na nuvem, e os dados somem quando o teste terminar."
-                                else "Suas listas, favoritos, grupos e progresso ficam salvos na conta (criptografados) e aparecem em outro aparelho.",
-                                color = Muted, fontSize = 9.sp, lineHeight = 12.sp
-                            )
+                            Text("Suas listas, favoritos, grupos e progresso ficam salvos na conta (criptografados) e aparecem em outro aparelho.", color = Muted, fontSize = 9.sp, lineHeight = 12.sp)
                             if (st.syncMsg.isNotEmpty()) Text(st.syncMsg, color = if (st.syncMsg.startsWith("☁")) Color(0xFF34D399) else Color(0xFFFFB4B4), fontSize = 10.sp)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (!trial) TvButton(if (st.syncBusy) "⏳ Sincronizando…" else "↻ Sincronizar agora", Pink, 10.sp, compact = true) { if (!st.syncBusy) st.scope.launch { st.syncNow(true) } }
-                                TvButton(if (trial) "Sair do teste" else "Sair da conta", Color(0xFF7A2E3A), 10.sp, compact = true) { st.showLists = false; st.accountLogout() }
+                                TvButton(if (st.syncBusy) "⏳ Sincronizando…" else "↻ Sincronizar agora", Pink, 10.sp, compact = true) { if (!st.syncBusy) st.scope.launch { st.syncNow(true) } }
+                                TvButton("Sair da conta", Color(0xFF7A2E3A), 10.sp, compact = true) { st.showLists = false; st.accountLogout() }
                             }
                         }
                     }

@@ -245,3 +245,9 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
   - O nome `demo` não pode ser criado como conta no painel, senão o teste local tomaria a frente.
 - **Botão focado legível** (`UI.TvButton`): focado ou sob o mouse, fundo branco e texto escuro. O comentário do código já dizia isso, mas o texto era sempre branco — em TV com cor estourada (stick saturado) o roxo virava branco e o botão sumia.
 - `versionName 1.10.4`.
+
+## 1.10.5
+- **Teste de 1 dia removido.** O acesso volta a ser só por conta criada por você no painel, com validade. Quem quiser testar pede pelo WhatsApp (o QR e o número continuam na tela de entrada e em ☰ Listas). Saíram `TRIAL_USER`/`TRIAL_PASS`, `startTrial`, `trialCheck` e os campos `trialExp`/`trialUsed` do `Store`.
+  - Quem tiver iniciado o teste na 1.10.4 volta à tela de entrada ao atualizar. As chaves `trial_exp`/`trial_used` ficam no SharedPreferences sem uso e não atrapalham.
+- Mantidas da 1.10.4: o botão focado com fundo branco e texto escuro (`UI.TvButton`).
+- `versionName 1.10.5`.

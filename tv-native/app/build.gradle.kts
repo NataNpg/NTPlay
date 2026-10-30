@@ -12,7 +12,7 @@ android {
         targetSdk = 34
         // versionCode sobe sozinho a cada compilação no GitHub (NT_VERSION_CODE = 1000 + nº da execução); local usa 14
         versionCode = (System.getenv("NT_VERSION_CODE") ?: "14").toInt()
-        versionName = "1.10.4"
+        versionName = "1.10.5"
     }
     signingConfigs {
         create("ntplay") {
