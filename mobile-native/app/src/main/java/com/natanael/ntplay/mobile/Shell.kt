@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,14 +69,10 @@ private fun labelFor(tab: String): String = when (tab) {
 fun App(st: AppState) {
     var menu by remember { mutableStateOf(false) }
 
-    st.play?.let { req ->
-        PlayerScreen(st, req)
-        return
-    }
-    st.detail?.let {
-        DetailScreen(st)
-        return
-    }
+    // Detalhe e player entram POR CIMA, nunca no lugar: com retorno antecipado, o corpo da aba
+    // saía da composição e levava embora a rolagem e a categoria escolhida, e voltar dos
+    // detalhes caía no topo da grade.
+    val holder = rememberSaveableStateHolder()
 
     Scaffold(
         containerColor = Bg,
@@ -107,16 +104,29 @@ fun App(st: AppState) {
             when {
                 st.busy && st.lib == null -> Loading(st.status)
                 empty != null -> EmptyState(empty, "☰ Abrir Listas") { menu = true }
-                st.tab == "INÍCIO" -> HomeScreen(st)
-                st.tab == "FILMES" -> MoviesScreen(st)
-                st.tab == "SÉRIES" -> SeriesScreen(st)
-                st.tab == "TV" -> LiveScreen(st)
-                else -> SearchScreen(st)
+                else -> holder.SaveableStateProvider(st.tab) {
+                    when (st.tab) {
+                        "INÍCIO" -> HomeScreen(st)
+                        "FILMES" -> MoviesScreen(st)
+                        "SÉRIES" -> SeriesScreen(st)
+                        "TV" -> LiveScreen(st)
+                        else -> SearchScreen(st)
+                    }
+                }
             }
         }
     }
 
+    // por cima de tudo, na ordem em que o usuário entrou
+    st.detail?.let {
+        Box(Modifier.fillMaxSize().background(Bg)) { DetailScreen(st) }
+    }
+    st.play?.let { req ->
+        Box(Modifier.fillMaxSize().background(Color.Black)) { PlayerScreen(st, req) }
+    }
+
     if (menu) MenuSheet(st) { menu = false }
+    if (st.groupDialog) GroupDialog(st) { st.groupDialog = false }
 }
 
 @Composable

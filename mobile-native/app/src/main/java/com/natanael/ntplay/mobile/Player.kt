@@ -8,13 +8,14 @@ import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,6 +44,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -160,12 +167,21 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     fun save() = st.saveProg(req, player.currentPosition, player.duration.coerceAtLeast(0))
     fun leave() { save(); st.closePlayer() }
 
-    // paisagem e tela cheia enquanto o player está aberto; volta ao retrato ao sair
+    // paisagem, tela cheia de verdade (sem barras do sistema) e tela acesa enquanto toca.
+    // As barras importam: em paisagem, com barra de navegação por botões, elas cobrem os
+    // controles de baixo (CC, Áudio) e o ‹ Voltar do topo.
     DisposableEffect(Unit) {
         val old = activity?.requestedOrientation
         activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val insets = activity?.window?.let { w ->
+            WindowCompat.getInsetsController(w, w.decorView).apply {
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                hide(WindowInsetsCompat.Type.systemBars())
+            }
+        }
         onDispose {
+            insets?.show(WindowInsetsCompat.Type.systemBars())
             activity?.requestedOrientation =
                 old ?: android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -173,6 +189,28 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                 screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
             }
         }
+    }
+
+    // O app indo para trás precisa PARAR o vídeo e guardar o ponto. Sem isto, apertar Home no
+    // meio de um filme deixa o vídeo baixando em segundo plano por tempo indefinido — gastando
+    // dados móveis que ninguém pediu e, em conta de 1 tela, prendendo a conexão e impedindo a TV
+    // de tocar. Áudio em segundo plano está fora do escopo desta versão de propósito.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, player) {
+        var wasPlaying = true
+        val obs = LifecycleEventObserver { _, e ->
+            when (e) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    wasPlaying = player.isPlaying
+                    save()
+                    player.pause()
+                }
+                Lifecycle.Event.ON_RESUME -> if (wasPlaying) player.play()
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
     }
 
     LaunchedEffect(player) { load(url, if (req.resume > 0) req.resume else 0L) }
@@ -265,17 +303,21 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
         )
 
         // ---------------------------------------------------------------- gestos
+        // Tudo num nó por metade, nada de camada por cima: em Compose, um Box irmão sobreposto
+        // com pointerInput ganha o hit-test e os de baixo não recebem evento nenhum — foi assim
+        // que, numa versão anterior, os controles do canal ao vivo ficaram inalcançáveis.
+        // O eixo do arraste é decidido depois dos primeiros 16 px: horizontal troca de canal,
+        // vertical ajusta brilho (esquerda) ou volume (direita).
         Row(Modifier.fillMaxSize()) {
-            // metade esquerda: duplo toque volta 10 s, arrastar na vertical ajusta o brilho
-            Box(
-                Modifier.weight(1f).fillMaxHeight().pointerInput(req.ep.url) {
-                    detectTapGestures(
-                        onDoubleTap = { seek(-10_000); toast = "⏪ 10s" },
-                        onTap = { if (ui) ui = false else show() },
-                    )
-                }.pointerInput(req.ep.url) {
-                    detectVerticalDragGestures { _, dy ->
-                        val w = activity?.window ?: return@detectVerticalDragGestures
+            GestureHalf(
+                key = req.ep.url,
+                left = true,
+                live = live,
+                onTap = { if (ui) ui = false else show() },
+                onDoubleTap = { seek(-10_000); toast = "⏪ 10s" },
+                onVertical = { dy ->
+                    val w = activity?.window
+                    if (w != null) {
                         val a = w.attributes
                         val cur = if (a.screenBrightness < 0) 0.5f else a.screenBrightness
                         val v = (cur - dy / 600f).coerceIn(0.02f, 1f)
@@ -284,45 +326,33 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                         toast = "☀ ${(v * 100).toInt()}%"
                     }
                 },
-            )
-            // metade direita: duplo toque avança 10 s, arrastar na vertical ajusta o volume
-            Box(
-                Modifier.weight(1f).fillMaxHeight().pointerInput(req.ep.url) {
-                    detectTapGestures(
-                        onDoubleTap = { seek(10_000); toast = "10s ⏩" },
-                        onTap = { if (ui) ui = false else show() },
-                    )
-                }.pointerInput(req.ep.url) {
-                    detectVerticalDragGestures { _, dy ->
-                        val am = ctx.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
-                        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                        val cur = am.getStreamVolume(AudioManager.STREAM_MUSIC)
-                        val step = if (dy < -8) 1 else if (dy > 8) -1 else 0
-                        if (step != 0) {
-                            val v = (cur + step).coerceIn(0, max)
-                            am.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
-                            toast = "🔊 ${v * 100 / max}%"
-                        }
-                    }
+                onZap = { forward ->
+                    val n = if (forward) st.next(req) else st.prev(req)
+                    if (n != null) { save(); st.play = n }
+                    else toast = "Não há outro canal nesta categoria"
                 },
             )
-        }
-
-        // canal ao vivo: arrastar na horizontal troca de canal (equivale ao ▲▼ do controle)
-        if (live) {
-            Box(
-                Modifier.fillMaxSize().pointerInput(req.ep.url) {
-                    var acc = 0f
-                    detectHorizontalDragGestures(
-                        onDragEnd = { acc = 0f },
-                    ) { _, dx ->
-                        acc += dx
-                        if (abs(acc) > 220f) {
-                            val n = if (acc < 0) st.next(req) else st.prev(req)
-                            if (n != null) st.play = n else toast = "Não há outro canal nesta categoria"
-                            acc = 0f
-                        }
+            GestureHalf(
+                key = req.ep.url,
+                left = false,
+                live = live,
+                onTap = { if (ui) ui = false else show() },
+                onDoubleTap = { seek(10_000); toast = "10s ⏩" },
+                onVertical = { dy ->
+                    val am = ctx.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+                    val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    val cur = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    val step = if (dy < -10) 1 else if (dy > 10) -1 else 0
+                    if (step != 0) {
+                        val v = (cur + step).coerceIn(0, max)
+                        am.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
+                        toast = "🔊 ${v * 100 / max}%"
                     }
+                },
+                onZap = { forward ->
+                    val n = if (forward) st.next(req) else st.prev(req)
+                    if (n != null) { save(); st.play = n }
+                    else toast = "Não há outro canal nesta categoria"
                 },
             )
         }
@@ -344,6 +374,16 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(err, color = Danger, fontSize = 13.sp, lineHeight = 18.sp)
+                // Em conta de 1 tela o erro cru mente por omissão: o usuário leria "o servidor
+                // pode estar fora do ar" e desconfiaria do provedor, quando a causa é a TV
+                // ocupando a única conexão.
+                val hint = remember(err) {
+                    st.store.lists().firstNotNullOfOrNull { playbackErrorHint(st.store.account(it.id)) }
+                }
+                if (hint != null) {
+                    Spacer(Modifier.height(10.dp))
+                    Text("⚠ $hint", color = Star, fontSize = 12.sp, lineHeight = 17.sp)
+                }
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     CtlBtn("Abrir em outro player") {
@@ -417,6 +457,54 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
             onLeave = ::leave,
         )
     }
+}
+
+/**
+ * Metade da tela do player, com toque, duplo toque e arraste no MESMO nó de ponteiro.
+ *
+ * O eixo é decidido uma vez por gesto, depois de 16 px de movimento, e não muda até o dedo
+ * levantar — sem isso, um arraste levemente torto alternaria entre trocar de canal e mexer no
+ * volume no meio do caminho.
+ */
+@Composable
+private fun RowScope.GestureHalf(
+    key: String,
+    left: Boolean,
+    live: Boolean,
+    onTap: () -> Unit,
+    onDoubleTap: () -> Unit,
+    onVertical: (Float) -> Unit,
+    onZap: (Boolean) -> Unit,
+) {
+    Box(
+        Modifier.weight(1f).fillMaxHeight()
+            .pointerInput(key) {
+                detectTapGestures(onDoubleTap = { onDoubleTap() }, onTap = { onTap() })
+            }
+            .pointerInput(key, live) {
+                var axis = 0          // 0 = ainda não decidido, 1 = horizontal, 2 = vertical
+                var ax = 0f
+                var ay = 0f
+                var zap = 0f
+                detectDragGestures(
+                    onDragStart = { axis = 0; ax = 0f; ay = 0f; zap = 0f },
+                    onDragEnd = { axis = 0; zap = 0f },
+                    onDragCancel = { axis = 0; zap = 0f },
+                ) { _, d ->
+                    if (axis == 0) {
+                        ax += d.x; ay += d.y
+                        if (abs(ax) > 16f || abs(ay) > 16f) axis = if (abs(ax) > abs(ay)) 1 else 2
+                    }
+                    when (axis) {
+                        1 -> if (live) {
+                            zap += d.x
+                            if (abs(zap) > 220f) { onZap(zap < 0); zap = 0f }
+                        }
+                        2 -> onVertical(d.y)
+                    }
+                }
+            },
+    )
 }
 
 @Composable

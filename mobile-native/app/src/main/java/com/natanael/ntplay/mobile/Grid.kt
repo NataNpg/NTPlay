@@ -52,7 +52,10 @@ private fun CatalogScreen(
     var years by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
 
-    LaunchedEffect(all) { cat = ""; year = "" }
+    // zera os filtros quando a BIBLIOTECA troca (lista atualizada), não a cada entrada na tela:
+    // com `all` como chave isso rodava na composição inicial e apagava o que o rememberSaveable
+    // tinha guardado. Comparar uma List<Item> grande por == também custa caro.
+    LaunchedEffect(st.lib) { cat = ""; year = "" }
 
     val byCat = if (cat.isEmpty()) all else groups.firstOrNull { it.first == cat }?.second ?: all
     val shown = filterByYear(byCat, year)
@@ -81,7 +84,13 @@ private fun CatalogScreen(
             state = gridState,
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
         ) {
-            items(shown, key = { it.key }) { it2 -> PosterCard(it2) { st.openDetail(it2) } }
+            items(shown, key = { it.key }) { it2 ->
+                PosterCard(it2) {
+                    // a fila alimenta "próximo" no player e o autoplay ao terminar
+                    st.queue = shown
+                    st.openDetail(it2)
+                }
+            }
         }
     }
 }

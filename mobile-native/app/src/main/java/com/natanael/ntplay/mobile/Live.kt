@@ -19,6 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.natanael.ntplay.core.AppState
 import com.natanael.ntplay.core.Epg
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /**
  * Aba TV: lista vertical, não grade. No celular o nome do canal e o que está passando valem mais
@@ -35,7 +38,14 @@ fun LiveScreen(st: AppState) {
 
     val groups = lib.liveGroups
     val base = if (cat.isEmpty()) lib.live else groups.firstOrNull { it.first == cat }?.second ?: lib.live
-    val shown = filterChannels(base, query)
+    // Peneirar fora da thread principal: a primeira tecla força o Item.norm (regex por item) de
+    // toda a lista, e em lista de milhares de canais isso trava a tela a cada letra digitada.
+    var shown by remember(base) { mutableStateOf(base) }
+    LaunchedEffect(base, query) {
+        if (query.isBlank()) { shown = base; return@LaunchedEffect }
+        delay(250)
+        shown = withContext(Dispatchers.Default) { filterChannels(base, query) }
+    }
 
     Column(Modifier.fillMaxSize()) {
         SearchField(query, "Buscar canal") { query = it }
@@ -57,7 +67,8 @@ fun LiveScreen(st: AppState) {
             items(shown, key = { it.key }) { ch ->
                 // st.epgVer muda quando a programação termina de carregar, e isso recompõe a linha
                 val now = remember(ch.key, st.epgVer, Epg.ts) { channelNow(ch) }
-                ChannelRow(ch, now) { st.playItem(ch) }
+                // a fila é o que faz trocar de canal funcionar dentro do player (st.next/st.prev)
+                ChannelRow(ch, now) { st.playItem(ch, null, shown) }
                 Divider(color = Bg2, thickness = 1.dp, modifier = Modifier.fillMaxWidth())
             }
         }

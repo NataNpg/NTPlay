@@ -52,6 +52,20 @@ PATCHES = {
 }
 
 
+# Padrões que não podem sobrar na saída depois dos remendos. Os remendos provam que os alvos
+# CONHECIDOS bateram; esta varredura é o que pega uma identificação de TV NOVA, que uma versão
+# futura da TV introduza em outro lugar e que passaria pelos três remendos sem ser notada.
+# São deliberadamente específicos: "TV AO VIVO", "Smart TV" e tvgId são texto comum, não
+# identificação de plataforma, e não podem derrubar a compilação.
+LEAK_PATTERNS = [
+    "com.natanael.ntplay.tv",
+    'put("p", "tv")',
+    '"tv-latest"',
+    "/tv-latest/",
+    "tv-version.json",
+]
+
+
 class PatchError(Exception):
     """A cópia não pôde ser feita com segurança. Sempre para a compilação."""
 
@@ -74,6 +88,14 @@ def _transform(name, text):
                 f"mobile-native/tools/gen_core.py antes de seguir."
             )
         text = text.replace(needle, repl, 1)
+
+    for leak in LEAK_PATTERNS:
+        if leak in text:
+            raise PatchError(
+                f"{name}: sobrou {leak!r} depois dos remendos. O app de TV passou a se "
+                f"identificar num lugar novo: sem tratar isso, o APK de celular sairia se "
+                f"identificando como TV. Acrescente o remendo em mobile-native/tools/gen_core.py."
+            )
     return text
 
 

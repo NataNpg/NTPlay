@@ -9,6 +9,21 @@ package com.natanael.ntplay.mobile
  */
 class AcctInfo(val exp: Long, val status: String, val maxCon: Int, val active: Int, val ts: Long)
 
+/**
+ * Monta a URL de uma lista Xtream a partir de servidor, usuário e senha.
+ *
+ * Tem de sair no formato que `Xtream.creds` reconhece — caminho terminado em `get.php`, com
+ * `username` e `password` na query —, senão o motor trata a lista como M3U comum e perde a API.
+ */
+fun xtreamUrl(host: String, user: String, pass: String): String {
+    val h = host.trim().trimEnd('/').let { if (it.contains("://")) it else "http://$it" }
+    return h + "/get.php?username=" + enc(user.trim()) +
+        "&password=" + enc(pass.trim()) + "&type=m3u_plus&output=ts"
+}
+
+/** Escapa para query. Senha com & ou = é comum e quebraria a URL se fosse crua. */
+private fun enc(s: String): String = java.net.URLEncoder.encode(s, "UTF-8")
+
 /** Lê o registro, ou null se não houver nada guardado ou o formato não for o esperado. */
 fun parseAccount(raw: String): AcctInfo? {
     val p = raw.split('|')
@@ -35,4 +50,17 @@ fun oneScreenWarning(raw: String): String? {
     val a = parseAccount(raw) ?: return null
     if (a.maxCon != 1) return null
     return "Esta lista permite 1 tela por vez: TV e celular não podem assistir ao mesmo tempo."
+}
+
+/**
+ * A dica a acrescentar a um erro de reprodução, ou null quando não há dica honesta a dar.
+ *
+ * Existe porque o erro cru mente por omissão: numa conta de 1 tela com a TV ligada, o que o
+ * usuário vê é "o servidor pode estar fora do ar", e ele vai desconfiar do provedor em vez de
+ * desligar a TV. A causa real é o `max_connections` da lista.
+ */
+fun playbackErrorHint(acctRaw: String): String? {
+    val a = parseAccount(acctRaw) ?: return null
+    if (a.maxCon != 1) return null
+    return "Esta lista é de 1 tela: se a TV estiver assistindo, desligue-a e tente de novo."
 }

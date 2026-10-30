@@ -48,7 +48,7 @@ fun HomeScreen(st: AppState) {
                 ) {
                     items(cont, key = { it.first.key + it.second.url }) { (item, _) ->
                         Box {
-                            PosterCard(item) { st.openDetail(item) }
+                            PosterCard(item) { st.queue = cont.map { c -> c.first }; st.openDetail(item) }
                             Text(
                                 "✕",
                                 Modifier.align(Alignment.TopEnd).padding(8.dp)
@@ -67,31 +67,31 @@ fun HomeScreen(st: AppState) {
         for (row in st.trend) {
             if (row.items.isEmpty()) continue
             item(key = "t-" + row.title) { ShelfTitle(row.title, row.items.size) }
-            item(key = "tr-" + row.title) { Shelf(row.items) { st.openDetail(it) } }
+            item(key = "tr-" + row.title) { Shelf(row.items) { st.queue = row.items; st.openDetail(it) } }
         }
 
         if (favLive.isNotEmpty()) {
             item { ShelfTitle("★ Canais favoritos", favLive.size) }
-            item { Shelf(favLive) { st.playItem(it) } }
+            item { Shelf(favLive) { st.playItem(it, null, favLive) } }
         }
         if (favMovies.isNotEmpty()) {
             item { ShelfTitle("★ Filmes favoritos", favMovies.size) }
-            item { Shelf(favMovies) { st.openDetail(it) } }
+            item { Shelf(favMovies) { st.queue = favMovies; st.openDetail(it) } }
         }
         if (favSeries.isNotEmpty()) {
             item { ShelfTitle("★ Séries favoritas", favSeries.size) }
-            item { Shelf(favSeries) { st.openDetail(it) } }
+            item { Shelf(favSeries) { st.queue = favSeries; st.openDetail(it) } }
         }
 
         // Sem internet o Trending vem vazio; aí pelo menos mostra o que a lista tem.
         if (cont.isEmpty() && st.trend.isEmpty() && favs.isEmpty()) {
             if (lib.movies.isNotEmpty()) {
                 item { ShelfTitle("Filmes", lib.movies.size) }
-                item { Shelf(lib.movies.take(30)) { st.openDetail(it) } }
+                item { Shelf(lib.movies.take(30)) { st.queue = lib.movies; st.openDetail(it) } }
             }
             if (lib.series.isNotEmpty()) {
                 item { ShelfTitle("Séries", lib.series.size) }
-                item { Shelf(lib.series.take(30)) { st.openDetail(it) } }
+                item { Shelf(lib.series.take(30)) { st.queue = lib.series; st.openDetail(it) } }
             }
         }
     }

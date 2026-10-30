@@ -60,13 +60,17 @@ fun SearchScreen(st: AppState) {
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) {
                         ShelfTitle("Filmes", movies.size)
                     }
-                    items(movies, key = { "m" + it.key }) { it2 -> PosterCard(it2) { st.openDetail(it2) } }
+                    items(movies, key = { "m" + it.key }) { it2 ->
+                        PosterCard(it2) { st.queue = movies; st.openDetail(it2) }
+                    }
                 }
                 if (series.isNotEmpty()) {
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) {
                         ShelfTitle("Séries", series.size)
                     }
-                    items(series, key = { "s" + it.key }) { it2 -> PosterCard(it2) { st.openDetail(it2) } }
+                    items(series, key = { "s" + it.key }) { it2 ->
+                        PosterCard(it2) { st.queue = series; st.openDetail(it2) }
+                    }
                 }
             }
         }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
@@ -62,6 +63,71 @@ fun MenuSheet(st: AppState, onClose: () -> Unit) {
             ThemesBlock(st, onClose)
         }
     }
+}
+
+/**
+ * Diálogo de grupos, aberto pelo botão ＋ da tela de um título.
+ *
+ * `AppState.openGroups` só liga `groupDialog`; sem alguém lendo esse estado, o botão ＋ não fazia
+ * nada — e o menu ainda ensinava o usuário a usá-lo.
+ */
+@Composable
+fun GroupDialog(st: AppState, onClose: () -> Unit) {
+    val item = st.groupDialogItem
+    var novo by remember { mutableStateOf("") }
+    val groups = remember(st.groupsVer) { st.groupNames() }
+
+    AlertDialog(
+        onDismissRequest = onClose,
+        containerColor = PanelC,
+        title = { Text("Adicionar a um grupo", color = Color.White, fontSize = 16.sp) },
+        text = {
+            Column {
+                if (item != null) {
+                    Text(
+                        com.natanael.ntplay.core.Util.cleanT(item.title),
+                        color = Cyan, fontSize = 13.sp,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                if (groups.isEmpty()) {
+                    Text("Nenhum grupo ainda. Crie o primeiro abaixo.", color = Muted, fontSize = 12.sp)
+                }
+                for (g in groups) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(g, Modifier.weight(1f), color = Color.White, fontSize = 14.sp)
+                        if (item != null) {
+                            val inside = remember(st.groupsVer, g) { st.inGroup(g, item.key) }
+                            Text(
+                                if (inside) "✓ no grupo" else "+ adicionar",
+                                Modifier.clickable { st.toggleInGroup(g, item.key) },
+                                color = if (inside) Cyan else Purple, fontSize = 12.sp,
+                            )
+                        } else {
+                            Text("${st.groupCount(g)}", color = Muted, fontSize = 12.sp)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    novo, { novo = it },
+                    Modifier.fillMaxWidth(),
+                    label = { Text("Novo grupo (ex.: Para ver depois)") },
+                    singleLine = true,
+                )
+                Spacer(Modifier.height(8.dp))
+                SmallBtn("Criar grupo", novo.isNotBlank()) {
+                    st.createGroup(novo)
+                    item?.let { st.toggleInGroup(novo.trim().take(40), it.key) }
+                    novo = ""
+                }
+            }
+        },
+        confirmButton = { SmallBtn("Fechar", true, Btn, onClose) },
+    )
 }
 
 @Composable private fun Gap() {
@@ -146,17 +212,55 @@ private fun ListsBlock(st: AppState) {
         Divider(color = Bg2)
     }
 
-    Spacer(Modifier.height(12.dp))
-    OutlinedTextField(
-        url, { url = it },
-        Modifier.fillMaxWidth(),
-        label = { Text("Link M3U ou Xtream") },
-        singleLine = true,
-    )
+    Spacer(Modifier.height(14.dp))
+    var byXtream by remember { mutableStateOf(false) }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Chip("Por link", !byXtream) { byXtream = false }
+        Chip("Por Xtream", byXtream) { byXtream = true }
+    }
     Spacer(Modifier.height(8.dp))
-    SmallBtn("Adicionar lista", url.isNotBlank() && !st.busy) {
-        st.addUrl(url.trim(), null)
-        url = ""
+
+    if (!byXtream) {
+        OutlinedTextField(
+            url, { url = it },
+            Modifier.fillMaxWidth(),
+            label = { Text("Link M3U") },
+            singleLine = true,
+        )
+        Spacer(Modifier.height(8.dp))
+        SmallBtn("Adicionar lista", url.isNotBlank() && !st.busy) {
+            st.addUrl(url.trim(), null)
+            url = ""
+        }
+    } else {
+        // O provedor entrega servidor, usuário e senha separados. Sem este formulário, quem tem
+        // só isso não conseguia cadastrar: Xtream.creds só reconhece URL terminada em get.php
+        // ou player_api.php, então o host cru era recusado.
+        var host by remember { mutableStateOf("") }
+        var user by remember { mutableStateOf("") }
+        var pass by remember { mutableStateOf("") }
+        OutlinedTextField(
+            host, { host = it }, Modifier.fillMaxWidth(),
+            label = { Text("Servidor (ex.: http://servidor.com:8080)") }, singleLine = true,
+        )
+        Spacer(Modifier.height(6.dp))
+        OutlinedTextField(
+            user, { user = it.trim() }, Modifier.fillMaxWidth(),
+            label = { Text("Usuário") }, singleLine = true,
+        )
+        Spacer(Modifier.height(6.dp))
+        OutlinedTextField(
+            pass, { pass = it.trim() }, Modifier.fillMaxWidth(),
+            label = { Text("Senha") }, singleLine = true,
+        )
+        Spacer(Modifier.height(8.dp))
+        SmallBtn(
+            "Adicionar lista",
+            host.isNotBlank() && user.isNotBlank() && pass.isNotBlank() && !st.busy,
+        ) {
+            st.addUrl(xtreamUrl(host, user, pass), null)
+            host = ""; user = ""; pass = ""
+        }
     }
 }
 
@@ -192,7 +296,7 @@ private fun ThemesBlock(st: AppState, onClose: () -> Unit) {
     val groups = remember(st.groupsVer) { st.groupNames() }
     if (groups.isEmpty()) {
         Text(
-            "Você ainda não criou grupos. Na tela de um filme ou série, toque em ＋.",
+            "Você ainda não criou grupos. Na tela de um filme ou série, toque em ＋ Grupo.",
             color = Muted, fontSize = 12.sp,
         )
     } else {

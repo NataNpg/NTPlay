@@ -95,7 +95,9 @@ fun PosterCard(item: Item, onClick: () -> Unit) {
     val year = Util.yearOf(item.title)
     val q = Util.quality(item.title)
     Column(
-        Modifier.width(CARD_W).clickable(onClick = onClick).padding(4.dp),
+        // fillMaxWidth e não largura fixa: em tela de 320 dp, 3 cartões de 108 dp
+        // transbordavam a grade; em tela larga sobravam vãos.
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(4.dp),
     ) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(2f / 3f)

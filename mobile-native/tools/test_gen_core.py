@@ -150,6 +150,62 @@ class TestOutputHygiene(Base):
         self.assertNotIn("ntplay.tv", self.read_out("Store.kt"))
 
 
+class TestLeakScan(Base):
+    """Os remendos provam que os alvos conhecidos bateram. Esta varredura prova o que sobrou.
+
+    Sem ela, uma versão futura da TV que introduza uma identificação nova — outro put("p","tv"),
+    um segundo literal de release — passaria pelos três remendos e geraria, em silêncio, um APK de
+    celular que se identifica como TV.
+    """
+
+    def test_identificacao_de_tv_nova_no_motor_falha(self):
+        self.write("Sync.kt",
+                   'package com.natanael.ntplay.tv\n'
+                   'fun f() { put("p", "tv") }\n')  # a TV passou a se identificar aqui também
+        with self.assertRaises(gen_core.PatchError) as e:
+            gen_core.generate(self.src, self.out, ["Sync.kt"])
+        self.assertIn("Sync.kt", str(e.exception))
+
+    def test_release_de_tv_nova_no_motor_falha(self):
+        self.write("Store.kt",
+                   'package com.natanael.ntplay.tv\n'
+                   'const val X = "https://github.com/NataNpg/NTPlay/releases/download/tv-latest/"\n')
+        with self.assertRaises(gen_core.PatchError) as e:
+            gen_core.generate(self.src, self.out, ["Store.kt"])
+        self.assertIn("tv-latest", str(e.exception))
+
+    def test_referencia_ao_pacote_da_tv_no_corpo_falha(self):
+        # import ou nome totalmente qualificado apontando de volta para o app de TV
+        self.write("Store.kt",
+                   'package com.natanael.ntplay.tv\n'
+                   'val x = com.natanael.ntplay.tv.Util.UA\n')
+        with self.assertRaises(gen_core.PatchError):
+            gen_core.generate(self.src, self.out, ["Store.kt"])
+
+    def test_a_palavra_tv_em_texto_comum_nao_falha(self):
+        # "TV AO VIVO", "Smart TV", tvgId: nada disso é identificação de plataforma
+        self.write("Store.kt",
+                   'package com.natanael.ntplay.tv\n'
+                   'val a = "TV AO VIVO"\nval b = "Smart TV"\nvar tvgId = ""\n')
+        gen_core.generate(self.src, self.out, ["Store.kt"])
+        out = self.read_out("Store.kt")
+        self.assertIn("TV AO VIVO", out)
+        self.assertIn("tvgId", out)
+
+    def test_os_tres_remendados_passam_pela_varredura(self):
+        """O caso que não pode ter falso positivo: os arquivos remendados têm de sair limpos."""
+        self.write("Presence.kt",
+                   'package com.natanael.ntplay.tv\n'
+                   'fun f() { put("p", "tv"); put("v", "tv-" + ver) }\n')
+        self.write("Updater.kt",
+                   'package com.natanael.ntplay.tv\n'
+                   'const val BASE = "https://github.com/natanpg/NTPlay/releases/download/tv-latest/"\n'
+                   'val u = BASE + "tv-version.json?t=" + now\n')
+        gen_core.generate(self.src, self.out, ["Presence.kt", "Updater.kt"])
+        self.assertIn('put("p", "mob")', self.read_out("Presence.kt"))
+        self.assertIn("mob-latest", self.read_out("Updater.kt"))
+
+
 class TestRealFileList(Base):
     def test_a_lista_tem_os_13_arquivos_do_motor(self):
         self.assertEqual(13, len(gen_core.FILES))
