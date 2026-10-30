@@ -116,7 +116,7 @@ object Net {
 }
 
 object Meta {
-    private val semBg = Semaphore(4)
+    private val semBg = Semaphore(8)
 
     /** semelhança entre títulos (palavras em comum) */
     fun sim(a: String, b: String): Double {
@@ -195,15 +195,22 @@ object Meta {
             }
             if (!priority || c.ov.isNotEmpty() || c.none) return c
         }
-        return if (priority) fetch(store, it) else semBg.withPermit { kotlinx.coroutines.withTimeoutOrNull(30_000) { fetch(store, it) } }
+        return if (priority) fetch(store, it) else semBg.withPermit { kotlinx.coroutines.withTimeoutOrNull(30_000) { fetch(store, it, false) } }
     }
 
-    private suspend fun fetch(store: Store, it: Item): Info = withContext(Dispatchers.IO) {
+    /** capa oficial (vertical) de fora do servidor: usada quando a imagem da lista é cena/foto horizontal */
+    suspend fun poster(store: Store, it: Item): String {
+        if (it.kind == 'l' || it.adult) return ""
+        store.info("4|" + it.key)?.let { c -> if (!c.none || System.currentTimeMillis() - c.ts < 3 * 3600_000L) return c.img }
+        return semBg.withPermit { kotlinx.coroutines.withTimeoutOrNull(30_000) { fetch(store, it, false, true) } }?.img ?: ""
+    }
+
+    private suspend fun fetch(store: Store, it: Item, full: Boolean = true, noX: Boolean = false): Info = withContext(Dispatchers.IO) {
         val t = Util.cleanT(it.title).replace(Regex("\\b(19|20)\\d{2}\\b"), " ").replace(Regex("\\s+"), " ").trim()
         val y = Util.yearOf(it.title)
         var img = ""; var ov = ""; var r = 0.0; var yr = y
         fun take(i: String, o: String) { if (img.isEmpty() && i.isNotEmpty()) img = i; if (ov.isEmpty() && o.length > 30) ov = o }
-        try { kotlinx.coroutines.withTimeoutOrNull(12_000) { kotlinx.coroutines.runInterruptible { Xtream.info(it) } }?.let { x -> take(x.img, x.ov); r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
+        if (!noX) try { kotlinx.coroutines.withTimeoutOrNull(12_000) { kotlinx.coroutines.runInterruptible { Xtream.info(it) } }?.let { x -> take(x.img, x.ov); r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
         if (ov.isEmpty() || img.isEmpty()) try {
             if (it.kind == 's') {
                 val a = Net.getQuick("https://api.tvmaze.com/search/shows?q=" + Net.enc(t))?.let { s -> JSONArray(s) }
@@ -238,10 +245,10 @@ object Meta {
         if (ov.isEmpty() || img.isEmpty()) try { wiki("pt", it, t, y)?.let { w -> take(w.first, w.second) } } catch (e: Exception) { }
         if (ov.isEmpty() || img.isEmpty()) try { wiki("en", it, t, y)?.let { w -> take(w.first, w.second) } } catch (e: Exception) { }
         if (ov.length > 900) ov = ov.take(900)
-        if (ov.isNotEmpty()) ov = toPT(ov)
+        if (ov.isNotEmpty() && full) ov = toPT(ov) // tradução só quando abre o título (capas ficam mais rápidas)
         val res = if (img.isEmpty() && ov.isEmpty()) Info("", "", r, yr, true, System.currentTimeMillis())
         else Info(img, ov, r, yr, false, System.currentTimeMillis())
-        store.putInfo(ck(it), res)
+        store.putInfo(if (noX) "4|" + it.key else ck(it), res)
         res
     }
 }

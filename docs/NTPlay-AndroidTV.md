@@ -256,3 +256,7 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **Busca só de filmes, séries e animes** (`AppState.search`): varre `movies + series` em vez de `every`, então canais ao vivo não aparecem mais no resultado (os animes estão dentro de filmes/séries, então continuam vindo). Cartões da busca agora têm sempre 112 dp e abrem a tela de detalhes.
 - **Atualização ao reabrir o app** (`MainActivity.onResume`): a checagem só acontecia 20 s depois de criar o `AppState` e de 6 em 6 h. Na TV o app fica na memória, então sair e voltar NÃO recriava o `AppState` e a versão nova só aparecia até 6 h depois. Agora confere toda vez que o app volta para a frente, no máximo uma vez a cada 10 min.
 - `versionName 1.10.6`.
+
+## 1.10.7
+- Capas: se a imagem que vem da lista é uma cena/foto horizontal (largura/altura > 0,85), o card busca a capa oficial vertical (TVMaze/iTunes/Wikipédia, `Meta.poster`, cache `4|`) e troca.
+- Mais rápido: 8 buscas de capa em paralelo (eram 4), espera menor, e a tradução da sinopse só acontece ao abrir o título.

@@ -327,10 +327,20 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     @Suppress("UNUSED_VARIABLE") val lv = st.logoVer
     var img by remember(item.key, item.logo) { mutableStateOf(item.logo.ifEmpty { Meta.cached(st.store, item)?.img ?: "" }) }
     var tried by remember(item.key) { mutableStateOf(false) }
+    var posterTried by remember(item.key) { mutableStateOf(false) }
+    var scene by remember(item.key, item.logo) { mutableStateOf(false) }
+    // imagem da lista que é cena/foto horizontal (não é capa): troca pela capa oficial
+    LaunchedEffect(scene) {
+        if (scene && !posterTried && !item.adult) {
+            posterTried = true
+            val p = Meta.poster(st.store, item)
+            if (p.isNotEmpty() && p != img) img = p
+        }
+    }
     LaunchedEffect(item.key, img) {
         if (img.isEmpty() && !tried && !item.adult) {
             tried = true
-            delay(250) // só busca se o cartão continuar na tela
+            delay(120) // só busca se o cartão continuar na tela
             val i = Meta.get(st.store, item)
             if (i != null && i.img.isNotEmpty()) img = i.img
         }
@@ -341,6 +351,7 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
             if (img.isNotEmpty()) {
                 AsyncImage(
                     model = img, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                    onSuccess = { s -> val z = s.painter.intrinsicSize; if (z.width > 0f && z.height > 0f && z.width / z.height > 0.85f) scene = true },
                     onError = { val c = Meta.cached(st.store, item)?.img ?: ""; img = if (c.isNotEmpty() && c != img) c else ""}
                 )
             } else {
