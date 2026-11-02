@@ -271,3 +271,8 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 ## 1.10.9
 - Player no visual novo: barra grossa branca/azul-clara com "tempo / total" à direita; botões azuis compactos (⏯, 10s, Próximo, Tela, Áudio, Favorito, Sair). "Tela" (Ajustar/Zoom/Esticar) agora também em filmes e séries; Legenda só aparece se houver.
 - Filmes/séries "só carregando": busca de capas/sinopses deixou de saturar o servidor da lista (máx. 2 consultas ao mesmo tempo ao servidor, 4 no total, capas oficiais em fila própria de 3). Causa provável: na 1.10.7 dobrei para 8 buscas simultâneas. **Não confirmado na TV.**
+
+## 1.10.10
+- Player e detalhes no visual do app da webOS: cabeçalho preto com título e "— T1 E2 · 800p", barra roxa em trilho cinza com "tempo / total", botões azul-marinho (no ao vivo: ▼ Canal, ▲ Canal, Canais, Tela, Áudio…), "Pular abertura" acima da barra à direita; EPG ao vivo com "Agora"/"A seguir" em ciano. Detalhes: capa grande à esquerda, título, meta em ciano, sinopse, botões, temporadas e episódios à direita.
+- Canais de TV que vinham num grupo "FILMES & SÉRIES" (links sem extensão, .ts ou .m3u8) deixam de aparecer como série/filme.
+- Quando o vídeo "fica reconectando", o aviso agora mostra o motivo (ex.: "HTTP 403", "IO_NETWORK_CONNECTION_FAILED") para diagnosticar.

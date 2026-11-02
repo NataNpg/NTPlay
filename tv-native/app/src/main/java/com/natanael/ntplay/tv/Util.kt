@@ -74,6 +74,9 @@ object Util {
         if (epInfo(n) != null) return 's'
         if (x.contains("/series/")) return 's'
         if (x.contains("/movie/")) return 'm'
+        // canal de TV dentro de um grupo chamado "Filmes & Séries": sem extensão de vídeo, .ts ou .m3u8 é ao vivo
+        val last = x.substringAfterLast('/')
+        if (last.endsWith(".ts") || last.endsWith(".m3u8") || (last.isNotEmpty() && last.all { it.isDigit() })) return 'l'
         if (serieG.containsMatchIn(g)) return 's'
         if (movieG.containsMatchIn(g) || x.endsWith(".mp4") || x.endsWith(".mkv") || x.endsWith(".avi")) return 'm'
         return 'l'

@@ -713,45 +713,38 @@ fun DetailScreen(st: AppState, item: Item) {
     Box(Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp))) {
         if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.16f }, contentScale = ContentScale.Crop)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x66070B1A), Bg))))
-        Row(Modifier.fillMaxSize().padding(18.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-            // coluna de informações
-            Column(if (serie) Modifier.weight(0.42f) else Modifier.weight(1f)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Box(Modifier.width(if (serie) 120.dp else 170.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)).background(tint(item.title))) {
-                        if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        else Text(showTitle(item), Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xCCFFFFFF), fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text(showTitle(item), color = Color.White, fontSize = if (serie) 22.sp else 28.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(meta, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp))
-                        if (!serie) Text(ovText, color = Color(0xE6FFFFFF), fontSize = 14.sp, maxLines = 7, overflow = TextOverflow.Ellipsis, lineHeight = 20.sp)
-                    }
-                }
-                if (serie) Text(ovText, color = Color(0xE6FFFFFF), fontSize = 13.sp, maxLines = 6, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp, modifier = Modifier.padding(top = 12.dp))
-                Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TvButton(label, Pink, 13.sp) { if (needEps) { if (!st.epsLoading) st.loadEps(item) } else st.playItem(item, cont) }
-                    TvButton(if (st.favs.contains(item.key)) "★ Na lista" else "☆ Minha lista", Btn, 13.sp) { st.toggleFav(item.key) }
-                    TvButton("＋ Grupo", Btn, 13.sp) { st.openGroups(item) }
-                    TvButton("‹ Voltar", Btn, 13.sp) { st.detail = null }
-                }
-                if (needEps && st.epsErr.isNotEmpty()) Text(st.epsErr + " Toque em \"Carregar episódios\" para tentar de novo.", color = Color(0xFFFF9A9A), fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+        // capa à esquerda; à direita título, sinopse, botões, temporadas e episódios (como no app da webOS)
+        Row(Modifier.fillMaxSize().padding(18.dp), horizontalArrangement = Arrangement.spacedBy(26.dp)) {
+            Box(Modifier.width(190.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)).background(tint(item.title))) {
+                if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                else Text(showTitle(item), Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xCCFFFFFF), fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
-            // coluna de episódios (altura inteira)
-            if (serie) Column(Modifier.weight(0.58f).fillMaxHeight().background(Color(0xAA0E1430), RoundedCornerShape(16.dp)).padding(12.dp)) {
-                Text("EPISÓDIOS", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-                if (needEps) {
-                    Text(if (st.epsLoading) "Carregando episódios…" else "Episódios ainda não carregados.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
-                } else {
-                    val seasons = item.eps.map { it.s }.distinct().sorted()
-                    val ls = rememberLazyListState()
-                    LazyRow(Modifier.mouseScroll(ls, true), state = ls, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp)) {
-                        items(seasons) { s -> TvButton("Temporada $s", Btn, 11.sp, selected = st.season == s) { st.season = s } }
-                    }
-                    val eps = item.eps.filter { it.s == st.season }
-                    val ls2 = rememberLazyListState()
-                    LazyColumn(Modifier.weight(1f).mouseScroll(ls2), state = ls2, contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(eps, key = { it.url }) { e -> EpisodeRow(st, item, e) }
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Text(showTitle(item), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(meta, color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 5.dp))
+                Text(ovText, color = Color(0xCCB8C4F0), fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TvButton(label, Pink, 13.sp, shape = RoundedCornerShape(10.dp)) { if (needEps) { if (!st.epsLoading) st.loadEps(item) } else st.playItem(item, cont) }
+                    TvButton(if (st.favs.contains(item.key)) "★ Favorito" else "☆ Favorito", Btn, 13.sp, shape = RoundedCornerShape(10.dp)) { st.toggleFav(item.key) }
+                    TvButton("＋ Grupo", Btn, 13.sp, shape = RoundedCornerShape(10.dp)) { st.openGroups(item) }
+                    TvButton("‹ Voltar", Btn, 13.sp, shape = RoundedCornerShape(10.dp)) { st.detail = null }
+                }
+                if (needEps && st.epsErr.isNotEmpty()) Text(st.epsErr + " Toque em \"Carregar episódios\" para tentar de novo.", color = Color(0xFFFF9A9A), fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                if (serie) {
+                    if (needEps) {
+                        Text(if (st.epsLoading) "Carregando episódios…" else "Episódios ainda não carregados.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
+                    } else {
+                        val seasons = item.eps.map { it.s }.distinct().sorted()
+                        val ls = rememberLazyListState()
+                        LazyRow(Modifier.padding(top = 12.dp).mouseScroll(ls, true), state = ls, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
+                            items(seasons) { s -> TvButton("Temporada $s", Btn, 11.sp, selected = st.season == s, shape = RoundedCornerShape(8.dp), compact = true) { st.season = s } }
+                        }
+                        val eps = item.eps.filter { it.s == st.season }
+                        val ls2 = rememberLazyListState()
+                        LazyColumn(Modifier.weight(1f).mouseScroll(ls2), state = ls2, contentPadding = PaddingValues(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(eps, key = { it.url }) { e -> EpisodeRow(st, item, e) }
+                        }
                     }
                 }
             }
