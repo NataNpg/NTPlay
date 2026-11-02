@@ -285,3 +285,6 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 
 ## 1.11.1
 - App fechando ao escolher canal/filme/série (relatado após a 1.11.0): causa não identificada sem o log. Agora, se o app fechar, o motivo é guardado e mostrado em uma janela na próxima abertura ("O app fechou sozinho… tire uma foto"). As buscas de capa/sinopse (`Meta.get`/`Meta.poster`) passaram a engolir qualquer erro em vez de derrubar o app.
+
+## 1.11.2
+- **Corrige o app fechando ao escolher canal/filme/série.** Erro capturado pela 1.11.1: `IllegalStateException: LayoutCoordinate operations are only valid when isAttached is true` na busca de foco do Compose (`FocusTraversal.focusRect`), quando o D-pad aponta para um item de lista que acabou de sair da tela. `MainActivity.dispatchKeyEvent` agora ignora só esse erro (aquele toque do controle é descartado e o app continua).
