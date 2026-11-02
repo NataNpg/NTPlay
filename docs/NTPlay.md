@@ -1,4 +1,4 @@
-# NTPlay — visão geral do projeto (atualizado em 30/10/2026)
+# NTPlay — visão geral do projeto (atualizado em 01/11/2026)
 
 Autor: **Natanael G Silva** · djnatan0@live.com · repositório `NataNpg/NTPlay` (antes `natanpg/NTPlay`; o GitHub redireciona)
 
@@ -6,7 +6,7 @@ Player IPTV pessoal (listas M3U e Xtream Codes) em quatro versões que compartil
 
 | Versão | Tecnologia | Pasta | Estado |
 |---|---|---|---|
-| **Android TV** | Kotlin, Compose, Media3 | `tv-native/` | **1.10.6 (código 1037)**, a mais ativa. Exige login. |
+| **Android TV** | Kotlin, Compose, Media3 | `tv-native/` | **1.10.7 (código 1038)**, a mais ativa. Exige login. |
 | **PC (Windows)** | Electron 31 + interface web | `electron/`, `www/` | 3.3.0, **sem login** e sem as novidades da TV |
 | **Web / celular** | mesma interface web (Capacitor) | `www/` | sem login |
 | **Painel de contas** | HTML + Supabase | `www/contas.html` | no ar |
@@ -69,7 +69,11 @@ Detalhes técnicos: `docs/NTPlay-AndroidTV.md` (changelog completo da TV) e `doc
 - O plano grátis pausa o projeto após ~7 dias sem uso (reativar no painel do Supabase).
 - **Saúde em 30/10/2026:** 1.429 requisições em 24 h, todas com resposta 200, sem erro e sem conta bloqueada. Folga grande no plano grátis.
 
-## 4. Painel de contas (`contas.html`)
+## 4. Painéis
+
+**Painel unificado (`admin.html`, novo em 01/11/2026):** abas Visão geral, Contas (criar/renovar/gerenciar via `ntsync`), Clientes (gráficos e CSV), Listas (M3U/Xtream guardadas criptografadas com a senha do cliente) e Uso (contagem anônima). Feito em outra sessão; ainda não foi conferido por mim.
+
+**Painel de contas (`contas.html`)**
 
 Cartões de resumo, gráficos, filtros (todos/ativos/vencendo/expirados), busca, exportar CSV.
 Ações por cliente: renovar +30 dias, nova senha, editar validade e anotação, bloquear, excluir.
@@ -98,6 +102,7 @@ Ações por cliente: renovar +30 dias, nova senha, editar validade e anotação,
 | 1.10.4 | Teste de 1 dia local (removido depois); botão focado legível |
 | 1.10.5 | Teste de 1 dia removido: acesso volta a ser só por conta do painel |
 | 1.10.6 | Busca só de filmes, séries e animes; atualização conferida ao reabrir o app |
+| 1.10.7 | Capas: imagem horizontal (cena) da lista é trocada pela capa oficial vertical; busca de capas mais rápida (8 em paralelo, tradução só ao abrir o título) |
 
 ## 7. O caso do app fechando na busca (1.10.2 → 1.10.3)
 
