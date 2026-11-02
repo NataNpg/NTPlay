@@ -248,7 +248,6 @@ fun App(st: AppState) {
         splash = false
     }
     Box(Modifier.fillMaxSize().background(Bg)) {
-        Image(painterResource(R.drawable.splash), null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.10f }, contentScale = ContentScale.Crop)
         if (st.locked) LoginGate(st) else {
         Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 30.dp)) {
             Header(st)
@@ -359,9 +358,6 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
             } else {
                 Text(showTitle(item), Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xDDFFFFFF), fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
-            val tag = Util.audioTag(item)
-            if (tag.isNotEmpty()) Text(tag, Modifier.align(Alignment.TopStart).padding(6.dp).background(if (tag == "DUB") Color(0xE68B5CF6) else Color(0xE63CE0E6), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
-                color = if (tag == "DUB") Color.White else Color(0xFF05101F), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
             if (onRemove != null) {
                 val rfi = rememberFocus()
                 Text("✕", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
@@ -605,21 +601,8 @@ fun Recom(st: AppState, lib: Library) {
     val favs = remember(st.favs, lib) { lib.every.filter { st.favs.contains(it.key) } }
     val favL = favs.filter { it.kind == 'l' }; val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
     val trend = remember(st.trend) { st.trend.map { Trending.Row(it.title, it.items.filter { x -> x.kind != 'l' }) }.filter { it.items.isNotEmpty() } }
-    val heroes = remember(lib, trend) {
-        val out = LinkedHashMap<String, Item>()
-        for (r in trend) for (i in r.items.take(4)) if (i.kind != 'l') out.putIfAbsent(i.key, i)
-        val rnd = java.util.Random(System.currentTimeMillis() / 3_600_000L)
-        val mv = lib.movies.filter { it.logo.isNotEmpty() && !it.adult }
-        val sr = lib.series.filter { it.logo.isNotEmpty() && !it.adult }
-        for (k in 0 until 6) {
-            if (mv.isNotEmpty()) mv[rnd.nextInt(minOf(mv.size, 400))].let { out.putIfAbsent(it.key, it) }
-            if (sr.isNotEmpty()) sr[rnd.nextInt(minOf(sr.size, 400))].let { out.putIfAbsent(it.key, it) }
-        }
-        out.values.take(12)
-    }
     val ls = rememberLazyListState()
     LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(bottom = 20.dp)) {
-        if (heroes.isNotEmpty()) item { HeroCarousel(st, heroes) }
         if (cw.isNotEmpty()) item {
             ShelfRow("Continuar assistindo", cw.size, null) {
                 items(cw, key = { it.first.key }) { (it2, ep) ->
