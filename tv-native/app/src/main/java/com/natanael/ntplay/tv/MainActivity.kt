@@ -6,6 +6,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import android.view.KeyEvent
 
 class MainActivity : ComponentActivity() {
@@ -24,12 +31,28 @@ class MainActivity : ComponentActivity() {
                 .diskCache { coil.disk.DiskCache.Builder().directory(cacheDir.resolve("img_cache")).maxSizeBytes(96L * 1024 * 1024).build() }
                 .build()
         )
+        // se o app fechar sozinho, guarda o motivo e mostra na próxima abertura (para eu poder corrigir)
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        val crashFile = java.io.File(filesDir, "crash.txt")
+        Thread.setDefaultUncaughtExceptionHandler { th, ex ->
+            try { crashFile.writeText("v" + BuildConfig.VERSION_NAME + " · " + th.name + "\n" + android.util.Log.getStackTraceString(ex).take(2500)) } catch (e: Throwable) { }
+            prev?.uncaughtException(th, ex)
+        }
+        val lastCrash = try { if (crashFile.exists()) crashFile.readText().also { crashFile.delete() } else "" } catch (e: Throwable) { "" }
         setContent {
             NtTheme {
                 val st = remember { AppState(applicationContext).also { state = it } }
                 LaunchedEffect(Unit) { st.start() }
                 BackHandler(enabled = st.canBack && st.play == null && !st.showLists && !st.showSearch) { st.back() }
                 App(st)
+                var crash by remember { mutableStateOf(lastCrash) }
+                if (crash.isNotEmpty()) androidx.compose.ui.window.Dialog(onDismissRequest = { crash = "" }) {
+                    androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.background(PanelC, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).padding(16.dp)) {
+                        androidx.compose.material3.Text("O app fechou sozinho da última vez. Tire uma foto desta tela e envie:", color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp)
+                        androidx.compose.material3.Text(crash, color = androidx.compose.ui.graphics.Color(0xFFFFB4B4), fontSize = 9.sp, maxLines = 22, modifier = androidx.compose.ui.Modifier.padding(vertical = 8.dp))
+                        TvButton("OK", Pink) { crash = "" }
+                    }
+                }
             }
         }
     }

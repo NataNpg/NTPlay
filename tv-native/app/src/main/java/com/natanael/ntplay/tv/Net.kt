@@ -188,7 +188,10 @@ object Meta {
     fun cached(store: Store, it: Item): Info? = store.info(ck(it))
 
     /** priority = tela de detalhes (não espera a fila das capas) */
-    suspend fun get(store: Store, it: Item, priority: Boolean = false): Info? {
+    suspend fun get(store: Store, it: Item, priority: Boolean = false): Info? =
+        try { get0(store, it, priority) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Throwable) { null }
+
+    private suspend fun get0(store: Store, it: Item, priority: Boolean): Info? {
         if (it.kind == 'l' || it.adult) return null
         val c = store.info(ck(it))
         if (c != null && (!c.none || System.currentTimeMillis() - c.ts < 3 * 3600_000L)) {
@@ -226,7 +229,10 @@ object Meta {
     }
 
     /** capa oficial (vertical) de fora do servidor: usada quando a imagem da lista é cena/foto horizontal */
-    suspend fun poster(store: Store, it: Item): String {
+    suspend fun poster(store: Store, it: Item): String =
+        try { poster0(store, it) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Throwable) { "" }
+
+    private suspend fun poster0(store: Store, it: Item): String {
         if (it.kind == 'l' || it.adult) return ""
         store.info("4|" + it.key)?.let { c -> if (!c.none || System.currentTimeMillis() - c.ts < 3 * 3600_000L) return c.img }
         return semP.withPermit { kotlinx.coroutines.withTimeoutOrNull(20_000) { fetch(store, it, false, true) } }?.img ?: ""

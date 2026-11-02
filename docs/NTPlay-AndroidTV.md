@@ -282,3 +282,6 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **TMDB**: capas verticais oficiais, sinopse em português, nota e ano (`Meta.tmdb`), usadas antes das outras fontes. Chave no GitHub Secret `TMDB_KEY` (vai para `BuildConfig.TMDB_KEY`; sem o secret o app usa só as fontes antigas).
 - **Recomendações novas** (`Trending.kt`, TMDB cruzado com a sua lista): "Episódios novos hoje", "Séries em exibição agora", "Lançamentos nos cinemas", "Em alta esta semana".
 - JustWatch e IMDb não têm API pública (copiar o site viola os termos e quebra fácil); o TMDB já traz os mesmos dados de lançamento.
+
+## 1.11.1
+- App fechando ao escolher canal/filme/série (relatado após a 1.11.0): causa não identificada sem o log. Agora, se o app fechar, o motivo é guardado e mostrado em uma janela na próxima abertura ("O app fechou sozinho… tire uma foto"). As buscas de capa/sinopse (`Meta.get`/`Meta.poster`) passaram a engolir qualquer erro em vez de derrubar o app.
