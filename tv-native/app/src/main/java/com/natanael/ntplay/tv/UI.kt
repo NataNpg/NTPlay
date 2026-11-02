@@ -358,6 +358,9 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
             } else {
                 Text(showTitle(item), Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xDDFFFFFF), fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
+            val tag = Util.audioTag(item)
+            if (tag.isNotEmpty()) Text(tag, Modifier.align(Alignment.TopStart).padding(6.dp).background(if (tag == "DUB") Color(0xE68B5CF6) else Color(0xE63CE0E6), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+                color = if (tag == "DUB") Color.White else Color(0xFF05101F), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
             if (onRemove != null) {
                 val rfi = rememberFocus()
                 Text("✕", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
@@ -487,14 +490,9 @@ fun Browse(st: AppState) {
                         val f = remember(yearBase, st.yearSel) { yearBase.filter { yearOfItem(st, it) == st.yearSel } }
                         GridOf(st, f.take(900), (if (st.group.isEmpty()) tab else st.group) + " · " + st.yearSel)
                     } else if (st.group.isEmpty()) {
-                        val ls = savedListState(st, "shelves:" + tab)
-                        LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp)) {
-                            items(groups.take(80), key = { it.first }) { g ->
-                                ShelfRow(g.first, g.second.size, { st.group = g.first }) {
-                                    items(g.second.take(30), key = { it.key }) { it2 -> CardFor(st, it2, g.second) }
-                                }
-                            }
-                        }
+                        // "Todas": tudo junto numa grade só; as categorias ficam só na lateral
+                        val all = when (tab) { "TV AO VIVO" -> lib.live; "FILMES" -> lib.movies; else -> lib.series }
+                        GridOf(st, all, tab)
                     } else {
                         val l = groups.firstOrNull { it.first == st.group }?.second ?: emptyList()
                         GridOf(st, l, st.group)

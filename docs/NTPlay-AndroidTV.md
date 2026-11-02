@@ -293,3 +293,7 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 ## 1.11.3 — mais leve
 - Removidos: selos LEG/DUB dos cards, carrossel "em destaque" de Recomendações (imagem grande + troca a cada 9 s) e o papel de parede de tela cheia com transparência (camada extra desenhada a cada quadro). A arte continua só na abertura.
 - O app fechou sem mostrar a janela de erro: provável fechamento do sistema por falta de memória (não é exceção do app). Menos imagens grandes na tela = menos memória.
+
+## 1.11.4
+- Selo LEG/DUB voltou aos cards (foi retirado por engano na 1.11.3).
+- Em TV ao vivo, Filmes e Séries, "Todas" agora é uma grade única com tudo junto (sem as prateleiras "Legendadas", "Globoplay", "AMC Plus"…). As categorias ficam só na lateral. O destaque grande e o papel de parede continuam removidos.
