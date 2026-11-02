@@ -76,6 +76,12 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =
         try { super.dispatchKeyEvent(event) } catch (e: IllegalStateException) { true }
 
+    // Bug conhecido do Compose: ao mover o foco com o controle enquanto a lista troca de itens (capas chegando,
+    // prateleiras mudando), a busca de foco encontra um item já removido e lança IllegalStateException
+    // ("LayoutCoordinate operations are only valid when isAttached is true"). Ignora essa tecla em vez de fechar o app.
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+        try { super.dispatchKeyEvent(event) } catch (e: IllegalStateException) { true }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val st = state
         val p = st?.play

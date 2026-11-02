@@ -288,3 +288,6 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 
 ## 1.11.2
 - **Corrige o app fechando ao escolher canal/filme/série.** Erro capturado pela 1.11.1: `IllegalStateException: LayoutCoordinate operations are only valid when isAttached is true` na busca de foco do Compose (`FocusTraversal.focusRect`), quando o D-pad aponta para um item de lista que acabou de sair da tela. `MainActivity.dispatchKeyEvent` agora ignora só esse erro (aquele toque do controle é descartado e o app continua).
+
+## 1.11.2
+- Fechamento ao navegar com o controle: `IllegalStateException: LayoutCoordinate operations are only valid when isAttached is true` na busca de foco do Compose (`FocusTraversal.focusRect`). Acontece quando a lista troca de itens no instante em que o foco se move. `MainActivity.dispatchKeyEvent` agora ignora essa tecla em vez de derrubar o app.
