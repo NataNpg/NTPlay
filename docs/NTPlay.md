@@ -1,4 +1,4 @@
-# NTPlay — visão geral do projeto (atualizado em 01/11/2026)
+# NTPlay — visão geral do projeto (atualizado em 02/11/2026)
 
 Autor: **Natanael G Silva** · djnatan0@live.com · repositório `NataNpg/NTPlay` (antes `natanpg/NTPlay`; o GitHub redireciona)
 
@@ -6,7 +6,7 @@ Player IPTV pessoal (listas M3U e Xtream Codes) em quatro versões que compartil
 
 | Versão | Tecnologia | Pasta | Estado |
 |---|---|---|---|
-| **Android TV** | Kotlin, Compose, Media3 | `tv-native/` | **1.10.7 (código 1038)**, a mais ativa. Exige login. |
+| **Android TV** | Kotlin, Compose, Media3 | `tv-native/` | **1.11.4 (código 1049)**, a mais ativa. Exige login. |
 | **PC (Windows)** | Electron 31 + interface web | `electron/`, `www/` | 3.3.0, **sem login** e sem as novidades da TV |
 | **Web / celular** | mesma interface web (Capacitor) | `www/` | sem login |
 | **Painel de contas** | HTML + Supabase | `www/contas.html` | no ar |
@@ -39,14 +39,18 @@ Detalhes técnicos: `docs/NTPlay-AndroidTV.md` (changelog completo da TV) e `doc
 - Atualização automática das listas (ao abrir ou a cada 6/12/24 h, opcional).
 
 **Navegação**
-- Abas: Recomendações, TV ao vivo, Filmes, Séries, Infantil, Animes (filtro Crunchyroll/Funimation), Favoritos (com grupos criados por você), Futebol.
+- Abas: Recomendações, TV ao vivo, Futebol, Filmes, Séries, Animes (filtro Crunchyroll/Funimation), Favoritos (com grupos criados por você). A aba Infantil foi retirada na 1.10.8.
+- **"Todas"** (TV, Filmes, Séries) é uma grade única com tudo junto; as categorias (Legendadas, Globoplay, AMC Plus…) ficam só na lateral esquerda (1.11.4).
 - **Busca: só filmes, séries e animes** — canais ao vivo ficam de fora (1.10.6).
 - Filtro por ano em Filmes, Séries e Animes. Selos LEG/DUB nos cards. Posição da rolagem lembrada.
+- Recomendações: linhas do TMDB cruzadas com a sua lista (episódios novos hoje, séries em exibição, lançamentos nos cinemas, em alta). Sem destaque grande nem papel de parede (1.11.3).
 - Abertura com logo; espera a lista e os recomendados para não carregar duas vezes.
 - Futebol: jogos do dia (ESPN), canal que passa cada jogo pela programação, navegável pelo controle.
 - Botão focado: fundo branco com texto escuro, legível mesmo em TV com cor estourada (1.10.4).
 
 **Player**
+- Visual igual ao app da webOS (1.10.10): cabeçalho com título e "T1 E2 · 800p", barra roxa com tempo/total, botões azul-marinho, "Pular abertura" acima da barra.
+- Erro **HTTP 429** (servidor da lista limitando conexões): o player espera e tenta de novo (até 7 vezes) e mostra o motivo na tela.
 - ExoPlayer com controles próprios, qualidade máxima, troca de modo de tela para 4K, legenda, áudio, pular abertura e créditos, próximo episódio, reconexão automática.
 - **Abertura por série:** o app memoriza onde você pulou a abertura e oferece "Pular abertura" nos próximos episódios.
 - **Ao vivo:** agora/próximo (EPG), 📅 Guia, 📺 Canais (lista lateral), ⛶ Tela (ajuste de imagem).
@@ -103,6 +107,14 @@ Ações por cliente: renovar +30 dias, nova senha, editar validade e anotação,
 | 1.10.5 | Teste de 1 dia removido: acesso volta a ser só por conta do painel |
 | 1.10.6 | Busca só de filmes, séries e animes; atualização conferida ao reabrir o app |
 | 1.10.7 | Capas: imagem horizontal (cena) da lista é trocada pela capa oficial vertical; busca de capas mais rápida (8 em paralelo, tradução só ao abrir o título) |
+| 1.10.8 | Sem "Ver tudo" e sem aba Infantil; ✕ de "Continuar assistindo" dentro da capa; cor roxa virou azul; abertura nova; capas decodificadas em 300x450 |
+| 1.10.9 | Player no visual novo; limite de consultas ao servidor da lista (máx. 2 simultâneas) |
+| 1.10.10 | Player e detalhes no visual da webOS; canais em grupo "Filmes & Séries" deixam de aparecer como filme; aviso do motivo ao reconectar |
+| 1.11.0 | Tratamento do HTTP 429; TMDB para capas/sinopse/nota; 4 linhas novas em Recomendações |
+| 1.11.1 | Janela mostra o motivo se o app fechar sozinho |
+| 1.11.2 | **Corrigido o app fechando ao escolher canal/filme/série** (erro de foco do Compose, `isAttached`) |
+| 1.11.3 | Mais leve: sem destaque grande e sem papel de parede (removeu por engano o selo LEG/DUB) |
+| 1.11.4 | Selo LEG/DUB de volta; "Todas" vira grade única, categorias só na lateral |
 
 ## 7. O caso do app fechando na busca (1.10.2 → 1.10.3)
 
@@ -137,7 +149,15 @@ Saídas:
 2. Cada testador usa a própria lista (aí cada um gasta as conexões do próprio provedor).
 3. Uma conta NTPlay por pessoa, de qualquer forma.
 
-## 9. Pendências e cuidados
+## 9. Desempenho e erros recentes (1.10.8 → 1.11.4)
+
+- **Lentidão:** capas grandes e camadas extras (papel de parede, carrossel) pesavam. Foram retiradas ou reduzidas. Fechamentos sem janela de erro são provavelmente o sistema matando o app por falta de memória.
+- **Filmes/séries "só carregando" e HTTP 429:** o servidor da lista limita conexões. Mitigado com espera/repetição, pausa das consultas de capa durante o vídeo e espera entre episódios. A causa exata **não foi confirmada**; a lista funciona em outro app e só há 1 usuário na conta.
+- **Capas:** fonte principal agora é o TMDB (chave no Secret `TMDB_KEY`). A chave foi colada no chat: convém gerar outra.
+- **Risco aberto:** a grade única de "Todas" com a biblioteca inteira (dezenas de milhares de filmes) pode pesar; se pesar, limitar ou paginar.
+- Ainda **não verificado na TV:** 1.10.9 a 1.11.4 (capas TMDB, linhas novas, 429, se os fechamentos pararam).
+
+## 10. Pendências e cuidados
 
 1. **PC e web sem login** — porta aberta no controle de acesso: quem não conseguir conta na TV usa essas versões sem nenhuma barreira. Decidir entre adicionar o mesmo login (usando o `ntsync`) ou retirar do ar a release `pc-latest` e a página web.
 2. **Limite de aparelhos por conta: não existe** (só contagem). Para prender de verdade, o teste/acesso teria de usar o `Settings.Secure.ANDROID_ID` com hash — o `deviceId` de hoje é um UUID aleatório no SharedPreferences, que morre ao limpar os dados ou reinstalar. O `ANDROID_ID` sobrevive aos dois (muda só em restauração de fábrica ou troca da chave de assinatura). Cuidado: box barato com implementação defeituosa pode repetir o valor e bloquear cliente legítimo — por isso o `cleardev` do painel serve de escape.
