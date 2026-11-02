@@ -12,7 +12,9 @@ android {
         targetSdk = 34
         // versionCode sobe sozinho a cada compilação no GitHub (NT_VERSION_CODE = 1000 + nº da execução); local usa 14
         versionCode = (System.getenv("NT_VERSION_CODE") ?: "14").toInt()
-        versionName = "1.10.10"
+        versionName = "1.11.0"
+        // chave do TMDB vem do GitHub Secret TMDB_KEY (fica fora do repositório); sem ela o app usa só as outras fontes
+        buildConfigField("String", "TMDB_KEY", "\"" + (System.getenv("TMDB_KEY") ?: "") + "\"")
     }
     signingConfigs {
         create("ntplay") {
@@ -39,7 +41,7 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }

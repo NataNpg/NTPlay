@@ -116,6 +116,7 @@ object Net {
 }
 
 object Meta {
+    @Volatile var paused = false  // enquanto um vídeo toca, não consulta o servidor da lista (evita HTTP 429)
     private val semBg = Semaphore(4)
     private val semX = Semaphore(2)   // consultas ao servidor da lista (muitas ao mesmo tempo derrubam filmes/séries)
     private val semP = Semaphore(3)   // capas oficiais (não podem tomar a vez das outras)
@@ -200,6 +201,30 @@ object Meta {
         return if (priority) fetch(store, it) else semBg.withPermit { kotlinx.coroutines.withTimeoutOrNull(30_000) { fetch(store, it, false) } }
     }
 
+    /** busca no TMDB (precisa da chave do build). Devolve null se não achar título parecido. */
+    private fun tmdb(it: Item, t: String, y: String): Info? {
+        val k = BuildConfig.TMDB_KEY
+        if (k.isEmpty()) return null
+        val tv = it.kind == 's'
+        val q = Net.enc(t)
+        val yp = if (y.isNotEmpty()) (if (tv) "&first_air_date_year=$y" else "&year=$y") else ""
+        var a = json("https://api.themoviedb.org/3/search/${if (tv) "tv" else "movie"}?api_key=$k&language=pt-BR&include_adult=false&query=$q$yp")?.optJSONArray("results")
+        if ((a == null || a.length() == 0) && yp.isNotEmpty()) a = json("https://api.themoviedb.org/3/search/${if (tv) "tv" else "movie"}?api_key=$k&language=pt-BR&include_adult=false&query=$q")?.optJSONArray("results")
+        if (a == null) return null
+        var best: JSONObject? = null; var bs = 0.0
+        for (i in 0 until minOf(a.length(), 8)) {
+            val o = a.getJSONObject(i)
+            val nm = o.optString(if (tv) "name" else "title"); val on = o.optString(if (tv) "original_name" else "original_title")
+            val s = maxOf(sim(nm, t), sim(on, t))
+            val bonus = if (o.optString("poster_path").isNotEmpty() && o.optString("poster_path") != "null") 0.01 else 0.0
+            if (s + bonus > bs) { bs = s + bonus; best = o }
+        }
+        if (best == null || bs < 0.6) return null
+        val pp = best.optString("poster_path").let { if (it == "null") "" else it }
+        val dt = best.optString(if (tv) "first_air_date" else "release_date").take(4)
+        return Info(if (pp.isNotEmpty()) "https://image.tmdb.org/t/p/w342$pp" else "", best.optString("overview"), best.optDouble("vote_average", 0.0), dt, false, System.currentTimeMillis())
+    }
+
     /** capa oficial (vertical) de fora do servidor: usada quando a imagem da lista é cena/foto horizontal */
     suspend fun poster(store: Store, it: Item): String {
         if (it.kind == 'l' || it.adult) return ""
@@ -212,7 +237,9 @@ object Meta {
         val y = Util.yearOf(it.title)
         var img = ""; var ov = ""; var r = 0.0; var yr = y
         fun take(i: String, o: String) { if (img.isEmpty() && i.isNotEmpty()) img = i; if (ov.isEmpty() && o.length > 30) ov = o }
-        if (!noX) try { kotlinx.coroutines.withTimeoutOrNull(12_000) { if (full) kotlinx.coroutines.runInterruptible { Xtream.info(it) } else semX.withPermit { kotlinx.coroutines.runInterruptible { Xtream.info(it) } } }?.let { x -> take(x.img, x.ov); r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
+        // TMDB (capa vertical oficial, sinopse em português, nota e ano) vem primeiro
+        try { tmdb(it, t, y)?.let { x -> take(x.img, x.ov); if (x.r > 0) r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
+        if (!noX && (full || !paused)) try { kotlinx.coroutines.withTimeoutOrNull(12_000) { if (full) kotlinx.coroutines.runInterruptible { Xtream.info(it) } else semX.withPermit { kotlinx.coroutines.runInterruptible { Xtream.info(it) } } }?.let { x -> take(x.img, x.ov); r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
         if (ov.isEmpty() || img.isEmpty()) try {
             if (it.kind == 's') {
                 val a = Net.getQuick("https://api.tvmaze.com/search/shows?q=" + Net.enc(t))?.let { s -> JSONArray(s) }

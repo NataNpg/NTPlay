@@ -178,7 +178,11 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
         player.prepare()
     }
 
-    LaunchedEffect(player) { load(url, if (req.resume > 0) req.resume else 0L) }
+    DisposableEffect(Unit) { Meta.paused = true; onDispose { Meta.paused = false } }
+    LaunchedEffect(player) {
+        if (!live) delay(700) // deixa a conexão do vídeo anterior fechar (servidor de 1 tela responde 429 se ainda estiver aberta)
+        load(url, if (req.resume > 0) req.resume else 0L)
+    }
     LaunchedEffect(req.ep.url, st.epgVer) {
         if (!live) { epgNow = null; epgNext = null; return@LaunchedEffect }
         while (true) {
@@ -282,13 +286,17 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                     PlaybackException.ERROR_CODE_DECODING_FAILED, PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
                     PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED
                 )
-                val max = if (live) 8 else 4
+                val http = e.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
+                val limited = http?.responseCode == 429 || http?.responseCode == 509
+                val max = if (live) 8 else if (limited) 7 else 4
                 lastErr = ((e.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.let { "HTTP " + it.responseCode } ?: e.errorCodeName.removePrefix("ERROR_CODE_"))
                 if (!dec && retries < max) {
                     retries++
                     val at = if (live) 0L else player.currentPosition
                     scope.launch {
-                        delay(if (retries < 3) 800L else 2000L)
+                        val ra = http?.headerFields?.entries?.firstOrNull { it.key.equals("Retry-After", true) }?.value?.firstOrNull()?.trim()?.toLongOrNull()
+                        // servidor limitando (429): espera de verdade (ele pede, ou 4 s, 8 s, 12 s…), senão só piora
+                        delay(if (limited) maxOf((ra ?: 0L) * 1000L, 4000L * retries).coerceAtMost(20_000L) else if (retries < 3) 800L else 2000L)
                         // canal ao vivo .ts falhando: tenta a versão HLS (.m3u8) do mesmo canal
                         if (live && retries == 3 && url.contains("/live/") && url.endsWith(".ts")) url = url.removeSuffix(".ts") + ".m3u8"
                         load(url, at)
@@ -296,6 +304,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                     return
                 }
                 err = if (dec) "Este aparelho não consegue decodificar este vídeo (comum em 4K / H.265). Tente a versão Full HD/HD ou abra em outro player."
+                else if (lastErr.contains("429") || lastErr.contains("509")) "O servidor da lista limitou as conexões (" + lastErr + "). Feche o vídeo em outros aparelhos, espere 1 minuto e tente de novo."
                 else "Não foi possível reproduzir (" + lastErr + "). O servidor pode estar fora do ar para este item."
                 ui = true
             }

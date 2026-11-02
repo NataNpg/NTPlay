@@ -276,3 +276,9 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Player e detalhes no visual do app da webOS: cabeçalho preto com título e "— T1 E2 · 800p", barra roxa em trilho cinza com "tempo / total", botões azul-marinho (no ao vivo: ▼ Canal, ▲ Canal, Canais, Tela, Áudio…), "Pular abertura" acima da barra à direita; EPG ao vivo com "Agora"/"A seguir" em ciano. Detalhes: capa grande à esquerda, título, meta em ciano, sinopse, botões, temporadas e episódios à direita.
 - Canais de TV que vinham num grupo "FILMES & SÉRIES" (links sem extensão, .ts ou .m3u8) deixam de aparecer como série/filme.
 - Quando o vídeo "fica reconectando", o aviso agora mostra o motivo (ex.: "HTTP 403", "IO_NETWORK_CONNECTION_FAILED") para diagnosticar.
+
+## 1.11.0
+- **HTTP 429** ("Reconectando… HTTP 429"): é o servidor da lista limitando conexões. Agora o player espera de verdade antes de tentar de novo (o tempo que o servidor pede, ou 4 s, 8 s, 12 s…, até 7 tentativas), espera 0,7 s ao trocar de episódio para a conexão anterior fechar e, enquanto um vídeo toca, o app não faz consultas de capas/sinopses ao servidor da lista.
+- **TMDB**: capas verticais oficiais, sinopse em português, nota e ano (`Meta.tmdb`), usadas antes das outras fontes. Chave no GitHub Secret `TMDB_KEY` (vai para `BuildConfig.TMDB_KEY`; sem o secret o app usa só as fontes antigas).
+- **Recomendações novas** (`Trending.kt`, TMDB cruzado com a sua lista): "Episódios novos hoje", "Séries em exibição agora", "Lançamentos nos cinemas", "Em alta esta semana".
+- JustWatch e IMDb não têm API pública (copiar o site viola os termos e quebra fácil); o TMDB já traz os mesmos dados de lançamento.
