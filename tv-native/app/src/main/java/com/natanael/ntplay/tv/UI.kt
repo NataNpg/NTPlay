@@ -106,13 +106,13 @@ val Bg = Color(0xFF070B1A)
 val Bg2 = Color(0xFF0E1430)
 val PanelC = Color(0xFF111838)
 val CardC = Color(0xFF182046)
-val Pink = Color(0xFF8B5CF6)
+val Pink = Color(0xFF3A6DF0)
 val Cyan = Color(0xFF3CE0E6)
 val Purple = Color(0xFFB27CFF)
 val Muted = Color(0xFF9FB0D6)
 val Dark = Color(0xFF070B1A)
 val Btn = Color(0xFF222B57)
-val FocusBg = Color(0xFF3B3F86)
+val FocusBg = Color(0xFF2B4A9E)
 
 /** sem "camada branca" do Material ao focar: o foco é desenhado por nós */
 /** tamanho geral da interface (1.0 = original) */
@@ -248,6 +248,7 @@ fun App(st: AppState) {
         splash = false
     }
     Box(Modifier.fillMaxSize().background(Bg)) {
+        Image(painterResource(R.drawable.splash), null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.10f }, contentScale = ContentScale.Crop)
         if (st.locked) LoginGate(st) else {
         Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 30.dp)) {
             Header(st)
@@ -309,7 +310,7 @@ fun Header(st: AppState) {
         }
         TvButton("🔍 Buscar", Btn, 10.sp, compact = true) { st.showSearch = true }
         Spacer(Modifier.width(6.dp))
-        TvButton("☰ Listas", Color(0xFF7C3AED), 10.sp, compact = true) { st.showLists = true }
+        TvButton("☰ Listas", Color(0xFF2F5FD8), 10.sp, compact = true) { st.showLists = true }
         Spacer(Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End) {
             Text(clock, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -350,7 +351,8 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
         Box(Modifier.tvClick(fi, RoundedCornerShape(12.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(12.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
             if (img.isNotEmpty()) {
                 AsyncImage(
-                    model = img, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(img).size(300, 450).build(),
+                    contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
                     onSuccess = { s -> val z = s.painter.intrinsicSize; if (z.width > 0f && z.height > 0f && z.width / z.height > 0.85f) scene = true },
                     onError = { val c = Meta.cached(st.store, item)?.img ?: ""; img = if (c.isNotEmpty() && c != img) c else ""}
                 )
@@ -360,6 +362,13 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
             val tag = Util.audioTag(item)
             if (tag.isNotEmpty()) Text(tag, Modifier.align(Alignment.TopStart).padding(6.dp).background(if (tag == "DUB") Color(0xE68B5CF6) else Color(0xE63CE0E6), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
                 color = if (tag == "DUB") Color.White else Color(0xFF05101F), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+            if (onRemove != null) {
+                val rfi = rememberFocus()
+                Text("✕", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 10.dp)
+                        .tvClick(rfi, CircleShape, 1.2f, onClick = onRemove)
+                        .background(if (rfi.on) Color(0xFFE5484D) else Color(0xCC000000), CircleShape).padding(horizontal = 7.dp, vertical = 3.dp))
+            }
             if (st.favs.contains(item.key)) Text("★", Modifier.align(Alignment.TopEnd).padding(6.dp).background(Color(0x99000000), CircleShape).padding(horizontal = 6.dp, vertical = 2.dp), color = Color(0xFFFFC107), fontSize = 12.sp)
             if (prog > 0f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x66000000))) {
                 Box(Modifier.fillMaxWidth(prog.coerceIn(0f, 1f)).fillMaxHeight().background(Pink))
@@ -370,11 +379,6 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
         val q = Util.quality(item.title)
         val sub = listOfNotNull(y.ifEmpty { null }, if (item.kind == 's') "Série" else null, q.ifEmpty { null }).joinToString(" · ")
         if (sub.isNotEmpty()) Text(sub, Modifier.padding(start = 2.dp), color = Muted, fontSize = 9.sp, maxLines = 1)
-        if (onRemove != null) {
-            val rfi = rememberFocus()
-            Text("✕", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 3.dp).tvClick(rfi, CircleShape, 1.15f, onClick = onRemove).background(if (rfi.on) Pink else Btn, CircleShape).padding(horizontal = 6.dp, vertical = 2.dp))
-        }
     }
 }
 
@@ -425,7 +429,6 @@ fun ShelfRow(title: String, count: Int, onAll: (() -> Unit)?, content: LazyListS
             Spacer(Modifier.width(8.dp))
             Text("$count", color = Muted, fontSize = 11.sp)
             Spacer(Modifier.weight(1f))
-            if (onAll != null) TvButton("Ver tudo ›", Btn, 11.sp, onClick = onAll)
         }
         val ls = rememberLazyListState()
         LazyRow(modifier = Modifier.mouseScroll(ls, true), state = ls, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), content = content)
@@ -459,7 +462,7 @@ fun Browse(st: AppState) {
                 Spacer(Modifier.height(6.dp))
                 if (!st.busy) Text("Adicione o link da sua lista M3U ou envie pelo celular com o QR code.", color = Muted, fontSize = 13.sp)
                 Spacer(Modifier.height(18.dp))
-                if (!st.busy) TvButton("☰ Carregar lista M3U", Color(0xFF7C3AED), 15.sp) { st.showLists = true }
+                if (!st.busy) TvButton("☰ Carregar lista M3U", Color(0xFF2F5FD8), 15.sp) { st.showLists = true }
             }
         }
         return
@@ -966,7 +969,7 @@ fun ListsDialog(st: AppState) {
                             OutlinedTextField(xPass, { xPass = it }, Modifier.weight(1f), placeholder = { Text("Senha", fontSize = 12.sp) }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors())
                         }
                     }
-                    item { TvButton(if (st.busy) "⏳ Entrando…" else "🔑 Entrar e adicionar (Xtream)", Color(0xFF7C3AED), 12.sp) {
+                    item { TvButton(if (st.busy) "⏳ Entrando…" else "🔑 Entrar e adicionar (Xtream)", Color(0xFF2F5FD8), 12.sp) {
                         if (!st.busy) {
                             val h = xHost.trim().trimEnd('/').let { if (it.contains("://")) it else "http://$it" }
                             if (xHost.isBlank() || xUser.isBlank() || xPass.isBlank()) st.toast("Preencha servidor, usuário e senha.")
@@ -978,7 +981,7 @@ fun ListsDialog(st: AppState) {
                     item { OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), placeholder = { Text("Link M3U  http://...", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors()) }
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            TvButton(if (st.busy) "⏳ Baixando…" else "+ Adicionar lista", Color(0xFF7C3AED)) { if (!st.busy) st.addUrl(url, name) }
+                            TvButton(if (st.busy) "⏳ Baixando…" else "+ Adicionar lista", Color(0xFF2F5FD8)) { if (!st.busy) st.addUrl(url, name) }
                             TvButton("Fechar", Btn) { st.showLists = false }
                         }
                     }

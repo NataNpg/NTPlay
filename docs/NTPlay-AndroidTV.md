@@ -260,3 +260,10 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 ## 1.10.7
 - Capas: se a imagem que vem da lista é uma cena/foto horizontal (largura/altura > 0,85), o card busca a capa oficial vertical (TVMaze/iTunes/Wikipédia, `Meta.poster`, cache `4|`) e troca.
 - Mais rápido: 8 buscas de capa em paralelo (eram 4), espera menor, e a tradução da sinopse só acontece ao abrir o título.
+
+## 1.10.8
+- Removido o botão "Ver tudo" de todas as prateleiras e a aba INFANTIL do menu.
+- ✕ de "Continuar assistindo" agora fica dentro da capa (canto inferior direito, fica vermelho ao focar).
+- Cores: o roxo (que estourava para branco em TVs saturadas) virou azul (`Pink = 3A6DF0`, `FocusBg = 2B4A9E`, botões `2F5FD8`).
+- Arte nova da abertura, ajustada à tela; a mesma arte aparece como papel de parede suave (10%) no app.
+- Mais leve: capas decodificadas em 300x450 px (antes no tamanho original).
