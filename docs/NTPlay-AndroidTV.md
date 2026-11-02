@@ -267,3 +267,7 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Cores: o roxo (que estourava para branco em TVs saturadas) virou azul (`Pink = 3A6DF0`, `FocusBg = 2B4A9E`, botões `2F5FD8`).
 - Arte nova da abertura, ajustada à tela; a mesma arte aparece como papel de parede suave (10%) no app.
 - Mais leve: capas decodificadas em 300x450 px (antes no tamanho original).
+
+## 1.10.9
+- Player no visual novo: barra grossa branca/azul-clara com "tempo / total" à direita; botões azuis compactos (⏯, 10s, Próximo, Tela, Áudio, Favorito, Sair). "Tela" (Ajustar/Zoom/Esticar) agora também em filmes e séries; Legenda só aparece se houver.
+- Filmes/séries "só carregando": busca de capas/sinopses deixou de saturar o servidor da lista (máx. 2 consultas ao mesmo tempo ao servidor, 4 no total, capas oficiais em fila própria de 3). Causa provável: na 1.10.7 dobrei para 8 buscas simultâneas. **Não confirmado na TV.**

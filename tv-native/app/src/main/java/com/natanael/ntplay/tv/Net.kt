@@ -116,7 +116,9 @@ object Net {
 }
 
 object Meta {
-    private val semBg = Semaphore(8)
+    private val semBg = Semaphore(4)
+    private val semX = Semaphore(2)   // consultas ao servidor da lista (muitas ao mesmo tempo derrubam filmes/séries)
+    private val semP = Semaphore(3)   // capas oficiais (não podem tomar a vez das outras)
 
     /** semelhança entre títulos (palavras em comum) */
     fun sim(a: String, b: String): Double {
@@ -202,7 +204,7 @@ object Meta {
     suspend fun poster(store: Store, it: Item): String {
         if (it.kind == 'l' || it.adult) return ""
         store.info("4|" + it.key)?.let { c -> if (!c.none || System.currentTimeMillis() - c.ts < 3 * 3600_000L) return c.img }
-        return semBg.withPermit { kotlinx.coroutines.withTimeoutOrNull(30_000) { fetch(store, it, false, true) } }?.img ?: ""
+        return semP.withPermit { kotlinx.coroutines.withTimeoutOrNull(20_000) { fetch(store, it, false, true) } }?.img ?: ""
     }
 
     private suspend fun fetch(store: Store, it: Item, full: Boolean = true, noX: Boolean = false): Info = withContext(Dispatchers.IO) {
@@ -210,7 +212,7 @@ object Meta {
         val y = Util.yearOf(it.title)
         var img = ""; var ov = ""; var r = 0.0; var yr = y
         fun take(i: String, o: String) { if (img.isEmpty() && i.isNotEmpty()) img = i; if (ov.isEmpty() && o.length > 30) ov = o }
-        if (!noX) try { kotlinx.coroutines.withTimeoutOrNull(12_000) { kotlinx.coroutines.runInterruptible { Xtream.info(it) } }?.let { x -> take(x.img, x.ov); r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
+        if (!noX) try { kotlinx.coroutines.withTimeoutOrNull(12_000) { if (full) kotlinx.coroutines.runInterruptible { Xtream.info(it) } else semX.withPermit { kotlinx.coroutines.runInterruptible { Xtream.info(it) } } }?.let { x -> take(x.img, x.ov); r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
         if (ov.isEmpty() || img.isEmpty()) try {
             if (it.kind == 's') {
                 val a = Net.getQuick("https://api.tvmaze.com/search/shows?q=" + Net.enc(t))?.let { s -> JSONArray(s) }

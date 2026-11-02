@@ -109,6 +109,8 @@ private fun qualityOf(p: ExoPlayer): String {
     return listOf(res, c, fps).filter { it.isNotEmpty() }.joinToString(" · ")
 }
 
+private val PB = Color(0xFF2F7DE1) // botões do player
+
 private fun hhmm(ms: Long): String = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ms))
 
 private fun langName(l: String?): String = when (l?.lowercase()?.take(2)) {
@@ -421,23 +423,23 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                 if (!live && dur > 0) SeekBar(pos, dur, onActivity = { lastAct = System.currentTimeMillis() }) { t -> player.seekTo(t.coerceIn(0, dur)); pos = t }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (live) TvButton("▲ Canal anterior", Btn, 10.sp, compact = true) { zap(false) }
-                    else TvButton("⏪ 10s", Btn, 10.sp, compact = true) { seek(-10_000); show() }
-                    TvButton(if (playing) "⏸ Pausar" else "▶ Continuar", Pink, 10.sp, compact = true, modifier = Modifier.focusRequester(playFocus)) { toggle(); show() }
-                    if (live) TvButton("▼ Próximo canal", Btn, 10.sp, compact = true) { zap(true) }
+                    if (live) TvButton("▲ Canal anterior", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { zap(false) }
+                    else TvButton("⏪ 10s", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { seek(-10_000); show() }
+                    TvButton(if (playing) "⏯" else "▶", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp), modifier = Modifier.focusRequester(playFocus)) { toggle(); show() }
+                    if (live) TvButton("▼ Próximo canal", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { zap(true) }
                     else {
-                        TvButton("10s ⏩", Btn, 10.sp, compact = true) { seek(10_000); show() }
-                        if (st.next(req) != null) TvButton("⏭ Próximo", Btn, 10.sp, compact = true) { zap(true) }
+                        TvButton("10s ⏩", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { seek(10_000); show() }
+                        if (st.next(req) != null) TvButton("Próximo ⏭", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { zap(true) }
                     }
                     if (live) {
-                        TvButton("📅 Guia", Btn, 10.sp, compact = true) { guide = true; chans = false }
-                        TvButton("📺 Canais", Btn, 10.sp, compact = true) { chans = true; guide = false }
+                        TvButton("📅 Guia", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { guide = true; chans = false }
+                        TvButton("📺 Canais", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { chans = true; guide = false }
                     }
-                    if (live) TvButton("⛶ Tela: " + when (resize) { 1 -> "Zoom"; 2 -> "Esticar"; else -> "Ajustar" }, Btn, 10.sp, compact = true) { resize = (resize + 1) % 3; show() }
-                    TvButton("CC Legenda: $subLabel" + if (nSubs > 0) "" else " (—)", Btn, 10.sp, compact = true) { cycleSub(); show() }
-                    if (nAudio > 1) TvButton("🔊 Áudio: $audioLabel", Btn, 10.sp, compact = true) { cycleAudio(); show() }
-                    TvButton(if (st.favs.contains(req.item.key)) "★ Favorito" else "☆ Favoritar", Btn, 10.sp, compact = true) { st.toggleFav(req.item.key) }
-                    TvButton("✕ Sair", Btn, 10.sp, compact = true) { close() }
+                    TvButton("⛶ Tela" + (if (resize != 0) ": " + (if (resize == 1) "Zoom" else "Esticar") else ""), PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { resize = (resize + 1) % 3; show() }
+                    if (nSubs > 0) TvButton("CC " + subLabel, PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { cycleSub(); show() }
+                    if (nAudio > 1) TvButton("🔊 Áudio", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { cycleAudio(); show() }
+                    TvButton(if (st.favs.contains(req.item.key)) "★ Favorito" else "☆ Favorito", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { st.toggleFav(req.item.key) }
+                    TvButton("✕ Sair", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { close() }
                 }
                 if (live) Text("Dica: ▲/▼ no controle troca de canal com o painel fechado", color = Color(0x99FFFFFF), fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
             }
@@ -484,9 +486,8 @@ fun SeekBar(pos: Long, dur: Long, onActivity: () -> Unit, onSeek: (Long) -> Unit
     var w by remember { mutableIntStateOf(1) }
     val shown = if (preview >= 0) preview else pos
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(Util.fmt(shown), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         Box(
-            Modifier.weight(1f).padding(horizontal = 10.dp).height(22.dp)
+            Modifier.weight(1f).padding(end = 12.dp).height(22.dp)
                 .onSizeChanged { w = maxOf(1, it.width) }
                 .onPreviewKeyEvent { e ->
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
@@ -511,14 +512,14 @@ fun SeekBar(pos: Long, dur: Long, onActivity: () -> Unit, onSeek: (Long) -> Unit
             contentAlignment = Alignment.CenterStart
         ) {
             val f = (shown.toFloat() / dur).coerceIn(0f, 1f)
-            Box(Modifier.fillMaxWidth().height(if (fi.on) 8.dp else 4.dp).background(Color(0x55FFFFFF), RoundedCornerShape(4.dp))) {
-                Box(Modifier.fillMaxWidth(f).fillMaxHeight().background(Pink, RoundedCornerShape(4.dp)))
+            Box(Modifier.fillMaxWidth().height(if (fi.on) 12.dp else 9.dp).background(Color(0xFF5E7FE6), RoundedCornerShape(6.dp))) {
+                Box(Modifier.fillMaxWidth(f).fillMaxHeight().background(Color(0xFFEAF0FF), RoundedCornerShape(6.dp)))
             }
             if (fi.on) Box(Modifier.fillMaxWidth(f).height(22.dp), contentAlignment = Alignment.CenterEnd) {
                 Box(Modifier.size(18.dp).background(Color.White, RoundedCornerShape(9.dp)))
             }
         }
-        Text(Util.fmt(dur), color = Color.White, fontSize = 11.sp)
+        Text(Util.fmt(shown) + " / " + Util.fmt(dur), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
     if (fi.focused) Text("◀ ▶ para voltar/avançar (segure para ir mais rápido) · clique/arraste com o mouse", color = Color(0xAAFFFFFF), fontSize = 9.sp)
 }
