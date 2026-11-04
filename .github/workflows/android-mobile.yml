@@ -5,8 +5,22 @@ on:
     paths:
       - 'mobile-native/**'
       - '.github/workflows/android-mobile.yml'
-      # tv-native/** de propósito NÃO entra: a propagação de uma correção do motor da TV
-      # para o celular é manual (workflow_dispatch), para você decidir quando acontece.
+      # Motor da TV que o celular copia (mesma lista de FILES em mobile-native/tools/gen_core.py;
+      # se mudar lá, mude aqui). Correção no motor chega ao celular sozinha. Se a TV mudar um
+      # trecho remendado, o gen_core.py para o build e a mob-latest não é substituída.
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/Store.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/Library.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/Xtream.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/Net.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/Util.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/Logos.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/Trending.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/Epg.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/LiveLoop.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/Sync.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/AppState.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/Presence.kt'
+      - 'tv-native/app/src/main/java/com/natanael/ntplay/tv/Updater.kt'
 
 permissions:
   contents: write
