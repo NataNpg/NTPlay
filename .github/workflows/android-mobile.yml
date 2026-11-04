@@ -36,6 +36,11 @@ jobs:
             echo "::notice::ainda não há testes do gerador — nada a rodar"
           fi
 
+      - name: Chave do TMDB (GitHub Secrets, opcional — a mesma da TV)
+        env:
+          TK: ${{ secrets.TMDB_KEY }}
+        run: echo "TMDB_KEY=$TK" >> "$GITHUB_ENV"
+
       - name: Chave de assinatura (GitHub Secrets)
         env:
           KS_B64: ${{ secrets.NT_KEYSTORE_B64 }}

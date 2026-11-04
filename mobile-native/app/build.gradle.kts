@@ -37,6 +37,9 @@ android {
         // versionCode sobe sozinho a cada compilação no GitHub (NT_VERSION_CODE = 1 + nº da execução); local usa 1
         versionCode = (System.getenv("NT_VERSION_CODE") ?: "1").toInt()
         versionName = "1.0.0"
+        // o motor da TV (Net.kt, Trending.kt) lê BuildConfig.TMDB_KEY; mesma origem da TV:
+        // GitHub Secret TMDB_KEY, fora do repositório. Sem ela o motor usa só as outras fontes.
+        buildConfigField("String", "TMDB_KEY", "\"" + (System.getenv("TMDB_KEY") ?: "") + "\"")
     }
     signingConfigs {
         create("ntplay") {
@@ -64,7 +67,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     sourceSets["main"].java.srcDir(coreGen)
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }

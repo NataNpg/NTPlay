@@ -33,7 +33,7 @@ FILES = [
 PATCHES = {
     "AppState.kt": [(
         'val TABS = listOf("RECOMENDAÇÕES", "TV AO VIVO", "FUTEBOL", "FILMES", '
-        '"SÉRIES", "INFANTIL", "ANIMES", "FAVORITOS")',
+        '"SÉRIES", "ANIMES", "FAVORITOS")',  # TV 1.11.x tirou a aba INFANTIL
         'val TABS = listOf("INÍCIO", "FILMES", "SÉRIES", "TV", "BUSCA")',
     )],
     "Presence.kt": [(
@@ -66,6 +66,12 @@ LEAK_PATTERNS = [
 ]
 
 
+# Na TV, `BuildConfig` (ex.: BuildConfig.TMDB_KEY) resolve sozinho porque o pacote do código é o
+# namespace do app. Depois da troca para `core` ele deixa de resolver; o BuildConfig do celular
+# mora no namespace do app de celular, então o import é acrescentado onde o arquivo usa.
+BUILDCONFIG_IMPORT = "import com.natanael.ntplay.mobile.BuildConfig"
+
+
 class PatchError(Exception):
     """A cópia não pôde ser feita com segurança. Sempre para a compilação."""
 
@@ -78,6 +84,12 @@ def _transform(name, text):
             f"Confira mobile-native/tools/gen_core.py."
         )
     text = text.replace(PKG_FROM, PKG_TO, 1)
+    if "BuildConfig." in text and BUILDCONFIG_IMPORT not in text:
+        # logo depois da linha de package (que termina no primeiro \n após PKG_TO)
+        i = text.index(PKG_TO)
+        j = text.find("\n", i)
+        j = len(text) if j < 0 else j
+        text = text[:j] + "\n\n" + BUILDCONFIG_IMPORT + text[j:]
 
     for needle, repl in PATCHES.get(name, []):
         n = text.count(needle)

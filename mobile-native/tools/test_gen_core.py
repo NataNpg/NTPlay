@@ -57,12 +57,28 @@ class TestPackageRewrite(Base):
         self.assertIn("Store.kt", str(e.exception))
 
 
+class TestBuildConfigImport(Base):
+    def test_arquivo_que_usa_buildconfig_ganha_o_import_do_celular(self):
+        self.plain("Net.kt", extra="fun k() = BuildConfig.TMDB_KEY\n")
+        gen_core.generate(self.src, self.out, ["Net.kt"])
+        out = self.read_out("Net.kt")
+        lines = out.splitlines()
+        self.assertEqual(lines[0], "package com.natanael.ntplay.core")
+        self.assertIn("import com.natanael.ntplay.mobile.BuildConfig", lines[:3])
+        self.assertIn("BuildConfig.TMDB_KEY", out)
+
+    def test_arquivo_sem_buildconfig_nao_ganha_import(self):
+        self.plain()
+        gen_core.generate(self.src, self.out, ["Store.kt"])
+        self.assertNotIn("BuildConfig", self.read_out("Store.kt"))
+
+
 class TestPatches(Base):
     def test_remendo_das_abas(self):
         self.write("AppState.kt",
                    'package com.natanael.ntplay.tv\n'
                    'val TABS = listOf("RECOMENDAÇÕES", "TV AO VIVO", "FUTEBOL", "FILMES", '
-                   '"SÉRIES", "INFANTIL", "ANIMES", "FAVORITOS")\n')
+                   '"SÉRIES", "ANIMES", "FAVORITOS")\n')
         gen_core.generate(self.src, self.out, ["AppState.kt"])
         out = self.read_out("AppState.kt")
         self.assertIn('val TABS = listOf("INÍCIO", "FILMES", "SÉRIES", "TV", "BUSCA")', out)
