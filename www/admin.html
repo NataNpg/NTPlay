@@ -43,6 +43,7 @@ main{padding:22px clamp(14px,3vw,34px) 90px;min-width:0}
 /* elements */
 .bt{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:10px;background:#ffffff0d;border:1px solid var(--line);font-size:13px;font-weight:600;white-space:nowrap}
 .bt:hover{background:#ffffff1a}
+a.bt{color:var(--tx);text-decoration:none}
 .bt.pk{background:var(--pk);border-color:var(--pk);color:#fff}
 .bt.pk:hover{background:#f04b8a}
 .bt.rd{color:var(--rd);border-color:#f8717140}
@@ -160,22 +161,39 @@ h2.sec{font-size:15px;margin:22px 0 10px}
 .ia:hover{background:#ffffff1c}
 .ia svg.i{width:16px;height:16px}
 
-/* sigma + grupos */
-.sgw{display:grid;gap:12px}
-.sgframe{width:100%;height:calc(100vh - 190px);min-height:480px;border:1px solid var(--line2);border-radius:var(--r);background:#fff}
-.gps{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:12px}
-.gp{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px;border-top:3px solid var(--c,var(--pk))}
-.gp .gh{display:flex;align-items:center;gap:8px}
-.gp .gh b{flex:1;min-width:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.gm{display:flex;align-items:center;gap:8px;background:#050a17;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+/* grupos (clientes NTPlay + Sigma) */
+.galert{border-left:4px solid var(--yl);margin-bottom:14px}
+.galert.bad{border-left-color:var(--rd)}
+.gah{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.gah h3{margin:0}
+.gah .sp{flex:1}
+.gai{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:8px}
+.gtabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}
+.gtab{display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-weight:700;font-size:13px;white-space:nowrap;color:var(--mut)}
+.gtab:hover{color:var(--tx);background:var(--card2)}
+.gtab.on{color:var(--tx);border-color:var(--c);box-shadow:inset 0 -3px 0 var(--c);background:var(--card2)}
+.gtab i{width:10px;height:10px;border-radius:50%;background:var(--c);flex:0 0 auto}
+.gtab .w{width:8px;height:8px;border-radius:50%;background:var(--yl)}
+.gtab .w.r{background:var(--rd)}
+.ghd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.ghd h2{font-size:18px;display:flex;align-items:center;gap:10px}
+.ghd h2 i{width:12px;height:12px;border-radius:50%;background:var(--c)}
+.ghd .sp{flex:1}
+.gcolw{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px;align-items:start}
+.gch{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.gch b{font-size:15px}
+.gch .sp{flex:1}
+.lst>*{min-width:0}
+.gm{display:flex;align-items:center;gap:8px;background:#050a17;border:1px solid var(--line);border-radius:10px;padding:9px 10px;min-width:0}
+.gm.y{border-color:#fbbf2455}.gm.r{border-color:#f8717155}
 .gm .n{flex:1;min-width:0}
 .gm .n b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gm .n small{display:block;color:var(--mut);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gm .bdg{flex:0 0 auto}
+.gm .x{color:var(--mut);width:26px;height:26px;border-radius:7px;display:grid;place-items:center;flex:0 0 auto}
+.gm .x:hover{background:#ffffff14;color:var(--tx)}
 .src{font-size:10px;font-weight:800;letter-spacing:.04em;padding:2px 6px;border-radius:6px;flex:0 0 auto}
 .src.nt{color:var(--pk2);background:#e93a7d22}.src.sg{color:var(--bl);background:#60a5fa22}
-.gm .bdg{flex:0 0 auto}
-.gm .x{color:var(--mut);width:24px;height:24px;border-radius:6px;display:grid;place-items:center;flex:0 0 auto}
-.gm .x:hover{background:#ffffff14;color:var(--tx)}
 .gcols{display:flex;gap:6px;flex-wrap:wrap}
 .gcols button{width:24px;height:24px;border-radius:50%;background:var(--c);border:2px solid transparent}
 .gcols button.on{border-color:#fff}
@@ -231,7 +249,7 @@ h2.sec{font-size:15px;margin:22px 0 10px}
     <button class="nav on" data-tab="geral"><svg class="i" viewBox="0 0 24 24"><path d="M3 12l9-8 9 8M5 10v10h14V10"/></svg>Visão geral</button>
     <button class="nav" data-tab="contas"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11h6M20 8v6"/></svg>Contas<span class="bdg p" id="nCont"></span></button>
     <button class="nav" data-tab="clientes"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>Clientes</button>
-    <button class="nav" data-tab="sigma"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg>Sigma e grupos</button>
+    <button class="nav" data-tab="sigma"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg>Grupos<span class="bdg y hide" id="nGrp"></span></button>
     <button class="nav" data-tab="listas"><svg class="i" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Listas</button>
     <button class="nav" data-tab="uso"><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18M7 15l4-4 3 3 6-7"/></svg>Uso</button>
     <span class="sp"></span>
@@ -307,28 +325,15 @@ h2.sec{font-size:15px;margin:22px 0 10px}
       </div>
     </section>
 
-    <!-- SIGMA E GRUPOS -->
+    <!-- GRUPOS -->
     <section id="t-sigma" class="hide">
-      <div class="top"><div><h1>Sigma e grupos</h1><div class="sub">Junte clientes do NTPlay e do painel Sigma em grupos.</div></div><span class="sp"></span>
-        <div class="seg" id="sgSeg"><button data-v="g" class="on">Grupos</button><button data-v="p">Painel Sigma</button></div></div>
-
-      <div id="sgG" class="sgw">
-        <div class="bar" style="margin-bottom:0">
-          <input class="in" id="gQ" placeholder="Buscar cliente ou grupo…">
-          <button class="bt" id="gRef"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Atualizar</button>
-          <button class="bt pk" id="gNew"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Novo grupo</button>
-        </div>
-        <p class="muted">Clientes <span class="src nt">NTPLAY</span> vêm das suas contas e mostram o vencimento real. Clientes <span class="src sg">SIGMA</span> são cadastrados à mão aqui (o painel Sigma não deixa este site ler os dados dele), então atualize o vencimento quando renovar lá.</p>
-        <div class="gps" id="gList"></div>
-      </div>
-
-      <div id="sgP" class="sgw hide">
-        <div class="bar" style="margin-bottom:0">
-          <span class="muted" style="flex:1">Se o painel ficar em branco ou recusar abrir aqui, o Sigma bloqueia ser exibido dentro de outro site. Use o botão ao lado.</span>
-          <a class="bt" href="https://vizion-net.sigmab.pro/#/customers" target="_blank" rel="noopener"><svg class="i" viewBox="0 0 24 24"><path d="M14 3h7v7M10 14L21 3M21 14v7H3V3h7"/></svg>Abrir em nova aba</a>
-        </div>
-        <iframe id="sgFrame" class="sgframe" title="Painel Sigma" referrerpolicy="no-referrer"></iframe>
-      </div>
+      <div class="top"><div><h1>Grupos</h1><div class="sub">Clientes do NTPlay e do painel Sigma, separados por grupo.</div></div><span class="sp"></span>
+        <a class="bt" href="https://vizion-net.sigmab.pro/#/customers" target="_blank" rel="noopener"><svg class="i" viewBox="0 0 24 24"><path d="M14 3h7v7M10 14L21 3M21 14v7H3V3h7"/></svg>Abrir painel Sigma</a>
+        <button class="bt" id="gRef"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Atualizar</button>
+        <button class="bt pk" id="gNew"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Novo grupo</button></div>
+      <div id="gAlert"></div>
+      <div class="gtabs" id="gTabs"></div>
+      <div id="gBody"></div>
     </section>
 
     <!-- LISTAS -->
@@ -483,7 +488,6 @@ function renderAll() { renderGeral(); renderContas(); renderClientes(); fillAccS
    Grupos ficam no servidor (op gget/gset). Cada membro é
    { id, src:'nt', u } (conta NTPlay; vencimento vem de USERS) ou
    { id, src:'sg', u, exp:'AAAA-MM-DD', note } (cliente do painel Sigma, cadastrado à mão). */
-const SIGMA_URL = 'https://vizion-net.sigmab.pro/#/customers';
 const GCOLS = ['#e93a7d', '#60a5fa', '#34d399', '#fbbf24', '#a78bfa', '#f87171', '#22d3ee'];
 let GROUPS = [], GTS = 0, GLOADED = false, GBUSY = false;
 const gid = () => Math.random().toString(36).slice(2, 10);
@@ -492,20 +496,16 @@ const SVG_ED = '<svg class="i" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.
 const SVG_DEL = '<svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
 const SVG_X = '<svg class="i" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M18 6L6 18M6 6l12 12"/></svg>';
 
-function sigmaStart() { if (!GLOADED) loadGroups() }
-$$('#sgSeg button').forEach(b => b.onclick = () => {
-  $$('#sgSeg button').forEach(x => x.classList.toggle('on', x == b));
-  const p = b.dataset.v == 'p';
-  $('#sgG').classList.toggle('hide', p); $('#sgP').classList.toggle('hide', !p);
-  if (p && !$('#sgFrame').getAttribute('src')) $('#sgFrame').src = SIGMA_URL; // só carrega o Sigma quando abrir
-});
+function sigmaStart() { if (!GLOADED) loadGroups(); else renderGroups() }
+let GSEL = (() => { try { return LS.gSel || '' } catch (e) { return '' } })();
+const ALERT_DAYS = 7, ALERT_PAST = 30; // alerta: vence em até 7 dias ou venceu há até 30 dias
 
 async function loadGroups() {
-  $('#gList').innerHTML = '<p class="muted"><span class="spin"></span> Carregando grupos…</p>';
+  if (!GLOADED) $('#gBody').innerHTML = '<p class="muted"><span class="spin"></span> Carregando grupos…</p>';
   try { const j = await adm('gget'); GROUPS = Array.isArray(j.groups) ? j.groups : []; GTS = j.ts || 0; GLOADED = true; renderGroups() }
-  catch (e) { $('#gList').innerHTML = `<p class="err">${esc(e.message)}</p>`; if (/administrador/i.test(e.message)) logout() }
+  catch (e) { $('#gBody').innerHTML = `<p class="err">${esc(e.message)}</p>`; if (/administrador/i.test(e.message)) logout() }
 }
-$('#gRef').onclick = loadGroups;
+$('#gRef').onclick = () => { loadUsers(); loadGroups() };
 
 async function saveGroups(next, okMsg) {
   if (GBUSY) { toast('Aguarde, salvando…'); return false }
@@ -515,44 +515,62 @@ async function saveGroups(next, okMsg) {
   finally { GBUSY = false }
 }
 
-// [rótulo, cor do selo, dias restantes para ordenar]
+// tempo que falta, em texto claro
+function remText(d) {
+  if (d > 3650) return 'Vitalícia';
+  if (d <= 0) { const p = Math.floor(-d); return p < 1 ? 'Venceu hoje' : 'Venceu há ' + p + (p == 1 ? ' dia' : ' dias') }
+  if (d < 1) return 'Vence hoje';
+  if (d < 2) return 'Vence amanhã';
+  const n = Math.floor(d); return 'Faltam ' + n + ' dias';
+}
+const remCls = d => d <= 0 ? 'r' : d <= 3 ? 'r' : d <= ALERT_DAYS ? 'y' : 'g';
+
 function memberInfo(m) {
   if (m.src == 'nt') {
     const u = USERS.find(x => x.username == m.u);
-    if (!u) return { lab: 'Conta apagada', cls: 'r', d: -1e9, sub: 'não existe mais no NTPlay' };
-    const s = status(u);
-    return { lab: s[0], cls: s[1], d: daysLeft(u), sub: (u.note ? u.note + ' · ' : '') + (u.expires_at ? 'vence ' + fmtD(u.expires_at) : 'sem validade') };
+    if (!u) return { lab: 'Conta apagada', cls: 'r', d: -1e9, sub: 'não existe mais no NTPlay', none: 1 };
+    const d = u.expires_at ? daysLeft(u) : 1e9;
+    return { lab: u.expires_at ? remText(d) : 'Sem validade', cls: u.expires_at ? remCls(d) : 'n', d, sub: [u.note, u.expires_at && d <= 3650 ? 'vence ' + fmtD(u.expires_at) : ''].filter(Boolean).join(' · ') };
   }
   if (!m.exp) return { lab: 'Sem vencimento', cls: 'n', d: 1e9, sub: m.note || '' };
   const end = new Date(m.exp + 'T23:59:59-03:00').getTime(), d = (end - Date.now()) / DAY;
-  const lab = d <= 0 ? 'Vencido' : d <= 7 ? 'Vence em ' + Math.ceil(d) + ' d' : 'Ativo · ' + Math.floor(d) + ' d';
-  return { lab, cls: d <= 0 ? 'r' : d <= 7 ? 'y' : 'g', d, sub: (m.note ? m.note + ' · ' : '') + 'vence ' + fmtD(end) };
+  return { lab: remText(d), cls: remCls(d), d, sub: [m.note, 'vence ' + fmtD(end)].filter(Boolean).join(' · ') };
 }
+const inAlert = i => !i.none && i.d <= ALERT_DAYS && i.d > -ALERT_PAST;
 
 function renderGroups() {
-  const q = ($('#gQ').value || '').trim().toLowerCase();
-  if (!GROUPS.length) { $('#gList').innerHTML = '<div class="empty card" style="grid-column:1/-1">Nenhum grupo ainda. Crie o primeiro em <b>Novo grupo</b>.</div>'; return }
-  const html = GROUPS.map(g => {
-    const all = (g.members || []).map(m => ({ m, i: memberInfo(m) }));
-    const nameHit = !q || g.name.toLowerCase().includes(q);
-    const shown = nameHit ? all : all.filter(x => (x.m.u + ' ' + (x.m.note || '') + ' ' + x.i.sub).toLowerCase().includes(q));
-    if (!nameHit && !shown.length) return '';
-    shown.sort((a, b) => a.i.d - b.i.d);
-    const nNt = all.filter(x => x.m.src == 'nt').length, nSg = all.length - nNt, bad = all.filter(x => x.i.d <= 7).length;
-    return `<div class="gp" style="--c:${esc(g.color || GCOLS[0])}">
-      <div class="gh"><b>${esc(g.name)}</b><span class="bdg n">${all.length}</span>
-        <button class="ia" data-ga="edit" data-g="${esc(g.id)}" title="Editar grupo" aria-label="Editar grupo">${SVG_ED}</button>
-        <button class="ia" data-ga="del" data-g="${esc(g.id)}" title="Apagar grupo" aria-label="Apagar grupo">${SVG_DEL}</button></div>
-      <div class="muted">${nNt} NTPlay · ${nSg} Sigma${bad ? ` · <span style="color:var(--yl)">${bad} vencendo ou vencido${bad > 1 ? 's' : ''}</span>` : ''}</div>
-      <div class="lst">${shown.length ? shown.map(({ m, i }) => `<div class="gm"><span class="src ${m.src == 'nt' ? 'nt' : 'sg'}">${m.src == 'nt' ? 'NTPLAY' : 'SIGMA'}</span>
-        <div class="n"><b>${esc(m.u)}</b><small>${esc(i.sub)}</small></div><span class="bdg ${i.cls}">${esc(i.lab)}</span>
-        ${m.src == 'sg' ? `<button class="x" data-ga="edsg" data-g="${esc(g.id)}" data-m="${esc(m.id)}" title="Editar" aria-label="Editar">${SVG_ED.replace('class="i"', 'class="i" style="width:14px;height:14px"')}</button>` : ''}
-        <button class="x" data-ga="rm" data-g="${esc(g.id)}" data-m="${esc(m.id)}" title="Tirar do grupo" aria-label="Tirar do grupo">${SVG_X}</button></div>`).join('') : '<p class="muted">Grupo vazio.</p>'}</div>
-      <div class="acts"><button class="bt sm" data-ga="addnt" data-g="${esc(g.id)}">+ Cliente NTPlay</button><button class="bt sm" data-ga="addsg" data-g="${esc(g.id)}">+ Cliente Sigma</button></div></div>`;
+  if (!GLOADED) return;
+  // alerta + selo no menu
+  const al = [];
+  GROUPS.forEach(g => (g.members || []).forEach(m => { const i = memberInfo(m); if (inAlert(i)) al.push({ g, m, i }) }));
+  al.sort((a, b) => a.i.d - b.i.d);
+  const nExp = al.filter(x => x.i.d <= 0).length;
+  const nb = $('#nGrp'); nb.textContent = al.length; nb.className = 'bdg ' + (nExp ? 'r' : 'y') + (al.length ? '' : ' hide');
+  $('#gAlert').innerHTML = al.length ? `<div class="card galert ${nExp ? 'bad' : ''}"><div class="gah"><svg class="i" viewBox="0 0 24 24" style="color:var(--${nExp ? 'rd' : 'yl'})"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>
+      <h3>Atenção aos vencimentos</h3><span class="muted">${al.length - nExp} vence${al.length - nExp == 1 ? '' : 'm'} em até ${ALERT_DAYS} dias${nExp ? ` · <b style="color:var(--rd)">${nExp} vencido${nExp > 1 ? 's' : ''}</b>` : ''}</span></div>
+      <div class="gai">${al.map(({ g, m, i }) => `<button class="gm ${i.cls}" data-gs="${esc(g.id)}" style="text-align:left;cursor:pointer"><span class="src ${m.src == 'nt' ? 'nt' : 'sg'}">${m.src == 'nt' ? 'NTPLAY' : 'SIGMA'}</span><div class="n"><b>${esc(m.u)}</b><small>${esc(g.name)}${i.sub ? ' · ' + esc(i.sub) : ''}</small></div><span class="bdg ${i.cls}">${esc(i.lab)}</span></button>`).join('')}</div></div>` : '';
+
+  if (!GROUPS.length) { $('#gTabs').innerHTML = ''; $('#gBody').innerHTML = '<div class="empty card">Nenhum grupo ainda. Crie o primeiro em <b>Novo grupo</b>.</div>'; return }
+  if (!GROUPS.some(g => g.id == GSEL)) GSEL = GROUPS[0].id;
+  // abas dos grupos
+  $('#gTabs').innerHTML = GROUPS.map(g => {
+    const inf = (g.members || []).map(memberInfo), w = inf.filter(inAlert), wr = w.some(i => i.d <= 0);
+    return `<button class="gtab ${g.id == GSEL ? 'on' : ''}" data-gs="${esc(g.id)}" style="--c:${esc(g.color || GCOLS[0])}"><i></i>${esc(g.name)}<span class="bdg n">${inf.length}</span>${w.length ? `<span class="w ${wr ? 'r' : ''}" title="${w.length} com vencimento próximo"></span>` : ''}</button>`;
   }).join('');
-  $('#gList').innerHTML = html || '<div class="empty card" style="grid-column:1/-1">Nada encontrado.</div>';
+  // grupo aberto: NTPlay e Sigma em colunas separadas
+  const g = GROUPS.find(x => x.id == GSEL), mem = (g.members || []).map(m => ({ m, i: memberInfo(m) })).sort((a, b) => a.i.d - b.i.d);
+  const col = (src, title, add) => {
+    const rows = mem.filter(x => (x.m.src == 'nt') == (src == 'nt'));
+    return `<div class="card"><div class="gch"><span class="src ${src}">${src == 'nt' ? 'NTPLAY' : 'SIGMA'}</span><b>${title}</b><span class="bdg n">${rows.length}</span><span class="sp"></span><button class="bt sm" data-ga="${add}" data-g="${esc(g.id)}">+ Adicionar</button></div>
+      <div class="lst">${rows.length ? rows.map(({ m, i }) => `<div class="gm ${i.cls == 'g' || i.cls == 'n' ? '' : i.cls}"><div class="n"><b>${esc(m.u)}</b><small>${esc(i.sub) || '&nbsp;'}</small></div><span class="bdg ${i.cls}">${esc(i.lab)}</span>
+        ${m.src == 'sg' ? `<button class="x" data-ga="edsg" data-g="${esc(g.id)}" data-m="${esc(m.id)}" title="Editar" aria-label="Editar">${SVG_ED}</button>` : ''}
+        <button class="x" data-ga="rm" data-g="${esc(g.id)}" data-m="${esc(m.id)}" title="Tirar do grupo" aria-label="Tirar do grupo">${SVG_X}</button></div>`).join('') : `<p class="muted">Nenhum cliente ${src == 'nt' ? 'NTPlay' : 'Sigma'} neste grupo.</p>`}</div></div>`;
+  };
+  $('#gBody').innerHTML = `<div class="ghd" style="--c:${esc(g.color || GCOLS[0])}"><h2><i></i>${esc(g.name)}</h2><span class="sp"></span>
+      <button class="bt sm" data-ga="edit" data-g="${esc(g.id)}">${SVG_ED}Editar grupo</button><button class="bt sm rd" data-ga="del" data-g="${esc(g.id)}">${SVG_DEL}Apagar</button></div>
+    <div class="gcolw">${col('nt', 'Clientes NTPlay', 'addnt')}${col('sg', 'Clientes Sigma', 'addsg')}</div>
+    <p class="muted" style="margin-top:10px">Os clientes Sigma são cadastrados à mão: quando renovar no painel Sigma, atualize o vencimento aqui no lápis.</p>`;
 }
-$('#gQ').oninput = () => GLOADED && renderGroups();
 
 function groupBox(g) {
   let color = (g && g.color) || GCOLS[GROUPS.length % GCOLS.length];
@@ -595,9 +613,10 @@ function pickNtBox(g) {
   }));
 }
 
-$('#gNew').onclick = async () => { const o = await groupBox(); if (!o) return; const next = clone(GROUPS); next.push({ id: gid(), name: o.name, color: o.color, members: [] }); saveGroups(next, 'Grupo criado.') };
+$('#gNew').onclick = async () => { const o = await groupBox(); if (!o) return; const next = clone(GROUPS); const id = gid(); next.push({ id, name: o.name, color: o.color, members: [] }); GSEL = id; saveGroups(next, 'Grupo criado.') };
 
-$('#gList').onclick = async e => {
+$('#t-sigma').onclick = async e => {
+  const t = e.target.closest('[data-gs]'); if (t) { GSEL = t.dataset.gs; try { LS.gSel = GSEL } catch (er) { } renderGroups(); if (t.closest('#gAlert')) $('#gBody').scrollIntoView({ behavior: 'smooth' }); return }
   const b = e.target.closest('[data-ga]'); if (!b) return;
   const act = b.dataset.ga, next = clone(GROUPS), g = next.find(x => x.id == b.dataset.g); if (!g) return;
   g.members = g.members || [];
@@ -944,7 +963,7 @@ $('#lGo').onclick = async () => {
 $('#lAdm').onkeydown = e => { if (e.key == 'Enter') $('#lGo').click() };
 function logout() { try { delete LS.ntAdmKey } catch (e) { } ADM = ''; GROUPS = []; GTS = 0; GLOADED = false; ustarted = false; clearInterval(UT); $('#vApp').classList.add('hide'); $('#vLogin').classList.remove('hide') }
 $('#bOut').onclick = logout;
-function start() { $('#vLogin').classList.add('hide'); $('#vApp').classList.remove('hide'); loadUsers(); const t = (location.hash || '').slice(1); go(TABS.includes(t) ? t : 'geral') }
+function start() { $('#vLogin').classList.add('hide'); $('#vApp').classList.remove('hide'); loadUsers().then(loadGroups); const t = (location.hash || '').slice(1); go(TABS.includes(t) ? t : 'geral') }
 (function boot() { const a = LS.ntAdmKey; if (a) { ADM = a; start() } else $('#vLogin').classList.remove('hide') })();
 </script>
 </body>
