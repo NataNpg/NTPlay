@@ -7,3 +7,8 @@ www/config.js
 *.log
 .DS_Store
 *.jks
+
+.superpowers/
+mobile-native/app/build/
+__pycache__/
+*.pyc
