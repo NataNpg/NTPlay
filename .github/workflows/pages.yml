@@ -21,9 +21,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
+      # O player web foi encerrado (o app agora exige login e é distribuído como PC/TV/celular).
+      # Continuam no ar apenas os painéis (contas/admin) e a página de envio de lista.
+      - name: Montar site (sem o player)
+        run: |
+          mkdir _site
+          cp www/contas.html www/admin.html www/enviar.html _site/
+          cp -r www/img _site/img
+          cat > _site/index.html <<'EOF'
+          <!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NTPlay</title>
+          <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#080b1a;color:#e9ecff;font-family:system-ui,sans-serif;text-align:center;padding:24px}img{width:72px}a{color:#3ce0e6}</style></head>
+          <body><div><img src="img/icon.png" alt=""><h1>NTPlay</h1><p>A versão web foi encerrada.<br>Use o aplicativo para PC, Android TV ou celular.</p>
+          <p>Para ter uma conta, fale pelo <a href="https://wa.me/5542920028569">WhatsApp (42) 92002-8569</a>.</p></div></body></html>
+          EOF
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: www
+          path: _site
       - id: d
         uses: actions/deploy-pages@v4

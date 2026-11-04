@@ -47,6 +47,7 @@
   <div><h4>Enviar lista pelo celular</h4><p class="small">Escaneie o QR code com o celular (ou abra o link) e cole a lista numa página web. Ela chega aqui automaticamente.</p>
    <div id="qrbox"></div><div class="btns" style="margin-top:8px"><input type="text" id="slink" readonly placeholder="Link de envio"><button class="bt" id="scopy">Copiar link</button></div>
    <input type="text" id="sbase" placeholder="Endereço da página enviar.html (ex.: https://usuario.github.io/NTPlay/)" style="margin-top:8px"></div>
+  <div><h4>Conta</h4><div class="btns"><button class="bt" onclick="ntLogout()">Sair da conta</button></div></div>
   <div><h4>Preferências</h4><label class="ck" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="padult"> Mostrar conteúdo adulto (fica no fim da lista)</label><label class="ck" style="display:flex;gap:8px;margin:6px 0"><input type="checkbox" id="plite"> Modo leve (menos imagens e efeitos, mais rápido)</label>
    <div id="pmodew" hidden style="margin-top:8px"><label class="small" for="pmode">Reprodução no PC</label><select id="pmode" class="in" style="margin-top:4px"><option value="auto">Automática (tenta todos os players e usa o FFmpeg se precisar)</option><option value="ff">Sempre modo compatibilidade (FFmpeg: converte o áudio AC3/DTS)</option><option value="ffenc">Sempre converter o vídeo (4K/H.265 em PCs sem suporte)</option></select><label class="ck" style="display:flex;gap:8px;margin:8px 0 0"><input type="checkbox" id="plff"> Canais ao vivo pelo FFmpeg (igual ao VLC, evita travadas — recomendado)</label><p class="small" id="pmodei" style="margin-top:6px"></p></div></div>
   <div><h4>Destaques e capas da internet</h4><input type="text" id="tkey" placeholder="Chave TMDB (opcional, grátis em themoviedb.org)"><div class="btns" style="margin-top:8px"><button class="bt" id="mhl">↻ Atualizar destaques</button></div>
@@ -59,11 +60,7 @@
 <script src="vendor/hls.min.js"></script>
 <script src="vendor/mpegts.js"></script>
 <script src="vendor/qrcode.js"></script>
-<script src="config.js"></script>
 <script src="js/platform.js"></script>
-<script src="js/native.js"></script>
-<script src="js/futebol.js"></script>
-<script src="js/app.js"></script>
-<script src="js/presenca.js"></script>
+<script src="js/login.js"></script>
 </body>
 </html>
