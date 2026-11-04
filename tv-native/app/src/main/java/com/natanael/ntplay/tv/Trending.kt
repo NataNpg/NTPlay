@@ -72,10 +72,30 @@ object Trending {
         return out.toList()
     }
 
+    /** TMDB: listas do dia/semana em português e no nome original (para casar com a sua lista) */
+    private fun tmdbList(path: String, tv: Boolean): List<String> {
+        val k = BuildConfig.TMDB_KEY
+        if (k.isEmpty()) return emptyList()
+        val out = LinkedHashSet<String>()
+        for (page in 1..2) {
+            val t = get("https://api.themoviedb.org/3/$path${if (path.contains("?")) "&" else "?"}api_key=$k&language=pt-BR&region=BR&page=$page") ?: break
+            try {
+                val a = JSONObject(t).optJSONArray("results") ?: break
+                for (i in 0 until a.length()) {
+                    val o = a.getJSONObject(i)
+                    val isTv = o.optString("media_type").let { m -> if (m.isNotEmpty()) m == "tv" else tv }
+                    out.add(o.optString(if (isTv) "name" else "title")); out.add(o.optString(if (isTv) "original_name" else "original_title"))
+                }
+            } catch (e: Exception) { }
+        }
+        out.remove("")
+        return out.toList()
+    }
+
     private fun names(ctx: Context): JSONObject {
         val f = File(ctx.filesDir, "trend.json")
         try {
-            if (f.exists() && System.currentTimeMillis() - f.lastModified() < 8 * 3600_000L) return JSONObject(f.readText())
+            if (f.exists() && System.currentTimeMillis() - f.lastModified() < 8 * 3600_000L) { val c = JSONObject(f.readText()); if (BuildConfig.TMDB_KEY.isEmpty() || c.has("tmAir")) return c }
         } catch (e: Exception) { }
         val o = JSONObject()
         val (nf, nt) = netflix()
@@ -83,6 +103,11 @@ object Trending {
         o.put("nfFilms", JSONArray(nf))
         o.put("nfTv", JSONArray(nt))
         o.put("web", JSONArray(tvmazeWeb()))
+        o.put("tmAir", JSONArray(tmdbList("tv/airing_today", true)))
+        o.put("tmOn", JSONArray(tmdbList("tv/on_the_air", true)))
+        o.put("tmNow", JSONArray(tmdbList("movie/now_playing", false)))
+        o.put("tmUp", JSONArray(tmdbList("movie/upcoming", false)))
+        o.put("tmTrend", JSONArray(tmdbList("trending/all/week", false)))
         try { f.writeText(o.toString()) } catch (e: Exception) { }
         return o
     }
@@ -105,6 +130,15 @@ object Trending {
         val o = try { names(ctx) } catch (e: Exception) { JSONObject() }
         val nfAll = match(arr(o, "nfFilms"), mv) + match(arr(o, "nfTv"), sr)
         if (nfAll.isNotEmpty()) rows.add(Row("🔥 Top 10 da Netflix nesta semana", nfAll))
+        // TMDB: episódios novos, lançamentos e em alta (cruzados com a sua lista)
+        val tmAir = match(arr(o, "tmAir"), sr)
+        if (tmAir.isNotEmpty()) rows.add(Row("📺 Episódios novos hoje", tmAir))
+        val tmOn = match(arr(o, "tmOn"), sr).filter { s -> tmAir.none { it.key == s.key } }
+        if (tmOn.isNotEmpty()) rows.add(Row("🆕 Séries em exibição agora", tmOn))
+        val tmNow = match(arr(o, "tmNow") + arr(o, "tmUp"), mv)
+        if (tmNow.isNotEmpty()) rows.add(Row("🎬 Lançamentos nos cinemas", tmNow))
+        val tmTr = match(arr(o, "tmTrend"), mv) + match(arr(o, "tmTrend"), sr)
+        if (tmTr.isNotEmpty()) rows.add(Row("🔥 Em alta esta semana", tmTr))
         val itn = match(arr(o, "itunes"), mv)
         if (itn.isNotEmpty()) rows.add(Row("🔥 Filmes em alta no Brasil", itn))
         val web = match(arr(o, "web"), sr)

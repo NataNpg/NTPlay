@@ -256,3 +256,44 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **Busca só de filmes, séries e animes** (`AppState.search`): varre `movies + series` em vez de `every`, então canais ao vivo não aparecem mais no resultado (os animes estão dentro de filmes/séries, então continuam vindo). Cartões da busca agora têm sempre 112 dp e abrem a tela de detalhes.
 - **Atualização ao reabrir o app** (`MainActivity.onResume`): a checagem só acontecia 20 s depois de criar o `AppState` e de 6 em 6 h. Na TV o app fica na memória, então sair e voltar NÃO recriava o `AppState` e a versão nova só aparecia até 6 h depois. Agora confere toda vez que o app volta para a frente, no máximo uma vez a cada 10 min.
 - `versionName 1.10.6`.
+
+## 1.10.7
+- Capas: se a imagem que vem da lista é uma cena/foto horizontal (largura/altura > 0,85), o card busca a capa oficial vertical (TVMaze/iTunes/Wikipédia, `Meta.poster`, cache `4|`) e troca.
+- Mais rápido: 8 buscas de capa em paralelo (eram 4), espera menor, e a tradução da sinopse só acontece ao abrir o título.
+
+## 1.10.8
+- Removido o botão "Ver tudo" de todas as prateleiras e a aba INFANTIL do menu.
+- ✕ de "Continuar assistindo" agora fica dentro da capa (canto inferior direito, fica vermelho ao focar).
+- Cores: o roxo (que estourava para branco em TVs saturadas) virou azul (`Pink = 3A6DF0`, `FocusBg = 2B4A9E`, botões `2F5FD8`).
+- Arte nova da abertura, ajustada à tela; a mesma arte aparece como papel de parede suave (10%) no app.
+- Mais leve: capas decodificadas em 300x450 px (antes no tamanho original).
+
+## 1.10.9
+- Player no visual novo: barra grossa branca/azul-clara com "tempo / total" à direita; botões azuis compactos (⏯, 10s, Próximo, Tela, Áudio, Favorito, Sair). "Tela" (Ajustar/Zoom/Esticar) agora também em filmes e séries; Legenda só aparece se houver.
+- Filmes/séries "só carregando": busca de capas/sinopses deixou de saturar o servidor da lista (máx. 2 consultas ao mesmo tempo ao servidor, 4 no total, capas oficiais em fila própria de 3). Causa provável: na 1.10.7 dobrei para 8 buscas simultâneas. **Não confirmado na TV.**
+
+## 1.10.10
+- Player e detalhes no visual do app da webOS: cabeçalho preto com título e "— T1 E2 · 800p", barra roxa em trilho cinza com "tempo / total", botões azul-marinho (no ao vivo: ▼ Canal, ▲ Canal, Canais, Tela, Áudio…), "Pular abertura" acima da barra à direita; EPG ao vivo com "Agora"/"A seguir" em ciano. Detalhes: capa grande à esquerda, título, meta em ciano, sinopse, botões, temporadas e episódios à direita.
+- Canais de TV que vinham num grupo "FILMES & SÉRIES" (links sem extensão, .ts ou .m3u8) deixam de aparecer como série/filme.
+- Quando o vídeo "fica reconectando", o aviso agora mostra o motivo (ex.: "HTTP 403", "IO_NETWORK_CONNECTION_FAILED") para diagnosticar.
+
+## 1.11.0
+- **HTTP 429** ("Reconectando… HTTP 429"): é o servidor da lista limitando conexões. Agora o player espera de verdade antes de tentar de novo (o tempo que o servidor pede, ou 4 s, 8 s, 12 s…, até 7 tentativas), espera 0,7 s ao trocar de episódio para a conexão anterior fechar e, enquanto um vídeo toca, o app não faz consultas de capas/sinopses ao servidor da lista.
+- **TMDB**: capas verticais oficiais, sinopse em português, nota e ano (`Meta.tmdb`), usadas antes das outras fontes. Chave no GitHub Secret `TMDB_KEY` (vai para `BuildConfig.TMDB_KEY`; sem o secret o app usa só as fontes antigas).
+- **Recomendações novas** (`Trending.kt`, TMDB cruzado com a sua lista): "Episódios novos hoje", "Séries em exibição agora", "Lançamentos nos cinemas", "Em alta esta semana".
+- JustWatch e IMDb não têm API pública (copiar o site viola os termos e quebra fácil); o TMDB já traz os mesmos dados de lançamento.
+
+## 1.11.1
+- App fechando ao escolher canal/filme/série (relatado após a 1.11.0): causa não identificada sem o log. Agora, se o app fechar, o motivo é guardado e mostrado em uma janela na próxima abertura ("O app fechou sozinho… tire uma foto"). As buscas de capa/sinopse (`Meta.get`/`Meta.poster`) passaram a engolir qualquer erro em vez de derrubar o app.
+
+## 1.11.2
+- **Corrige o app fechando ao escolher canal/filme/série.** Erro capturado pela 1.11.1: `IllegalStateException: LayoutCoordinate operations are only valid when isAttached is true` na busca de foco do Compose (`FocusTraversal.focusRect`), quando o D-pad aponta para um item de lista que acabou de sair da tela. `MainActivity.dispatchKeyEvent` agora ignora só esse erro (aquele toque do controle é descartado e o app continua).
+
+
+## 1.11.3 — mais leve
+- Removidos: selos LEG/DUB dos cards, carrossel "em destaque" de Recomendações (imagem grande + troca a cada 9 s) e o papel de parede de tela cheia com transparência (camada extra desenhada a cada quadro). A arte continua só na abertura.
+- O app fechou sem mostrar a janela de erro: provável fechamento do sistema por falta de memória (não é exceção do app). Menos imagens grandes na tela = menos memória.
+
+## 1.11.4
+- Selo LEG/DUB voltou aos cards (foi retirado por engano na 1.11.3).
+- Em TV ao vivo, Filmes e Séries, "Todas" agora é uma grade única com tudo junto (sem as prateleiras "Legendadas", "Globoplay", "AMC Plus"…). As categorias ficam só na lateral. O destaque grande e o papel de parede continuam removidos.

@@ -16,7 +16,7 @@ import kotlinx.coroutines.withContext
 
 class PlayReq(val item: Item, val ep: Ep, val resume: Long)
 
-val TABS = listOf("RECOMENDAÇÕES", "TV AO VIVO", "FUTEBOL", "FILMES", "SÉRIES", "INFANTIL", "ANIMES", "FAVORITOS")
+val TABS = listOf("RECOMENDAÇÕES", "TV AO VIVO", "FUTEBOL", "FILMES", "SÉRIES", "ANIMES", "FAVORITOS")
 
 class AppState(val ctx: Context) {
     val store = Store(ctx)

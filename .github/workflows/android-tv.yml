@@ -24,6 +24,10 @@ jobs:
           gradle-version: 8.9
       - name: Número da versão (sobe sozinho a cada compilação)
         run: echo "NT_VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+      - name: Chave do TMDB (GitHub Secrets, opcional)
+        env:
+          TK: ${{ secrets.TMDB_KEY }}
+        run: echo "TMDB_KEY=$TK" >> "$GITHUB_ENV"
       - name: Chave de assinatura (GitHub Secrets)
         env:
           KS_B64: ${{ secrets.NT_KEYSTORE_B64 }}

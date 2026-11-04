@@ -106,13 +106,13 @@ val Bg = Color(0xFF070B1A)
 val Bg2 = Color(0xFF0E1430)
 val PanelC = Color(0xFF111838)
 val CardC = Color(0xFF182046)
-val Pink = Color(0xFF8B5CF6)
+val Pink = Color(0xFF3A6DF0)
 val Cyan = Color(0xFF3CE0E6)
 val Purple = Color(0xFFB27CFF)
 val Muted = Color(0xFF9FB0D6)
 val Dark = Color(0xFF070B1A)
 val Btn = Color(0xFF222B57)
-val FocusBg = Color(0xFF3B3F86)
+val FocusBg = Color(0xFF2B4A9E)
 
 /** sem "camada branca" do Material ao focar: o foco é desenhado por nós */
 /** tamanho geral da interface (1.0 = original) */
@@ -309,7 +309,7 @@ fun Header(st: AppState) {
         }
         TvButton("🔍 Buscar", Btn, 10.sp, compact = true) { st.showSearch = true }
         Spacer(Modifier.width(6.dp))
-        TvButton("☰ Listas", Color(0xFF7C3AED), 10.sp, compact = true) { st.showLists = true }
+        TvButton("☰ Listas", Color(0xFF2F5FD8), 10.sp, compact = true) { st.showLists = true }
         Spacer(Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End) {
             Text(clock, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -327,10 +327,20 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     @Suppress("UNUSED_VARIABLE") val lv = st.logoVer
     var img by remember(item.key, item.logo) { mutableStateOf(item.logo.ifEmpty { Meta.cached(st.store, item)?.img ?: "" }) }
     var tried by remember(item.key) { mutableStateOf(false) }
+    var posterTried by remember(item.key) { mutableStateOf(false) }
+    var scene by remember(item.key, item.logo) { mutableStateOf(false) }
+    // imagem da lista que é cena/foto horizontal (não é capa): troca pela capa oficial
+    LaunchedEffect(scene) {
+        if (scene && !posterTried && !item.adult) {
+            posterTried = true
+            val p = Meta.poster(st.store, item)
+            if (p.isNotEmpty() && p != img) img = p
+        }
+    }
     LaunchedEffect(item.key, img) {
         if (img.isEmpty() && !tried && !item.adult) {
             tried = true
-            delay(250) // só busca se o cartão continuar na tela
+            delay(120) // só busca se o cartão continuar na tela
             val i = Meta.get(st.store, item)
             if (i != null && i.img.isNotEmpty()) img = i.img
         }
@@ -340,7 +350,9 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
         Box(Modifier.tvClick(fi, RoundedCornerShape(12.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(12.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
             if (img.isNotEmpty()) {
                 AsyncImage(
-                    model = img, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(img).size(300, 450).build(),
+                    contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                    onSuccess = { s -> val z = s.painter.intrinsicSize; if (z.width > 0f && z.height > 0f && z.width / z.height > 0.85f) scene = true },
                     onError = { val c = Meta.cached(st.store, item)?.img ?: ""; img = if (c.isNotEmpty() && c != img) c else ""}
                 )
             } else {
@@ -349,6 +361,13 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
             val tag = Util.audioTag(item)
             if (tag.isNotEmpty()) Text(tag, Modifier.align(Alignment.TopStart).padding(6.dp).background(if (tag == "DUB") Color(0xE68B5CF6) else Color(0xE63CE0E6), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
                 color = if (tag == "DUB") Color.White else Color(0xFF05101F), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+            if (onRemove != null) {
+                val rfi = rememberFocus()
+                Text("✕", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 10.dp)
+                        .tvClick(rfi, CircleShape, 1.2f, onClick = onRemove)
+                        .background(if (rfi.on) Color(0xFFE5484D) else Color(0xCC000000), CircleShape).padding(horizontal = 7.dp, vertical = 3.dp))
+            }
             if (st.favs.contains(item.key)) Text("★", Modifier.align(Alignment.TopEnd).padding(6.dp).background(Color(0x99000000), CircleShape).padding(horizontal = 6.dp, vertical = 2.dp), color = Color(0xFFFFC107), fontSize = 12.sp)
             if (prog > 0f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x66000000))) {
                 Box(Modifier.fillMaxWidth(prog.coerceIn(0f, 1f)).fillMaxHeight().background(Pink))
@@ -359,11 +378,6 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
         val q = Util.quality(item.title)
         val sub = listOfNotNull(y.ifEmpty { null }, if (item.kind == 's') "Série" else null, q.ifEmpty { null }).joinToString(" · ")
         if (sub.isNotEmpty()) Text(sub, Modifier.padding(start = 2.dp), color = Muted, fontSize = 9.sp, maxLines = 1)
-        if (onRemove != null) {
-            val rfi = rememberFocus()
-            Text("✕", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 3.dp).tvClick(rfi, CircleShape, 1.15f, onClick = onRemove).background(if (rfi.on) Pink else Btn, CircleShape).padding(horizontal = 6.dp, vertical = 2.dp))
-        }
     }
 }
 
@@ -414,7 +428,6 @@ fun ShelfRow(title: String, count: Int, onAll: (() -> Unit)?, content: LazyListS
             Spacer(Modifier.width(8.dp))
             Text("$count", color = Muted, fontSize = 11.sp)
             Spacer(Modifier.weight(1f))
-            if (onAll != null) TvButton("Ver tudo ›", Btn, 11.sp, onClick = onAll)
         }
         val ls = rememberLazyListState()
         LazyRow(modifier = Modifier.mouseScroll(ls, true), state = ls, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), content = content)
@@ -448,7 +461,7 @@ fun Browse(st: AppState) {
                 Spacer(Modifier.height(6.dp))
                 if (!st.busy) Text("Adicione o link da sua lista M3U ou envie pelo celular com o QR code.", color = Muted, fontSize = 13.sp)
                 Spacer(Modifier.height(18.dp))
-                if (!st.busy) TvButton("☰ Carregar lista M3U", Color(0xFF7C3AED), 15.sp) { st.showLists = true }
+                if (!st.busy) TvButton("☰ Carregar lista M3U", Color(0xFF2F5FD8), 15.sp) { st.showLists = true }
             }
         }
         return
@@ -477,14 +490,9 @@ fun Browse(st: AppState) {
                         val f = remember(yearBase, st.yearSel) { yearBase.filter { yearOfItem(st, it) == st.yearSel } }
                         GridOf(st, f.take(900), (if (st.group.isEmpty()) tab else st.group) + " · " + st.yearSel)
                     } else if (st.group.isEmpty()) {
-                        val ls = savedListState(st, "shelves:" + tab)
-                        LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp)) {
-                            items(groups.take(80), key = { it.first }) { g ->
-                                ShelfRow(g.first, g.second.size, { st.group = g.first }) {
-                                    items(g.second.take(30), key = { it.key }) { it2 -> CardFor(st, it2, g.second) }
-                                }
-                            }
-                        }
+                        // "Todas": tudo junto numa grade só; as categorias ficam só na lateral
+                        val all = when (tab) { "TV AO VIVO" -> lib.live; "FILMES" -> lib.movies; else -> lib.series }
+                        GridOf(st, all, tab)
                     } else {
                         val l = groups.firstOrNull { it.first == st.group }?.second ?: emptyList()
                         GridOf(st, l, st.group)
@@ -591,21 +599,8 @@ fun Recom(st: AppState, lib: Library) {
     val favs = remember(st.favs, lib) { lib.every.filter { st.favs.contains(it.key) } }
     val favL = favs.filter { it.kind == 'l' }; val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
     val trend = remember(st.trend) { st.trend.map { Trending.Row(it.title, it.items.filter { x -> x.kind != 'l' }) }.filter { it.items.isNotEmpty() } }
-    val heroes = remember(lib, trend) {
-        val out = LinkedHashMap<String, Item>()
-        for (r in trend) for (i in r.items.take(4)) if (i.kind != 'l') out.putIfAbsent(i.key, i)
-        val rnd = java.util.Random(System.currentTimeMillis() / 3_600_000L)
-        val mv = lib.movies.filter { it.logo.isNotEmpty() && !it.adult }
-        val sr = lib.series.filter { it.logo.isNotEmpty() && !it.adult }
-        for (k in 0 until 6) {
-            if (mv.isNotEmpty()) mv[rnd.nextInt(minOf(mv.size, 400))].let { out.putIfAbsent(it.key, it) }
-            if (sr.isNotEmpty()) sr[rnd.nextInt(minOf(sr.size, 400))].let { out.putIfAbsent(it.key, it) }
-        }
-        out.values.take(12)
-    }
     val ls = rememberLazyListState()
     LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(bottom = 20.dp)) {
-        if (heroes.isNotEmpty()) item { HeroCarousel(st, heroes) }
         if (cw.isNotEmpty()) item {
             ShelfRow("Continuar assistindo", cw.size, null) {
                 items(cw, key = { it.first.key }) { (it2, ep) ->
@@ -699,45 +694,38 @@ fun DetailScreen(st: AppState, item: Item) {
     Box(Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp))) {
         if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.16f }, contentScale = ContentScale.Crop)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x66070B1A), Bg))))
-        Row(Modifier.fillMaxSize().padding(18.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-            // coluna de informações
-            Column(if (serie) Modifier.weight(0.42f) else Modifier.weight(1f)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Box(Modifier.width(if (serie) 120.dp else 170.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)).background(tint(item.title))) {
-                        if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        else Text(showTitle(item), Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xCCFFFFFF), fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text(showTitle(item), color = Color.White, fontSize = if (serie) 22.sp else 28.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(meta, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp))
-                        if (!serie) Text(ovText, color = Color(0xE6FFFFFF), fontSize = 14.sp, maxLines = 7, overflow = TextOverflow.Ellipsis, lineHeight = 20.sp)
-                    }
-                }
-                if (serie) Text(ovText, color = Color(0xE6FFFFFF), fontSize = 13.sp, maxLines = 6, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp, modifier = Modifier.padding(top = 12.dp))
-                Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TvButton(label, Pink, 13.sp) { if (needEps) { if (!st.epsLoading) st.loadEps(item) } else st.playItem(item, cont) }
-                    TvButton(if (st.favs.contains(item.key)) "★ Na lista" else "☆ Minha lista", Btn, 13.sp) { st.toggleFav(item.key) }
-                    TvButton("＋ Grupo", Btn, 13.sp) { st.openGroups(item) }
-                    TvButton("‹ Voltar", Btn, 13.sp) { st.detail = null }
-                }
-                if (needEps && st.epsErr.isNotEmpty()) Text(st.epsErr + " Toque em \"Carregar episódios\" para tentar de novo.", color = Color(0xFFFF9A9A), fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+        // capa à esquerda; à direita título, sinopse, botões, temporadas e episódios (como no app da webOS)
+        Row(Modifier.fillMaxSize().padding(18.dp), horizontalArrangement = Arrangement.spacedBy(26.dp)) {
+            Box(Modifier.width(190.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(14.dp)).background(tint(item.title))) {
+                if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                else Text(showTitle(item), Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xCCFFFFFF), fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
-            // coluna de episódios (altura inteira)
-            if (serie) Column(Modifier.weight(0.58f).fillMaxHeight().background(Color(0xAA0E1430), RoundedCornerShape(16.dp)).padding(12.dp)) {
-                Text("EPISÓDIOS", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-                if (needEps) {
-                    Text(if (st.epsLoading) "Carregando episódios…" else "Episódios ainda não carregados.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
-                } else {
-                    val seasons = item.eps.map { it.s }.distinct().sorted()
-                    val ls = rememberLazyListState()
-                    LazyRow(Modifier.mouseScroll(ls, true), state = ls, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp)) {
-                        items(seasons) { s -> TvButton("Temporada $s", Btn, 11.sp, selected = st.season == s) { st.season = s } }
-                    }
-                    val eps = item.eps.filter { it.s == st.season }
-                    val ls2 = rememberLazyListState()
-                    LazyColumn(Modifier.weight(1f).mouseScroll(ls2), state = ls2, contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(eps, key = { it.url }) { e -> EpisodeRow(st, item, e) }
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Text(showTitle(item), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(meta, color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 5.dp))
+                Text(ovText, color = Color(0xCCB8C4F0), fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TvButton(label, Pink, 13.sp, shape = RoundedCornerShape(10.dp)) { if (needEps) { if (!st.epsLoading) st.loadEps(item) } else st.playItem(item, cont) }
+                    TvButton(if (st.favs.contains(item.key)) "★ Favorito" else "☆ Favorito", Btn, 13.sp, shape = RoundedCornerShape(10.dp)) { st.toggleFav(item.key) }
+                    TvButton("＋ Grupo", Btn, 13.sp, shape = RoundedCornerShape(10.dp)) { st.openGroups(item) }
+                    TvButton("‹ Voltar", Btn, 13.sp, shape = RoundedCornerShape(10.dp)) { st.detail = null }
+                }
+                if (needEps && st.epsErr.isNotEmpty()) Text(st.epsErr + " Toque em \"Carregar episódios\" para tentar de novo.", color = Color(0xFFFF9A9A), fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                if (serie) {
+                    if (needEps) {
+                        Text(if (st.epsLoading) "Carregando episódios…" else "Episódios ainda não carregados.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
+                    } else {
+                        val seasons = item.eps.map { it.s }.distinct().sorted()
+                        val ls = rememberLazyListState()
+                        LazyRow(Modifier.padding(top = 12.dp).mouseScroll(ls, true), state = ls, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
+                            items(seasons) { s -> TvButton("Temporada $s", Btn, 11.sp, selected = st.season == s, shape = RoundedCornerShape(8.dp), compact = true) { st.season = s } }
+                        }
+                        val eps = item.eps.filter { it.s == st.season }
+                        val ls2 = rememberLazyListState()
+                        LazyColumn(Modifier.weight(1f).mouseScroll(ls2), state = ls2, contentPadding = PaddingValues(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(eps, key = { it.url }) { e -> EpisodeRow(st, item, e) }
+                        }
                     }
                 }
             }
@@ -955,7 +943,7 @@ fun ListsDialog(st: AppState) {
                             OutlinedTextField(xPass, { xPass = it }, Modifier.weight(1f), placeholder = { Text("Senha", fontSize = 12.sp) }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors())
                         }
                     }
-                    item { TvButton(if (st.busy) "⏳ Entrando…" else "🔑 Entrar e adicionar (Xtream)", Color(0xFF7C3AED), 12.sp) {
+                    item { TvButton(if (st.busy) "⏳ Entrando…" else "🔑 Entrar e adicionar (Xtream)", Color(0xFF2F5FD8), 12.sp) {
                         if (!st.busy) {
                             val h = xHost.trim().trimEnd('/').let { if (it.contains("://")) it else "http://$it" }
                             if (xHost.isBlank() || xUser.isBlank() || xPass.isBlank()) st.toast("Preencha servidor, usuário e senha.")
@@ -967,7 +955,7 @@ fun ListsDialog(st: AppState) {
                     item { OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), placeholder = { Text("Link M3U  http://...", fontSize = 12.sp) }, singleLine = true, textStyle = TextStyle(fontSize = 13.sp), colors = fieldColors()) }
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            TvButton(if (st.busy) "⏳ Baixando…" else "+ Adicionar lista", Color(0xFF7C3AED)) { if (!st.busy) st.addUrl(url, name) }
+                            TvButton(if (st.busy) "⏳ Baixando…" else "+ Adicionar lista", Color(0xFF2F5FD8)) { if (!st.busy) st.addUrl(url, name) }
                             TvButton("Fechar", Btn) { st.showLists = false }
                         }
                     }

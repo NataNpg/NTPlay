@@ -109,6 +109,8 @@ private fun qualityOf(p: ExoPlayer): String {
     return listOf(res, c, fps).filter { it.isNotEmpty() }.joinToString(" · ")
 }
 
+private val PB = Color(0xFF1C2352) // botões do player (azul-marinho, como no app da webOS)
+
 private fun hhmm(ms: Long): String = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ms))
 
 private fun langName(l: String?): String = when (l?.lowercase()?.take(2)) {
@@ -126,6 +128,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     var url by remember(req.ep.url) { mutableStateOf(req.ep.url) }
     var err by remember(req.ep.url) { mutableStateOf("") }
     var retries by remember(req.ep.url) { mutableIntStateOf(0) }
+    var lastErr by remember(req.ep.url) { mutableStateOf("") }
     var ui by remember(req.ep.url) { mutableStateOf(true) }
     var lastAct by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var buffering by remember(req.ep.url) { mutableStateOf(true) }
@@ -175,7 +178,11 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
         player.prepare()
     }
 
-    LaunchedEffect(player) { load(url, if (req.resume > 0) req.resume else 0L) }
+    DisposableEffect(Unit) { Meta.paused = true; onDispose { Meta.paused = false } }
+    LaunchedEffect(player) {
+        if (!live) delay(700) // deixa a conexão do vídeo anterior fechar (servidor de 1 tela responde 429 se ainda estiver aberta)
+        load(url, if (req.resume > 0) req.resume else 0L)
+    }
     LaunchedEffect(req.ep.url, st.epgVer) {
         if (!live) { epgNow = null; epgNext = null; return@LaunchedEffect }
         while (true) {
@@ -279,12 +286,17 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                     PlaybackException.ERROR_CODE_DECODING_FAILED, PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
                     PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED
                 )
-                val max = if (live) 8 else 4
+                val http = e.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
+                val limited = http?.responseCode == 429 || http?.responseCode == 509
+                val max = if (live) 8 else if (limited) 7 else 4
+                lastErr = ((e.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.let { "HTTP " + it.responseCode } ?: e.errorCodeName.removePrefix("ERROR_CODE_"))
                 if (!dec && retries < max) {
                     retries++
                     val at = if (live) 0L else player.currentPosition
                     scope.launch {
-                        delay(if (retries < 3) 800L else 2000L)
+                        val ra = http?.headerFields?.entries?.firstOrNull { it.key.equals("Retry-After", true) }?.value?.firstOrNull()?.trim()?.toLongOrNull()
+                        // servidor limitando (429): espera de verdade (ele pede, ou 4 s, 8 s, 12 s…), senão só piora
+                        delay(if (limited) maxOf((ra ?: 0L) * 1000L, 4000L * retries).coerceAtMost(20_000L) else if (retries < 3) 800L else 2000L)
                         // canal ao vivo .ts falhando: tenta a versão HLS (.m3u8) do mesmo canal
                         if (live && retries == 3 && url.contains("/live/") && url.endsWith(".ts")) url = url.removeSuffix(".ts") + ".m3u8"
                         load(url, at)
@@ -292,7 +304,8 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                     return
                 }
                 err = if (dec) "Este aparelho não consegue decodificar este vídeo (comum em 4K / H.265). Tente a versão Full HD/HD ou abra em outro player."
-                else "Não foi possível reproduzir (" + e.errorCodeName + "). O servidor pode estar fora do ar para este item."
+                else if (lastErr.contains("429") || lastErr.contains("509")) "O servidor da lista limitou as conexões (" + lastErr + "). Feche o vídeo em outros aparelhos, espere 1 minuto e tente de novo."
+                else "Não foi possível reproduzir (" + lastErr + "). O servidor pode estar fora do ar para este item."
                 ui = true
             }
         }
@@ -375,34 +388,34 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
         if (buffering && err.isEmpty()) Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(Modifier.size(40.dp), color = Pink, strokeWidth = 3.dp)
             Spacer(Modifier.height(8.dp))
-            Text(if (retries > 0) "Reconectando… ($retries)" else "Carregando…", color = Color.White, fontSize = 13.sp, modifier = Modifier.background(Color(0x99000000), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
+            Text(if (retries > 0) "Reconectando… ($retries)" + (if (lastErr.isNotEmpty()) " · $lastErr" else "") else "Carregando…", color = Color.White, fontSize = 13.sp, modifier = Modifier.background(Color(0x99000000), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
         }
 
         if (ui) {
             // topo: título, qualidade, relógio + guia (ao vivo)
             Column(
-                Modifier.align(Alignment.TopStart).fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent))).padding(start = 40.dp, end = 40.dp, top = 22.dp, bottom = 16.dp)
+                Modifier.align(Alignment.TopStart).fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xF2000000), Color(0xB3000000), Color.Transparent))).padding(start = 40.dp, end = 40.dp, top = 22.dp, bottom = 16.dp)
             ) {
-              Row(verticalAlignment = Alignment.CenterVertically) {
-                if (live) { LiveBadge(Modifier); Spacer(Modifier.width(10.dp)) }
-                Text(
-                    showTitle(req.item) + if (req.item.kind == 's') "  ·  T${req.ep.s} E${req.ep.e}" else "",
-                    color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false)
-                )
-                Spacer(Modifier.width(10.dp))
-                if (quality.isNotEmpty()) Text(quality, color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.background(Cyan, RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
-                Spacer(Modifier.weight(1f))
+              Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (live) { LiveBadge(Modifier); Spacer(Modifier.width(10.dp)) }
+                        Text(showTitle(req.item), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    val sub = listOfNotNull(if (req.item.kind == 's') "T${req.ep.s} E${req.ep.e}" else null, quality.ifEmpty { null }).joinToString(" · ")
+                    if (sub.isNotEmpty()) Text((if (live) "· " else "— ") + sub, color = Color(0xFFB8B8E8), fontSize = 12.sp)
+                }
                 Text(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
               }
               if (live && (epgNow != null || epgNext != null)) {
                 Spacer(Modifier.height(8.dp))
                 epgNow?.let { pr ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("AGORA", color = Pink, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
-                        Spacer(Modifier.width(8.dp))
+                        Text("Agora", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(10.dp))
+                        if (pr.start > 0) Text(hhmm(pr.start) + "–" + hhmm(pr.stop) + " ·", color = Color.White, fontSize = 12.sp)
+                        Spacer(Modifier.width(6.dp))
                         Text(pr.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                        Spacer(Modifier.width(8.dp))
-                        if (pr.start > 0) Text(hhmm(pr.start) + "–" + hhmm(pr.stop), color = Muted, fontSize = 10.sp)
                     }
                     if (pr.stop > pr.start) {
                         val prog = ((System.currentTimeMillis() - pr.start).toFloat() / (pr.stop - pr.start)).coerceIn(0f, 1f)
@@ -411,33 +424,33 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                         }
                     }
                 }
-                epgNext?.let { pr -> Text("A seguir: " + pr.title + (if (pr.start > 0) "  " + hhmm(pr.start) else ""), color = Color(0xBBFFFFFF), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)) }
+                epgNext?.let { pr -> Row(Modifier.padding(top = 4.dp)) { Text("A seguir", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold); Spacer(Modifier.width(10.dp)); Text((if (pr.start > 0) hhmm(pr.start) + " · " else "") + pr.title, color = Color(0xDDFFFFFF), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
               }
             }
             // base: progresso + botões compactos
             Column(
-                Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xDD000000)))).padding(start = 40.dp, end = 40.dp, top = 30.dp, bottom = 22.dp)
+                Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE6000000), Color(0xFF000000)))).padding(start = 40.dp, end = 40.dp, top = 30.dp, bottom = 22.dp)
             ) {
                 if (!live && dur > 0) SeekBar(pos, dur, onActivity = { lastAct = System.currentTimeMillis() }) { t -> player.seekTo(t.coerceIn(0, dur)); pos = t }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (live) TvButton("▲ Canal anterior", Btn, 10.sp, compact = true) { zap(false) }
-                    else TvButton("⏪ 10s", Btn, 10.sp, compact = true) { seek(-10_000); show() }
-                    TvButton(if (playing) "⏸ Pausar" else "▶ Continuar", Pink, 10.sp, compact = true, modifier = Modifier.focusRequester(playFocus)) { toggle(); show() }
-                    if (live) TvButton("▼ Próximo canal", Btn, 10.sp, compact = true) { zap(true) }
+                    if (live) TvButton("▲ Canal", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { zap(false) }
+                    else TvButton("⏪ 10s", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { seek(-10_000); show() }
+                    TvButton(if (playing) "⏯" else "▶", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp), modifier = Modifier.focusRequester(playFocus)) { toggle(); show() }
+                    if (live) TvButton("▼ Canal", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { zap(true) }
                     else {
-                        TvButton("10s ⏩", Btn, 10.sp, compact = true) { seek(10_000); show() }
-                        if (st.next(req) != null) TvButton("⏭ Próximo", Btn, 10.sp, compact = true) { zap(true) }
+                        TvButton("10s ⏩", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { seek(10_000); show() }
+                        if (st.next(req) != null) TvButton("Próximo ⏭", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { zap(true) }
                     }
                     if (live) {
-                        TvButton("📅 Guia", Btn, 10.sp, compact = true) { guide = true; chans = false }
-                        TvButton("📺 Canais", Btn, 10.sp, compact = true) { chans = true; guide = false }
+                        TvButton("Guia", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { guide = true; chans = false }
+                        TvButton("Canais", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { chans = true; guide = false }
                     }
-                    if (live) TvButton("⛶ Tela: " + when (resize) { 1 -> "Zoom"; 2 -> "Esticar"; else -> "Ajustar" }, Btn, 10.sp, compact = true) { resize = (resize + 1) % 3; show() }
-                    TvButton("CC Legenda: $subLabel" + if (nSubs > 0) "" else " (—)", Btn, 10.sp, compact = true) { cycleSub(); show() }
-                    if (nAudio > 1) TvButton("🔊 Áudio: $audioLabel", Btn, 10.sp, compact = true) { cycleAudio(); show() }
-                    TvButton(if (st.favs.contains(req.item.key)) "★ Favorito" else "☆ Favoritar", Btn, 10.sp, compact = true) { st.toggleFav(req.item.key) }
-                    TvButton("✕ Sair", Btn, 10.sp, compact = true) { close() }
+                    TvButton("⛶ Tela" + (if (resize != 0) ": " + (if (resize == 1) "Zoom" else "Esticar") else ""), PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { resize = (resize + 1) % 3; show() }
+                    if (nSubs > 0) TvButton("CC " + subLabel, PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { cycleSub(); show() }
+                    if (nAudio > 1) TvButton("🔊 Áudio", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { cycleAudio(); show() }
+                    TvButton(if (st.favs.contains(req.item.key)) "★ Favorito" else "☆ Favorito", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { st.toggleFav(req.item.key) }
+                    TvButton("✕ Sair", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { close() }
                 }
                 if (live) Text("Dica: ▲/▼ no controle troca de canal com o painel fechado", color = Color(0x99FFFFFF), fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
             }
@@ -449,7 +462,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                 if (showSkipIntro) skipIntro() else skipCredits()
             }
         }
-        if ((showSkipIntro || showSkipCredits) && ui) Box(Modifier.align(Alignment.TopEnd).padding(end = 40.dp, top = 70.dp)) {
+        if ((showSkipIntro || showSkipCredits) && ui) Box(Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = 118.dp)) {
             TvButton(if (showSkipIntro) "⏭ Pular abertura" else if (nextReq != null) "⏭ Próximo episódio" else "⏭ Pular créditos", Pink, 12.sp, compact = true) {
                 if (showSkipIntro) skipIntro() else skipCredits()
             }
@@ -484,9 +497,8 @@ fun SeekBar(pos: Long, dur: Long, onActivity: () -> Unit, onSeek: (Long) -> Unit
     var w by remember { mutableIntStateOf(1) }
     val shown = if (preview >= 0) preview else pos
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(Util.fmt(shown), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         Box(
-            Modifier.weight(1f).padding(horizontal = 10.dp).height(22.dp)
+            Modifier.weight(1f).padding(end = 12.dp).height(22.dp)
                 .onSizeChanged { w = maxOf(1, it.width) }
                 .onPreviewKeyEvent { e ->
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
@@ -511,14 +523,14 @@ fun SeekBar(pos: Long, dur: Long, onActivity: () -> Unit, onSeek: (Long) -> Unit
             contentAlignment = Alignment.CenterStart
         ) {
             val f = (shown.toFloat() / dur).coerceIn(0f, 1f)
-            Box(Modifier.fillMaxWidth().height(if (fi.on) 8.dp else 4.dp).background(Color(0x55FFFFFF), RoundedCornerShape(4.dp))) {
-                Box(Modifier.fillMaxWidth(f).fillMaxHeight().background(Pink, RoundedCornerShape(4.dp)))
+            Box(Modifier.fillMaxWidth().height(if (fi.on) 12.dp else 9.dp).background(Color(0x66FFFFFF), RoundedCornerShape(6.dp))) {
+                Box(Modifier.fillMaxWidth(f).fillMaxHeight().background(Pink, RoundedCornerShape(6.dp)))
             }
             if (fi.on) Box(Modifier.fillMaxWidth(f).height(22.dp), contentAlignment = Alignment.CenterEnd) {
                 Box(Modifier.size(18.dp).background(Color.White, RoundedCornerShape(9.dp)))
             }
         }
-        Text(Util.fmt(dur), color = Color.White, fontSize = 11.sp)
+        Text(Util.fmt(shown) + " / " + Util.fmt(dur), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
     if (fi.focused) Text("◀ ▶ para voltar/avançar (segure para ir mais rápido) · clique/arraste com o mouse", color = Color(0xAAFFFFFF), fontSize = 9.sp)
 }
