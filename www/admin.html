@@ -160,6 +160,26 @@ h2.sec{font-size:15px;margin:22px 0 10px}
 .ia:hover{background:#ffffff1c}
 .ia svg.i{width:16px;height:16px}
 
+/* sigma + grupos */
+.sgw{display:grid;gap:12px}
+.sgframe{width:100%;height:calc(100vh - 190px);min-height:480px;border:1px solid var(--line2);border-radius:var(--r);background:#fff}
+.gps{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:12px}
+.gp{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px;border-top:3px solid var(--c,var(--pk))}
+.gp .gh{display:flex;align-items:center;gap:8px}
+.gp .gh b{flex:1;min-width:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gm{display:flex;align-items:center;gap:8px;background:#050a17;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.gm .n{flex:1;min-width:0}
+.gm .n b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gm .n small{display:block;color:var(--mut);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.src{font-size:10px;font-weight:800;letter-spacing:.04em;padding:2px 6px;border-radius:6px;flex:0 0 auto}
+.src.nt{color:var(--pk2);background:#e93a7d22}.src.sg{color:var(--bl);background:#60a5fa22}
+.gm .bdg{flex:0 0 auto}
+.gm .x{color:var(--mut);width:24px;height:24px;border-radius:6px;display:grid;place-items:center;flex:0 0 auto}
+.gm .x:hover{background:#ffffff14;color:var(--tx)}
+.gcols{display:flex;gap:6px;flex-wrap:wrap}
+.gcols button{width:24px;height:24px;border-radius:50%;background:var(--c);border:2px solid transparent}
+.gcols button.on{border-color:#fff}
+
 /* login + modal + toast */
 .login{max-width:520px;margin:9vh auto;padding:0 16px}
 .login .card{padding:24px}
@@ -211,6 +231,7 @@ h2.sec{font-size:15px;margin:22px 0 10px}
     <button class="nav on" data-tab="geral"><svg class="i" viewBox="0 0 24 24"><path d="M3 12l9-8 9 8M5 10v10h14V10"/></svg>Visão geral</button>
     <button class="nav" data-tab="contas"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11h6M20 8v6"/></svg>Contas<span class="bdg p" id="nCont"></span></button>
     <button class="nav" data-tab="clientes"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>Clientes</button>
+    <button class="nav" data-tab="sigma"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg>Sigma e grupos</button>
     <button class="nav" data-tab="listas"><svg class="i" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Listas</button>
     <button class="nav" data-tab="uso"><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18M7 15l4-4 3 3 6-7"/></svg>Uso</button>
     <span class="sp"></span>
@@ -283,6 +304,30 @@ h2.sec{font-size:15px;margin:22px 0 10px}
           <input class="in" id="kQ" placeholder="Buscar cliente…">
         </div>
         <div class="twrap"><table class="ktab"><thead><tr><th>Cliente</th><th>Último acesso</th><th>Aparelhos</th><th>Status</th><th>Tempo restante</th><th>Validade</th><th class="r">Ações</th></tr></thead><tbody id="kRows"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- SIGMA E GRUPOS -->
+    <section id="t-sigma" class="hide">
+      <div class="top"><div><h1>Sigma e grupos</h1><div class="sub">Junte clientes do NTPlay e do painel Sigma em grupos.</div></div><span class="sp"></span>
+        <div class="seg" id="sgSeg"><button data-v="g" class="on">Grupos</button><button data-v="p">Painel Sigma</button></div></div>
+
+      <div id="sgG" class="sgw">
+        <div class="bar" style="margin-bottom:0">
+          <input class="in" id="gQ" placeholder="Buscar cliente ou grupo…">
+          <button class="bt" id="gRef"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Atualizar</button>
+          <button class="bt pk" id="gNew"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Novo grupo</button>
+        </div>
+        <p class="muted">Clientes <span class="src nt">NTPLAY</span> vêm das suas contas e mostram o vencimento real. Clientes <span class="src sg">SIGMA</span> são cadastrados à mão aqui (o painel Sigma não deixa este site ler os dados dele), então atualize o vencimento quando renovar lá.</p>
+        <div class="gps" id="gList"></div>
+      </div>
+
+      <div id="sgP" class="sgw hide">
+        <div class="bar" style="margin-bottom:0">
+          <span class="muted" style="flex:1">Se o painel ficar em branco ou recusar abrir aqui, o Sigma bloqueia ser exibido dentro de outro site. Use o botão ao lado.</span>
+          <a class="bt" href="https://vizion-net.sigmab.pro/#/customers" target="_blank" rel="noopener"><svg class="i" viewBox="0 0 24 24"><path d="M14 3h7v7M10 14L21 3M21 14v7H3V3h7"/></svg>Abrir em nova aba</a>
+        </div>
+        <iframe id="sgFrame" class="sgframe" title="Painel Sigma" referrerpolicy="no-referrer"></iframe>
       </div>
     </section>
 
@@ -412,10 +457,12 @@ function askBox(title, text, fields, okLabel) {
 }
 
 /* ================= navegação ================= */
+const TABS = ['geral', 'contas', 'clientes', 'sigma', 'listas', 'uso'];
 function go(tab) {
   $$('.nav[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab == tab));
-  ['geral', 'contas', 'clientes', 'listas', 'uso'].forEach(t => $('#t-' + t).classList.toggle('hide', t != tab));
+  TABS.forEach(t => $('#t-' + t).classList.toggle('hide', t != tab));
   if (tab == 'uso') usoStart();
+  if (tab == 'sigma') sigmaStart();
   if (tab == 'clientes') setTimeout(drawTimeline, 0);
   try { history.replaceState(null, '', '#' + tab) } catch (e) { }
   window.scrollTo(0, 0);
@@ -430,7 +477,141 @@ async function loadUsers() {
   catch (e) { $('#upd').textContent = ''; toast(e.message, 1); if (/administrador/i.test(e.message)) logout() }
 }
 $('#bRef').onclick = loadUsers;
-function renderAll() { renderGeral(); renderContas(); renderClientes(); fillAccSelect() }
+function renderAll() { renderGeral(); renderContas(); renderClientes(); fillAccSelect(); if (GLOADED) renderGroups() }
+
+/* ================= sigma e grupos =================
+   Grupos ficam no servidor (op gget/gset). Cada membro é
+   { id, src:'nt', u } (conta NTPlay; vencimento vem de USERS) ou
+   { id, src:'sg', u, exp:'AAAA-MM-DD', note } (cliente do painel Sigma, cadastrado à mão). */
+const SIGMA_URL = 'https://vizion-net.sigmab.pro/#/customers';
+const GCOLS = ['#e93a7d', '#60a5fa', '#34d399', '#fbbf24', '#a78bfa', '#f87171', '#22d3ee'];
+let GROUPS = [], GTS = 0, GLOADED = false, GBUSY = false;
+const gid = () => Math.random().toString(36).slice(2, 10);
+const clone = o => JSON.parse(JSON.stringify(o));
+const SVG_ED = '<svg class="i" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+const SVG_DEL = '<svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
+const SVG_X = '<svg class="i" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+
+function sigmaStart() { if (!GLOADED) loadGroups() }
+$$('#sgSeg button').forEach(b => b.onclick = () => {
+  $$('#sgSeg button').forEach(x => x.classList.toggle('on', x == b));
+  const p = b.dataset.v == 'p';
+  $('#sgG').classList.toggle('hide', p); $('#sgP').classList.toggle('hide', !p);
+  if (p && !$('#sgFrame').getAttribute('src')) $('#sgFrame').src = SIGMA_URL; // só carrega o Sigma quando abrir
+});
+
+async function loadGroups() {
+  $('#gList').innerHTML = '<p class="muted"><span class="spin"></span> Carregando grupos…</p>';
+  try { const j = await adm('gget'); GROUPS = Array.isArray(j.groups) ? j.groups : []; GTS = j.ts || 0; GLOADED = true; renderGroups() }
+  catch (e) { $('#gList').innerHTML = `<p class="err">${esc(e.message)}</p>`; if (/administrador/i.test(e.message)) logout() }
+}
+$('#gRef').onclick = loadGroups;
+
+async function saveGroups(next, okMsg) {
+  if (GBUSY) { toast('Aguarde, salvando…'); return false }
+  GBUSY = true;
+  try { const j = await adm('gset', { groups: next, prev: GTS }); GROUPS = next; GTS = j.ts; renderGroups(); if (okMsg) toast(okMsg); return true }
+  catch (e) { toast(e.message, 1); return false }
+  finally { GBUSY = false }
+}
+
+// [rótulo, cor do selo, dias restantes para ordenar]
+function memberInfo(m) {
+  if (m.src == 'nt') {
+    const u = USERS.find(x => x.username == m.u);
+    if (!u) return { lab: 'Conta apagada', cls: 'r', d: -1e9, sub: 'não existe mais no NTPlay' };
+    const s = status(u);
+    return { lab: s[0], cls: s[1], d: daysLeft(u), sub: (u.note ? u.note + ' · ' : '') + (u.expires_at ? 'vence ' + fmtD(u.expires_at) : 'sem validade') };
+  }
+  if (!m.exp) return { lab: 'Sem vencimento', cls: 'n', d: 1e9, sub: m.note || '' };
+  const end = new Date(m.exp + 'T23:59:59-03:00').getTime(), d = (end - Date.now()) / DAY;
+  const lab = d <= 0 ? 'Vencido' : d <= 7 ? 'Vence em ' + Math.ceil(d) + ' d' : 'Ativo · ' + Math.floor(d) + ' d';
+  return { lab, cls: d <= 0 ? 'r' : d <= 7 ? 'y' : 'g', d, sub: (m.note ? m.note + ' · ' : '') + 'vence ' + fmtD(end) };
+}
+
+function renderGroups() {
+  const q = ($('#gQ').value || '').trim().toLowerCase();
+  if (!GROUPS.length) { $('#gList').innerHTML = '<div class="empty card" style="grid-column:1/-1">Nenhum grupo ainda. Crie o primeiro em <b>Novo grupo</b>.</div>'; return }
+  const html = GROUPS.map(g => {
+    const all = (g.members || []).map(m => ({ m, i: memberInfo(m) }));
+    const nameHit = !q || g.name.toLowerCase().includes(q);
+    const shown = nameHit ? all : all.filter(x => (x.m.u + ' ' + (x.m.note || '') + ' ' + x.i.sub).toLowerCase().includes(q));
+    if (!nameHit && !shown.length) return '';
+    shown.sort((a, b) => a.i.d - b.i.d);
+    const nNt = all.filter(x => x.m.src == 'nt').length, nSg = all.length - nNt, bad = all.filter(x => x.i.d <= 7).length;
+    return `<div class="gp" style="--c:${esc(g.color || GCOLS[0])}">
+      <div class="gh"><b>${esc(g.name)}</b><span class="bdg n">${all.length}</span>
+        <button class="ia" data-ga="edit" data-g="${esc(g.id)}" title="Editar grupo" aria-label="Editar grupo">${SVG_ED}</button>
+        <button class="ia" data-ga="del" data-g="${esc(g.id)}" title="Apagar grupo" aria-label="Apagar grupo">${SVG_DEL}</button></div>
+      <div class="muted">${nNt} NTPlay · ${nSg} Sigma${bad ? ` · <span style="color:var(--yl)">${bad} vencendo ou vencido${bad > 1 ? 's' : ''}</span>` : ''}</div>
+      <div class="lst">${shown.length ? shown.map(({ m, i }) => `<div class="gm"><span class="src ${m.src == 'nt' ? 'nt' : 'sg'}">${m.src == 'nt' ? 'NTPLAY' : 'SIGMA'}</span>
+        <div class="n"><b>${esc(m.u)}</b><small>${esc(i.sub)}</small></div><span class="bdg ${i.cls}">${esc(i.lab)}</span>
+        ${m.src == 'sg' ? `<button class="x" data-ga="edsg" data-g="${esc(g.id)}" data-m="${esc(m.id)}" title="Editar" aria-label="Editar">${SVG_ED.replace('class="i"', 'class="i" style="width:14px;height:14px"')}</button>` : ''}
+        <button class="x" data-ga="rm" data-g="${esc(g.id)}" data-m="${esc(m.id)}" title="Tirar do grupo" aria-label="Tirar do grupo">${SVG_X}</button></div>`).join('') : '<p class="muted">Grupo vazio.</p>'}</div>
+      <div class="acts"><button class="bt sm" data-ga="addnt" data-g="${esc(g.id)}">+ Cliente NTPlay</button><button class="bt sm" data-ga="addsg" data-g="${esc(g.id)}">+ Cliente Sigma</button></div></div>`;
+  }).join('');
+  $('#gList').innerHTML = html || '<div class="empty card" style="grid-column:1/-1">Nada encontrado.</div>';
+}
+$('#gQ').oninput = () => GLOADED && renderGroups();
+
+function groupBox(g) {
+  let color = (g && g.color) || GCOLS[GROUPS.length % GCOLS.length];
+  return new Promise(res => modal(`<h3>${g ? 'Editar grupo' : 'Novo grupo'}</h3>
+    <label class="f">Nome<input class="in" data-f="name" maxlength="40" value="${esc(g ? g.name : '')}" placeholder="ex.: Revenda João"></label>
+    <div class="f" style="display:grid;gap:5px;font-size:12px;color:var(--mut);font-weight:600">Cor<div class="gcols">${GCOLS.map(c => `<button style="--c:${c}" data-c="${c}" class="${c == color ? 'on' : ''}" aria-label="Cor ${c}"></button>`).join('')}</div></div>
+    <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Salvar</button></div>`, m => {
+    $$('[data-c]', m).forEach(b => b.onclick = () => { color = b.dataset.c; $$('[data-c]', m).forEach(x => x.classList.toggle('on', x == b)) });
+    $('[data-no]', m).onclick = () => { closeModal(); res(null) };
+    $('[data-ok]', m).onclick = () => { const name = $('[data-f="name"]', m).value.trim(); if (!name) return toast('Dê um nome ao grupo.', 1); closeModal(); res({ name, color }) };
+    $('[data-f="name"]', m).focus();
+  }));
+}
+
+function sigmaBox(mem) {
+  return new Promise(res => modal(`<h3>${mem ? 'Editar cliente Sigma' : 'Cliente do painel Sigma'}</h3>
+    <p class="muted">Copie do painel Sigma o usuário e o vencimento do cliente.</p>
+    <label class="f">Usuário no Sigma<input class="in" data-f="u" maxlength="60" value="${esc(mem ? mem.u : '')}" autocomplete="off"></label>
+    <label class="f">Vencimento (opcional)<input class="in" type="date" data-f="exp" value="${esc(mem ? mem.exp || '' : '')}"></label>
+    <label class="f">Nota (opcional)<input class="in" data-f="note" maxlength="80" value="${esc(mem ? mem.note || '' : '')}" placeholder="ex.: WhatsApp, plano, aparelho"></label>
+    <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Salvar</button></div>`, m => {
+    $('[data-no]', m).onclick = () => { closeModal(); res(null) };
+    $('[data-ok]', m).onclick = () => { const u = $('[data-f="u"]', m).value.trim(); if (!u) return toast('Informe o usuário do Sigma.', 1); closeModal(); res({ u, exp: $('[data-f="exp"]', m).value, note: $('[data-f="note"]', m).value.trim() }) };
+    $('[data-f="u"]', m).focus();
+  }));
+}
+
+function pickNtBox(g) {
+  const have = new Set((g.members || []).filter(x => x.src == 'nt').map(x => x.u));
+  const free = USERS.filter(u => !have.has(u.username));
+  if (!free.length) { toast(USERS.length ? 'Todas as contas NTPlay já estão neste grupo.' : 'Nenhuma conta NTPlay carregada.', 1); return Promise.resolve(null) }
+  return new Promise(res => modal(`<h3>Adicionar contas NTPlay a "${esc(g.name)}"</h3>
+    <input class="in" data-f="q" placeholder="Buscar…">
+    <div class="lst" style="max-height:46vh;overflow:auto">${free.map(u => { const s = status(u); return `<label class="gm" data-u="${esc(u.username)}" style="cursor:pointer"><input type="checkbox" value="${esc(u.username)}"><div class="n"><b>${esc(u.username)}</b><small>${esc(u.note || '')}</small></div><span class="bdg ${s[1]}">${esc(s[0])}</span></label>` }).join('')}</div>
+    <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Adicionar</button></div>`, m => {
+    $('[data-f="q"]', m).oninput = e => { const q = e.target.value.toLowerCase(); $$('[data-u]', m).forEach(l => l.classList.toggle('hide', !l.textContent.toLowerCase().includes(q))) };
+    $('[data-no]', m).onclick = () => { closeModal(); res(null) };
+    $('[data-ok]', m).onclick = () => { const sel = $$('input[type=checkbox]:checked', m).map(i => i.value); if (!sel.length) return toast('Marque pelo menos uma conta.', 1); closeModal(); res(sel) };
+    $('[data-f="q"]', m).focus();
+  }));
+}
+
+$('#gNew').onclick = async () => { const o = await groupBox(); if (!o) return; const next = clone(GROUPS); next.push({ id: gid(), name: o.name, color: o.color, members: [] }); saveGroups(next, 'Grupo criado.') };
+
+$('#gList').onclick = async e => {
+  const b = e.target.closest('[data-ga]'); if (!b) return;
+  const act = b.dataset.ga, next = clone(GROUPS), g = next.find(x => x.id == b.dataset.g); if (!g) return;
+  g.members = g.members || [];
+  if (act == 'edit') { const o = await groupBox(g); if (!o) return; Object.assign(g, o); return saveGroups(next, 'Grupo salvo.') }
+  if (act == 'del') { if (!await confirmBox('Apagar grupo', `O grupo "${g.name}" será apagado. As contas NTPlay não são afetadas.`, 'Apagar', 1)) return; return saveGroups(next.filter(x => x.id != g.id), 'Grupo apagado.') }
+  if (act == 'rm') { g.members = g.members.filter(x => x.id != b.dataset.m); return saveGroups(next) }
+  if (act == 'addnt') { const sel = await pickNtBox(g); if (!sel) return; sel.forEach(u => g.members.push({ id: gid(), src: 'nt', u })); return saveGroups(next, sel.length + (sel.length > 1 ? ' contas adicionadas.' : ' conta adicionada.')) }
+  if (act == 'addsg') {
+    const o = await sigmaBox(); if (!o) return;
+    if (g.members.some(x => x.src == 'sg' && x.u.toLowerCase() == o.u.toLowerCase())) return toast('Esse cliente Sigma já está no grupo.', 1);
+    g.members.push({ id: gid(), src: 'sg', ...o }); return saveGroups(next, 'Cliente Sigma adicionado.');
+  }
+  if (act == 'edsg') { const mem = g.members.find(x => x.id == b.dataset.m); if (!mem) return; const o = await sigmaBox(mem); if (!o) return; Object.assign(mem, o); return saveGroups(next, 'Cliente atualizado.') }
+};
 
 /* ================= aba clientes (gráficos) ================= */
 let KF = 'all', KR = 30, KANIM = false;
@@ -761,9 +942,9 @@ $('#lGo').onclick = async () => {
   LS.ntAdmKey = a; start();
 };
 $('#lAdm').onkeydown = e => { if (e.key == 'Enter') $('#lGo').click() };
-function logout() { try { delete LS.ntAdmKey } catch (e) { } ADM = ''; ustarted = false; clearInterval(UT); $('#vApp').classList.add('hide'); $('#vLogin').classList.remove('hide') }
+function logout() { try { delete LS.ntAdmKey } catch (e) { } ADM = ''; GROUPS = []; GTS = 0; GLOADED = false; ustarted = false; clearInterval(UT); $('#vApp').classList.add('hide'); $('#vLogin').classList.remove('hide') }
 $('#bOut').onclick = logout;
-function start() { $('#vLogin').classList.add('hide'); $('#vApp').classList.remove('hide'); loadUsers(); const t = (location.hash || '').slice(1); go(['geral', 'contas', 'clientes', 'listas', 'uso'].includes(t) ? t : 'geral') }
+function start() { $('#vLogin').classList.add('hide'); $('#vApp').classList.remove('hide'); loadUsers(); const t = (location.hash || '').slice(1); go(TABS.includes(t) ? t : 'geral') }
 (function boot() { const a = LS.ntAdmKey; if (a) { ADM = a; start() } else $('#vLogin').classList.remove('hide') })();
 </script>
 </body>
