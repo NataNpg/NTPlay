@@ -5,6 +5,7 @@ cópia-com-remendo vive aqui e não dentro do build.gradle.kts: é a lógica mai
 projeto do celular e precisa ser testável.
 """
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -233,6 +234,27 @@ class TestRealFileList(Base):
     def test_a_lista_nao_tem_os_arquivos_de_tv(self):
         for f in ("UI.kt", "Player.kt", "MainActivity.kt", "Futebol.kt", "LocalServer.kt"):
             self.assertNotIn(f, gen_core.FILES, f + " é de TV e não deve ser copiado")
+
+
+class TestWorkflowPaths(unittest.TestCase):
+    """O workflow do celular dispara quando muda um arquivo do motor da TV. A lista de caminhos
+    dele tem de ser exatamente FILES: se alguém acrescentar um arquivo aqui e esquecer o
+    workflow, uma correção nesse arquivo nunca chegaria ao celular. Este teste derruba o build."""
+
+    WORKFLOW = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "..", "..", ".github", "workflows", "android-mobile.yml")
+    PREFIX = "tv-native/app/src/main/java/com/natanael/ntplay/tv/"
+
+    def test_caminhos_do_workflow_batem_com_FILES(self):
+        with open(self.WORKFLOW, encoding="utf-8") as f:
+            text = f.read()
+        found = set(re.findall(r"""['"]?""" + re.escape(self.PREFIX) + r"""([\w.]+)['"]?""", text))
+        self.assertEqual(
+            found, set(gen_core.FILES),
+            "android-mobile.yml e gen_core.FILES divergem. "
+            f"Só no workflow: {sorted(found - set(gen_core.FILES))}. "
+            f"Só no gen_core.py: {sorted(set(gen_core.FILES) - found)}.",
+        )
 
 
 if __name__ == "__main__":
