@@ -304,3 +304,6 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - "Adicionado recentemente" usa a posição na lista M3U (o fim da lista = mais novo). Se o seu provedor põe o novo no começo, a ordem fica invertida: me avise que eu troco.
 - Ano do título calculado uma vez por item (menos trabalho ao abrir o filtro de ano).
 - Varredura de segurança (sem mudanças de código): sem chaves ou senhas no repositório; backup do Android desligado; login do servidor com bloqueio de 15 min após 8 erros; sem senha em log. Pontos aceitos/anotados: tráfego `http` permitido (listas IPTV usam), PC com `webSecurity:false` e repasse local em `127.0.0.1` com CORS aberto (porta aleatória; ideal seria exigir um token), certificado de servidor IPTV não validado no repasse do PC.
+
+## 1.11.6
+- Animes (Todos, Crunchyroll, Funimation) seguem a mesma ordem de Filmes e Séries: Novidades por padrão (série com episódio novo sobe), e o botão "📅 Ano" abre a escolha de Ordem (Novidades, Adicionados recentes, Lançamentos, A–Z).

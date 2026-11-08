@@ -475,7 +475,7 @@ fun Browse(st: AppState) {
         "ANIMES" -> lib.anime
         else -> null
     }
-    val sortable = tab == "FILMES" || tab == "SÉRIES"
+    val sortable = tab == "FILMES" || tab == "SÉRIES" || tab == "ANIMES"
     val sm = st.sortMode
     val years = remember(lib, tab, st.group, yearBase) {
         if (yearBase == null) emptyList() else yearBase.groupingBy { yearOfItem(st, it) }.eachCount().filterKeys { it.isNotEmpty() }.toList().sortedByDescending { it.first }
@@ -542,7 +542,7 @@ fun YearDialog(st: AppState, years: List<Pair<String, Int>>) {
                 Text(if (years.isEmpty()) "Nenhum título desta seção traz o ano no nome." else "Só aparecem anos que existem na sua lista.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
                 val gs = rememberLazyGridState()
                 LazyVerticalGrid(columns = GridCells.Adaptive(110.dp), state = gs, modifier = Modifier.weight(1f).mouseScroll(gs), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (st.tab == "FILMES" || st.tab == "SÉRIES") {
+                    if (st.tab == "FILMES" || st.tab == "SÉRIES" || st.tab == "ANIMES") {
                         item(span = { GridItemSpan(maxLineSpan) }) { Text("Ordem", color = Muted, fontSize = 11.sp) }
                         for (m in listOf("novos", "recentes", "lanc", "az")) item(key = "sort$m") { TvButton(sortLabel(m), Btn, 11.sp, selected = st.sortMode == m) { st.sortMode = m; st.yearDialog = false } }
                         item(span = { GridItemSpan(maxLineSpan) }) { Text("Ano de lançamento", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp)) }
@@ -1030,13 +1030,14 @@ fun AnimeScreen(st: AppState, lib: Library) {
                         .background(if (src == k) col else if (fi.on) FocusBg else Color(0x22FFFFFF), RoundedCornerShape(50)).padding(horizontal = 14.dp, vertical = 6.dp))
             }
         }
-        val l0 = when (src) { "CR" -> cr; "FN" -> fn; else -> lib.anime }
+        val sm = st.sortMode
+        val l0 = remember(lib, src, sm) { sortItems(when (src) { "CR" -> cr; "FN" -> fn; else -> lib.anime }, sm) }
         val l = if (st.yearSel.isNotEmpty()) l0.filter { yearOfItem(st, it) == st.yearSel } else l0.take(600)
         val name = when (src) { "CR" -> "Crunchyroll"; "FN" -> "Funimation Now"; else -> "Animes" }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (l.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Nenhum conteúdo de $name encontrado nas suas listas.", color = Muted, fontSize = 14.sp)
-            } else GridOf(st, l, name)
+            } else GridOf(st, l, name, "$sm|$name|" + st.yearSel)
         }
     }
 }
