@@ -307,3 +307,8 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 
 ## 1.11.6
 - Animes (Todos, Crunchyroll, Funimation) seguem a mesma ordem de Filmes e Séries: Novidades por padrão (série com episódio novo sobe), e o botão "📅 Ano" abre a escolha de Ordem (Novidades, Adicionados recentes, Lançamentos, A–Z).
+
+## 1.12.0 — etapa 1 do visual novo ("Noite de Vidro") + mais leve
+- Foco: borda azul-clara (`D6E2FF`) em vez de branco puro, mais suave e ainda bem visível.
+- Mais leve: DUB/LEG, título limpo e a linha "ano · qualidade" de cada card passam a ser calculados uma vez por título (antes rodavam regex a cada rolagem, em cada card visível). Removida a imagem em tela cheia atrás da tela de detalhes.
+- Sem efeitos de vidro/desfoque de propósito: pesam em TV box. Próximas etapas (cards, cabeçalho) só se esta continuar fluida.

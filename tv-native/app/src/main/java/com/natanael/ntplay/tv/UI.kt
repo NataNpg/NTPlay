@@ -179,7 +179,7 @@ fun Modifier.tvClick(
             }
         })
         .graphicsLayer { scaleX = s; scaleY = s }
-        .then(if (border && fi.focused) Modifier.border(3.dp, Color.White, shape) else if (border && hov) Modifier.border(2.dp, Color(0xAAFFFFFF), shape) else Modifier)
+        .then(if (border && fi.focused) Modifier.border(3.dp, Color(0xFFD6E2FF), shape) else if (border && hov) Modifier.border(2.dp, Color(0xAAFFFFFF), shape) else Modifier)
         .clickable(interactionSource = src, indication = null, onClick = onClick)
 }
 
@@ -357,9 +357,9 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
                     onError = { val c = Meta.cached(st.store, item)?.img ?: ""; img = if (c.isNotEmpty() && c != img) c else ""}
                 )
             } else {
-                Text(showTitle(item), Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xDDFFFFFF), fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                Text(item.shown, Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xDDFFFFFF), fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
-            val tag = Util.audioTag(item)
+            val tag = item.aud
             if (tag.isNotEmpty()) Text(tag, Modifier.align(Alignment.TopStart).padding(6.dp).background(if (tag == "DUB") Color(0xE68B5CF6) else Color(0xE63CE0E6), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
                 color = if (tag == "DUB") Color.White else Color(0xFF05101F), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
             if (onRemove != null) {
@@ -374,10 +374,8 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
                 Box(Modifier.fillMaxWidth(prog.coerceIn(0f, 1f)).fillMaxHeight().background(Pink))
             }
         }
-        Text(showTitle(item), Modifier.padding(top = 6.dp, start = 2.dp), color = if (fi.on) Color.White else Color(0xDDFFFFFF), fontSize = 11.sp, fontWeight = if (fi.on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        val y = Util.yearOf(item.title)
-        val q = Util.quality(item.title)
-        val sub = listOfNotNull(y.ifEmpty { null }, if (item.kind == 's') "Série" else null, q.ifEmpty { null }).joinToString(" · ")
+        Text(item.shown, Modifier.padding(top = 6.dp, start = 2.dp), color = if (fi.on) Color.White else Color(0xDDFFFFFF), fontSize = 11.sp, fontWeight = if (fi.on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        val sub = item.subT
         if (sub.isNotEmpty()) Text(sub, Modifier.padding(start = 2.dp), color = Muted, fontSize = 9.sp, maxLines = 1)
     }
 }
@@ -713,7 +711,6 @@ fun DetailScreen(st: AppState, item: Item) {
     val ovText = if (ov.isNotEmpty()) ov else if (searching) "Buscando sinopse…" else "Sinopse não disponível para este título."
 
     Box(Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp))) {
-        if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.16f }, contentScale = ContentScale.Crop)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x66070B1A), Bg))))
         // capa à esquerda; à direita título, sinopse, botões, temporadas e episódios (como no app da webOS)
         Row(Modifier.fillMaxSize().padding(18.dp), horizontalArrangement = Arrangement.spacedBy(26.dp)) {

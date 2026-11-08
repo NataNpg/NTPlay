@@ -18,6 +18,10 @@ class Item(
     /** posição na lista (maior = entrou depois = mais recente); séries sobem quando ganham episódio novo */
     var pos = 0
     /** ano escrito no nome (0 se não tiver) */
+    /** DUB/LEG, título limpo e linha "ano · qualidade" calculados uma vez (antes rodavam regex a cada rolagem) */
+    val aud: String by lazy { Util.audioTag(this) }
+    val shown: String by lazy { if (kind == 'l') title else Util.cleanT(title).ifEmpty { title } }
+    val subT: String by lazy { listOfNotNull(Util.yearOf(title).ifEmpty { null }, if (kind == 's') "Série" else null, Util.quality(title).ifEmpty { null }).joinToString(" · ") }
     val yr: Int by lazy { Util.yearOf(title).toIntOrNull() ?: 0 }
     // PUBLICATION, nunca NONE: três threads leem isto ao mesmo tempo — os cards de canal
     // na thread principal (Epg.nowTitle), a busca em Dispatchers.Default e o Epg.load em
