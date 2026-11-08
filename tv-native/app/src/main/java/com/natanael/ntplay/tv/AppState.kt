@@ -52,6 +52,8 @@ class AppState(val ctx: Context) {
     var trendBusy by mutableStateOf(false)
     var epgVer by mutableIntStateOf(0)
     var yearSel by mutableStateOf("")
+    /** ordem de Filmes/Séries: novos (lançamentos + recentes), recentes, lanc, az */
+    var sortMode by mutableStateOf("novos")
     var yearDialog by mutableStateOf(false)
     var epsErr by mutableStateOf("")
     var queue: List<Item> = emptyList()

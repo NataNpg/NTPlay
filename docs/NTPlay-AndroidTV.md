@@ -297,3 +297,10 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 ## 1.11.4
 - Selo LEG/DUB voltou aos cards (foi retirado por engano na 1.11.3).
 - Em TV ao vivo, Filmes e Séries, "Todas" agora é uma grade única com tudo junto (sem as prateleiras "Legendadas", "Globoplay", "AMC Plus"…). As categorias ficam só na lateral. O destaque grande e o papel de parede continuam removidos.
+
+## 1.11.5 — ordem de Filmes e Séries
+- Filmes e Séries (Todas, categorias e filtro por ano) abrem em **Novidades**: primeiro os lançamentos (ano atual e anterior, do mais novo para o mais antigo) e depois o que entrou há pouco na lista. Séries sobem quando ganham episódio novo (o app guarda a posição do último item na lista).
+- O botão "📅 Ano" agora abre também a escolha de **Ordem**: Novidades, Adicionados recentes, Lançamentos (por ano) e A–Z.
+- "Adicionado recentemente" usa a posição na lista M3U (o fim da lista = mais novo). Se o seu provedor põe o novo no começo, a ordem fica invertida: me avise que eu troco.
+- Ano do título calculado uma vez por item (menos trabalho ao abrir o filtro de ano).
+- Varredura de segurança (sem mudanças de código): sem chaves ou senhas no repositório; backup do Android desligado; login do servidor com bloqueio de 15 min após 8 erros; sem senha em log. Pontos aceitos/anotados: tráfego `http` permitido (listas IPTV usam), PC com `webSecurity:false` e repasse local em `127.0.0.1` com CORS aberto (porta aleatória; ideal seria exigir um token), certificado de servidor IPTV não validado no repasse do PC.

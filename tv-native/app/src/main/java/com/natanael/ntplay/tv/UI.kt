@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -474,6 +475,8 @@ fun Browse(st: AppState) {
         "ANIMES" -> lib.anime
         else -> null
     }
+    val sortable = tab == "FILMES" || tab == "SÉRIES"
+    val sm = st.sortMode
     val years = remember(lib, tab, st.group, yearBase) {
         if (yearBase == null) emptyList() else yearBase.groupingBy { yearOfItem(st, it) }.eachCount().filterKeys { it.isNotEmpty() }.toList().sortedByDescending { it.first }
     }
@@ -482,20 +485,20 @@ fun Browse(st: AppState) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             if (yearBase != null) Row(Modifier.fillMaxWidth().padding(end = 16.dp, bottom = 2.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 if (st.yearSel.isNotEmpty()) { TvButton("✕ Limpar", Btn, 10.sp, compact = true) { st.yearSel = "" }; Spacer(Modifier.width(8.dp)) }
-                TvButton("📅 Ano: " + (st.yearSel.ifEmpty { "Todos" }), if (st.yearSel.isNotEmpty()) Pink else Btn, 10.sp, compact = true) { st.yearDialog = true }
+                TvButton("📅 Ano: " + (st.yearSel.ifEmpty { "Todos" }) + (if (sortable) " · " + sortLabel(st.sortMode) else ""), if (st.yearSel.isNotEmpty()) Pink else Btn, 10.sp, compact = true) { st.yearDialog = true }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (groups != null) {
                     if (st.yearSel.isNotEmpty() && yearBase != null) {
-                        val f = remember(yearBase, st.yearSel) { yearBase.filter { yearOfItem(st, it) == st.yearSel } }
-                        GridOf(st, f.take(900), (if (st.group.isEmpty()) tab else st.group) + " · " + st.yearSel)
+                        val f = remember(yearBase, st.yearSel, sm) { val x = yearBase.filter { yearOfItem(st, it) == st.yearSel }; if (sortable) sortItems(x, sm) else x }
+                        GridOf(st, f.take(900), (if (st.group.isEmpty()) tab else st.group) + " · " + st.yearSel, "$sm|" + (if (st.group.isEmpty()) tab else st.group) + "|" + st.yearSel)
                     } else if (st.group.isEmpty()) {
                         // "Todas": tudo junto numa grade só; as categorias ficam só na lateral
-                        val all = when (tab) { "TV AO VIVO" -> lib.live; "FILMES" -> lib.movies; else -> lib.series }
-                        GridOf(st, all, tab)
+                        val all = remember(lib, tab, sm) { when (tab) { "TV AO VIVO" -> lib.live; "FILMES" -> sortItems(lib.movies, sm); else -> sortItems(lib.series, sm) } }
+                        GridOf(st, all, tab, "$sm|$tab")
                     } else {
-                        val l = groups.firstOrNull { it.first == st.group }?.second ?: emptyList()
-                        GridOf(st, l, st.group)
+                        val l = remember(groups, st.group, sm) { val x = groups.firstOrNull { it.first == st.group }?.second ?: emptyList(); if (sortable) sortItems(x, sm) else x }
+                        GridOf(st, l, st.group, "$sm|" + st.group)
                     }
                 } else when (tab) {
                     "FUTEBOL" -> FutebolScreen(st, lib)
@@ -510,9 +513,22 @@ fun Browse(st: AppState) {
     if (st.yearDialog) YearDialog(st, years)
 }
 
+fun sortLabel(m: String) = when (m) { "recentes" -> "Adicionados recentes"; "lanc" -> "Lançamentos"; "az" -> "A–Z"; else -> "Novidades" }
+
+/** Novidades = lançamentos (ano atual e anterior, mais novo primeiro) e depois o que entrou há pouco na lista */
+fun sortItems(l: List<Item>, mode: String): List<Item> = when (mode) {
+    "recentes" -> l.sortedByDescending { it.pos }
+    "lanc" -> l.sortedWith(compareByDescending<Item> { it.yr }.thenByDescending { it.pos })
+    "az" -> l.sortedBy { it.norm }
+    else -> {
+        val cut = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) - 1
+        val (a, b) = l.partition { it.yr >= cut }
+        a.sortedWith(compareByDescending<Item> { it.yr }.thenByDescending { it.pos }) + b.sortedByDescending { it.pos }
+    }
+}
+
 fun yearOfItem(st: AppState, it: Item): String {
-    val y = Util.yearOf(it.title)
-    if (y.isNotEmpty()) return y
+    if (it.yr > 0) return it.yr.toString()
     val c = Meta.cached(st.store, it)?.y ?: ""
     return if (c.length == 4 && c.all { ch -> ch.isDigit() }) c else ""
 }
@@ -526,6 +542,11 @@ fun YearDialog(st: AppState, years: List<Pair<String, Int>>) {
                 Text(if (years.isEmpty()) "Nenhum título desta seção traz o ano no nome." else "Só aparecem anos que existem na sua lista.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
                 val gs = rememberLazyGridState()
                 LazyVerticalGrid(columns = GridCells.Adaptive(110.dp), state = gs, modifier = Modifier.weight(1f).mouseScroll(gs), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (st.tab == "FILMES" || st.tab == "SÉRIES") {
+                        item(span = { GridItemSpan(maxLineSpan) }) { Text("Ordem", color = Muted, fontSize = 11.sp) }
+                        for (m in listOf("novos", "recentes", "lanc", "az")) item(key = "sort$m") { TvButton(sortLabel(m), Btn, 11.sp, selected = st.sortMode == m) { st.sortMode = m; st.yearDialog = false } }
+                        item(span = { GridItemSpan(maxLineSpan) }) { Text("Ano de lançamento", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp)) }
+                    }
                     item { TvButton("Todos", Btn, 12.sp, selected = st.yearSel.isEmpty()) { st.yearSel = ""; st.yearDialog = false } }
                     items(years, key = { it.first }) { (y, n) ->
                         TvButton("$y  ($n)", Btn, 12.sp, selected = st.yearSel == y) { st.yearSel = y; st.yearDialog = false }
@@ -544,7 +565,7 @@ fun CardFor(st: AppState, item: Item, queue: List<Item>) {
 }
 
 @Composable
-fun GridOf(st: AppState, l: List<Item>, title: String) {
+fun GridOf(st: AppState, l: List<Item>, title: String, skey: String = title) {
     if (l.isEmpty()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Nada por aqui ainda.", color = Muted, fontSize = 14.sp) }; return }
     val live = l.firstOrNull()?.kind == 'l'
     Column(Modifier.fillMaxSize()) {
@@ -555,7 +576,7 @@ fun GridOf(st: AppState, l: List<Item>, title: String) {
             Spacer(Modifier.width(8.dp))
             Text("${l.size}", color = Muted, fontSize = 12.sp)
         }
-        val gs = savedGridState(st, "grid:" + title)
+        val gs = savedGridState(st, "grid:" + skey)
         LazyVerticalGrid(
             columns = GridCells.Adaptive(if (live) 170.dp else 112.dp), modifier = Modifier.fillMaxSize().mouseScroll(gs), state = gs,
             contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)

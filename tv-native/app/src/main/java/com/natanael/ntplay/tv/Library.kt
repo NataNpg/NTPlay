@@ -15,6 +15,10 @@ class Item(
 ) {
     var ns = 1
     var tvgId = ""
+    /** posição na lista (maior = entrou depois = mais recente); séries sobem quando ganham episódio novo */
+    var pos = 0
+    /** ano escrito no nome (0 se não tiver) */
+    val yr: Int by lazy { Util.yearOf(title).toIntOrNull() ?: 0 }
     // PUBLICATION, nunca NONE: três threads leem isto ao mesmo tempo — os cards de canal
     // na thread principal (Epg.nowTitle), a busca em Dispatchers.Default e o Epg.load em
     // Dispatchers.IO. Com NONE o lazy do Kotlin não tem @Volatile: uma thread enxerga
@@ -50,6 +54,7 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
             val sm = LinkedHashMap<String, Item>()
             val seenLive = HashSet<String>()
             val seenMovie = HashSet<String>()
+            var seq = 0
             for (f in files) {
                 M3u.parse(f) { rawName, url, rawGroup, logo, tvgId ->
                     val name = if (b64) Util.maybeB64(rawName) else rawName
@@ -59,7 +64,7 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
                     when (Util.guess(url, group, name)) {
                         // o mesmo filme costuma vir em mais de uma categoria (ou em mais de uma lista).
                         // duas vezes a mesma "key" derruba o app nas grades do Compose, então entra só uma vez.
-                        'm' -> if (seenMovie.add("m:$url")) mv.add(Item('m', "m:$url", name, Util.cleanG(group), logo, arrayListOf(Ep(name, url, 0, 0)), adult))
+                        'm' -> if (seenMovie.add("m:$url")) mv.add(Item('m', "m:$url", name, Util.cleanG(group), logo, arrayListOf(Ep(name, url, 0, 0)), adult).also { it.pos = seq++ })
                         's' -> {
                             val i = Util.epInfo(name)
                             val t = i?.first ?: name
@@ -68,6 +73,7 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
                             val s = i?.second ?: 1
                             val e = i?.third ?: (o.eps.size + 1)
                             o.eps.add(Ep(name, url, s, e))
+                            o.pos = seq++
                             if (o.logo.isEmpty()) o.logo = logo
                         }
                         else -> if (seenLive.add(url)) live.add(Item('l', "l:$url", name, Util.cleanG(group), logo, arrayListOf(Ep(name, url, 0, 0)), adult).also { it.tvgId = tvgId })
