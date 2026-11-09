@@ -515,24 +515,6 @@ fun Browse(st: AppState) {
 
 fun sortLabel(m: String) = when (m) { "recentes" -> "Adicionados recentes"; "lanc" -> "Lançamentos"; "az" -> "A–Z"; else -> "Novidades" }
 
-/** Novidades = lançamentos (ano atual e anterior, mais novo primeiro) e depois o que entrou há pouco na lista */
-fun sortItems(l: List<Item>, mode: String): List<Item> = when (mode) {
-    "recentes" -> l.sortedByDescending { it.pos }
-    "lanc" -> l.sortedWith(compareByDescending<Item> { it.yr }.thenByDescending { it.pos })
-    "az" -> l.sortedBy { it.norm }
-    else -> {
-        val cut = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) - 1
-        val (a, b) = l.partition { it.yr >= cut }
-        a.sortedWith(compareByDescending<Item> { it.yr }.thenByDescending { it.pos }) + b.sortedByDescending { it.pos }
-    }
-}
-
-fun yearOfItem(st: AppState, it: Item): String {
-    if (it.yr > 0) return it.yr.toString()
-    val c = Meta.cached(st.store, it)?.y ?: ""
-    return if (c.length == 4 && c.all { ch -> ch.isDigit() }) c else ""
-}
-
 @Composable
 fun YearDialog(st: AppState, years: List<Pair<String, Int>>) {
     Dialog(onDismissRequest = { st.yearDialog = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {

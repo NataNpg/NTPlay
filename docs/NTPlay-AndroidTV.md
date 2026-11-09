@@ -334,3 +334,6 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Tela de detalhes: título grande e fino, linha de informações em ciano espaçada, botões secundários mais discretos, episódios em linhas arredondadas translúcidas.
 - Player: sem mudanças (já está no estilo da webOS; botões em azul-marinho de propósito, para não "estourar" em TVs saturadas).
 - Aba Futebol: carrega só quando aberta (nada roda em segundo plano), então retirá-la não deixa o resto mais leve; mantida.
+
+## 1.13.1
+- Correção de build do celular: `sortItems`, `yearOfItem` e o cache da lista foram para `Library.kt` (o celular copia os arquivos do motor, não o `UI.kt`). O build do celular estava falhando desde a 1.12.3 por isso.
