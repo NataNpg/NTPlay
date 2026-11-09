@@ -308,6 +308,14 @@ class AppState(val ctx: Context) {
     // ---------- config de playlist ----------
     var updateHours by mutableIntStateOf(store.updateHours)
     fun changeUpdateHours(v: Int) { updateHours = v; store.updateHours = v }
+    var liteMode by mutableStateOf(store.liteMode)
+    fun changeLite(v: Int) { liteMode = v; store.liteMode = v; toast(if (lite) "Modo leve ligado" else "Modo leve desligado") }
+    /** aparelho com pouca memória (usado no modo automático) */
+    val lowRam: Boolean = try {
+        val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        am.isLowRamDevice || am.memoryClass <= 192
+    } catch (e: Throwable) { false }
+    val lite: Boolean get() = liteMode == 1 || (liteMode == 0 && lowRam)
     var updateOnStart by mutableStateOf(store.updateOnStart)
     fun changeUpdateOnStart(v: Boolean) { updateOnStart = v; store.updateOnStart = v }
 

@@ -21,13 +21,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Stick de Android TV tem pouca memória: metade de memória por imagem (RGB565), cache limitado em
         // RAM e cache em disco. Sem isso, muitas capas falhavam ao decodificar e o app fechava com lista grande.
+        val liteRam = try { val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager; val m = getSharedPreferences("ntplay", MODE_PRIVATE).getInt("lite_mode", 0); m == 1 || (m == 0 && (am.isLowRamDevice || am.memoryClass <= 192)) } catch (e: Throwable) { false }
         coil.Coil.setImageLoader(
             coil.ImageLoader.Builder(this)
                 .okHttpClient(Net.img)
                 .crossfade(false)
                 .respectCacheHeaders(false)
                 .allowRgb565(true)
-                .memoryCache { coil.memory.MemoryCache.Builder(this).maxSizePercent(0.20).build() }
+                .memoryCache { coil.memory.MemoryCache.Builder(this).maxSizePercent(if (liteRam) 0.12 else 0.20).build() }
                 .diskCache { coil.disk.DiskCache.Builder().directory(cacheDir.resolve("img_cache")).maxSizeBytes(96L * 1024 * 1024).build() }
                 .build()
         )

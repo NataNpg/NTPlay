@@ -345,3 +345,7 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **Aviso de vencimento**: faltando 7 dias ou menos, aparece no cabeçalho e um aviso uma vez por dia.
 - Cards de TV ao vivo menores (170dp → 140dp).
 - PC 3.5.1: faixa de aviso de vencimento no topo.
+
+## 1.15.0 — modo leve
+- Nova opção em Configurações → Desempenho: **Modo leve** (automático / ligado / desligado). Automático liga em aparelho com pouca memória (`isLowRamDevice` ou classe de memória ≤ 192 MB).
+- Ligado: capas decodificadas menores (150×225), cache de imagens em RAM menor (12% em vez de 20%, vale na próxima abertura), prateleiras e grades com metade dos itens. Desligado: tudo como antes.

@@ -115,6 +115,10 @@ class Store(ctx: Context) {
     /** quantos episódios a série tinha na última vez que você assistiu (para marcar "NOVO EP") */
     fun epSeen(key: String): Int = sp.getInt("es|" + key, 0)
     fun setEpSeen(key: String, n: Int) { if (n > 0 && epSeen(key) != n) sp.edit().putInt("es|" + key, n).apply() }
+    /** modo leve: 0 = automático (pela memória do aparelho), 1 = ligado, 2 = desligado */
+    var liteMode: Int
+        get() = sp.getInt("lite_mode", 0)
+        set(v) { sp.edit().putInt("lite_mode", v).apply() }
     var warnDay: Long   // último dia (dias desde 1970) em que avisamos que o acesso está perto de vencer
         get() = sp.getLong("warn_day", 0L)
         set(v) { sp.edit().putLong("warn_day", v).apply() }

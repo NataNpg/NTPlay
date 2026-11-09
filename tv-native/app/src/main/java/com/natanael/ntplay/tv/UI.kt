@@ -353,7 +353,7 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
         Box(Modifier.tvClick(fi, RoundedCornerShape(14.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(14.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
             if (img.isNotEmpty()) {
                 val ctx = androidx.compose.ui.platform.LocalContext.current
-                val req = remember(img) { coil.request.ImageRequest.Builder(ctx).data(img).size(220, 330).build() }
+                val req = remember(img) { coil.request.ImageRequest.Builder(ctx).data(img).size(if (st.lite) 150 else 220, if (st.lite) 225 else 330).build() }
                 AsyncImage(
                     model = req,
                     contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
@@ -497,7 +497,7 @@ fun Browse(st: AppState) {
                 if (groups != null) {
                     if (st.yearSel.isNotEmpty() && yearBase != null) {
                         val f = remember(yearBase, st.yearSel, sm) { val x = yearBase.filter { yearOfItem(st, it) == st.yearSel }; if (sortable) sortItems(x, sm) else x }
-                        GridOf(st, f.take(900), (if (st.group.isEmpty()) tab else st.group) + " · " + st.yearSel, "$sm|" + (if (st.group.isEmpty()) tab else st.group) + "|" + st.yearSel)
+                        GridOf(st, f.take(if (st.lite) 450 else 900), (if (st.group.isEmpty()) tab else st.group) + " · " + st.yearSel, "$sm|" + (if (st.group.isEmpty()) tab else st.group) + "|" + st.yearSel)
                     } else if (st.group.isEmpty()) {
                         // "Todas": tudo junto numa grade só; as categorias ficam só na lateral
                         val all = remember(lib, tab, sm) { when (tab) { "TV AO VIVO" -> lib.live; "FILMES" -> lib.sorted("m", lib.movies, sm); else -> lib.sorted("s", lib.series, sm) } }
@@ -508,7 +508,7 @@ fun Browse(st: AppState) {
                     }
                 } else when (tab) {
                     "FUTEBOL" -> FutebolScreen(st, lib)
-                    "INFANTIL" -> GridOf(st, lib.kids.take(600), "Infantil")
+                    "INFANTIL" -> GridOf(st, lib.kids.take(if (st.lite) 300 else 600), "Infantil")
                     "ANIMES" -> AnimeScreen(st, lib)
                     "FAVORITOS" -> FavoritesScreen(st, lib)
                     else -> Recom(st, lib)
@@ -622,13 +622,13 @@ fun Recom(st: AppState, lib: Library) {
                 }
             }
         }
-        for (r in trend) item { ShelfRow(r.title, r.items.size, null) { items(r.items.take(40), key = { it.key }) { it2 -> CardFor(st, it2, r.items) } } }
+        for (r in trend) item { ShelfRow(r.title, r.items.size, null) { items(r.items.take(if (st.lite) 20 else 40), key = { it.key }) { it2 -> CardFor(st, it2, r.items) } } }
         if (favL.isNotEmpty()) item { ShelfRow("★ Canais favoritos", favL.size, null) { items(favL, key = { it.key }) { it2 -> CardFor(st, it2, favL) } } }
         if (favM.isNotEmpty()) item { ShelfRow("★ Filmes favoritos", favM.size, null) { items(favM, key = { it.key }) { it2 -> CardFor(st, it2, favM) } } }
         if (favS.isNotEmpty()) item { ShelfRow("★ Séries favoritas", favS.size, null) { items(favS, key = { it.key }) { it2 -> CardFor(st, it2, favS) } } }
         if (favs.isEmpty()) item { Text("Dica: segure o botão OK (ou aperte Menu) em qualquer canal, filme ou série para adicionar aos favoritos.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
-        if (trend.isEmpty() && lib.movies.isNotEmpty()) item { ShelfRow("Filmes", lib.movies.size, { st.selectTab("FILMES") }) { items(lib.movies.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.movies) } } }
-        if (trend.isEmpty() && lib.series.isNotEmpty()) item { ShelfRow("Séries", lib.series.size, { st.selectTab("SÉRIES") }) { items(lib.series.take(30), key = { it.key }) { it2 -> CardFor(st, it2, lib.series) } } }
+        if (trend.isEmpty() && lib.movies.isNotEmpty()) item { ShelfRow("Filmes", lib.movies.size, { st.selectTab("FILMES") }) { items(lib.movies.take(if (st.lite) 15 else 30), key = { it.key }) { it2 -> CardFor(st, it2, lib.movies) } } }
+        if (trend.isEmpty() && lib.series.isNotEmpty()) item { ShelfRow("Séries", lib.series.size, { st.selectTab("SÉRIES") }) { items(lib.series.take(if (st.lite) 15 else 30), key = { it.key }) { it2 -> CardFor(st, it2, lib.series) } } }
     }
 }
 
@@ -984,6 +984,8 @@ fun ListsDialog(st: AppState) {
                     item { TvButton((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAutoNext(!st.autoNext) } }
                     item { TvButton((if (st.subs) "☑" else "☐") + " Mostrar legendas (desmarcado = legendas desligadas em tudo)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeSubs(!st.subs) } }
                     item { TvButton("Buffer de filmes/séries: " + when (st.bufferMode) { 1 -> "Grande (~25 s)"; 2 -> "Muito grande (~45 s)"; else -> "Padrão" }, Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeBuffer((st.bufferMode + 1) % 3) } }
+                    item { Spacer(Modifier.height(4.dp)); Text("DESEMPENHO", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                    item { TvButton("Modo leve: " + when (st.liteMode) { 1 -> "ligado"; 2 -> "desligado"; else -> "automático (" + (if (st.lowRam) "ligado" else "desligado") + ")" } + " — capas menores e menos itens por tela", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeLite((st.liteMode + 1) % 3) } }
                     item { Spacer(Modifier.height(4.dp)); Text("COMPATIBILIDADE DE FONTE (XTREAM)", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     item { TvButton((if (st.adultByName) "☑" else "☐") + " Detectar adulto pelo nome da categoria (quando o provedor não marca)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAdultByName(!st.adultByName) } }
                     item { TvButton((if (st.base64) "☑" else "☐") + " Decodificar nomes em Base64 (só se os nomes aparecerem embaralhados)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeBase64(!st.base64) } }
@@ -1029,7 +1031,7 @@ fun AnimeScreen(st: AppState, lib: Library) {
         }
         val sm = st.sortMode
         val l0 = remember(lib, src, sm) { lib.sorted("a$src", when (src) { "CR" -> cr; "FN" -> fn; else -> lib.anime }, sm) }
-        val l = if (st.yearSel.isNotEmpty()) l0.filter { yearOfItem(st, it) == st.yearSel } else l0.take(600)
+        val l = if (st.yearSel.isNotEmpty()) l0.filter { yearOfItem(st, it) == st.yearSel } else l0.take(if (st.lite) 300 else 600)
         val name = when (src) { "CR" -> "Crunchyroll"; "FN" -> "Funimation Now"; else -> "Animes" }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (l.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
