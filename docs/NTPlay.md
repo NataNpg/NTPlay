@@ -1,4 +1,4 @@
-# NTPlay — visão geral do projeto (atualizado em 02/11/2026)
+# NTPlay — visão geral do projeto (atualizado em 08/11/2026)
 
 Autor: **Natanael G Silva** · djnatan0@live.com · repositório `NataNpg/NTPlay` (antes `natanpg/NTPlay`; o GitHub redireciona)
 
@@ -6,7 +6,7 @@ Player IPTV pessoal (listas M3U e Xtream Codes) em quatro versões que compartil
 
 | Versão | Tecnologia | Pasta | Estado |
 |---|---|---|---|
-| **Android TV** | Kotlin, Compose, Media3 | `tv-native/` | **1.11.4 (código 1049)**, a mais ativa. Exige login. |
+| **Android TV** | Kotlin, Compose, Media3 | `tv-native/` | **1.12.3 (código 1056)**, a mais ativa. Exige login. |
 | **PC (Windows)** | Electron 31 + interface web | `electron/`, `www/` | 3.3.0, **sem login** e sem as novidades da TV |
 | **Web / celular** | mesma interface web (Capacitor) | `www/` | sem login |
 | **Painel de contas** | HTML + Supabase | `www/contas.html` | no ar |
@@ -115,6 +115,12 @@ Ações por cliente: renovar +30 dias, nova senha, editar validade e anotação,
 | 1.11.2 | **Corrigido o app fechando ao escolher canal/filme/série** (erro de foco do Compose, `isAttached`) |
 | 1.11.3 | Mais leve: sem destaque grande e sem papel de parede (removeu por engano o selo LEG/DUB) |
 | 1.11.4 | Selo LEG/DUB de volta; "Todas" vira grade única, categorias só na lateral |
+| 1.11.5 | Filmes/Séries/Animes em ordem **Novidades** (lançamentos primeiro, depois adicionados recentes); botão de ordem: Novidades, Adicionados recentes, Lançamentos, A–Z |
+| 1.11.6 | Mesma ordem nos Animes |
+| 1.12.0 | Visual "Noite de Vidro" etapa 1: foco azul-claro; cards mais leves (selo/título em cache) |
+| 1.12.1 | Etapa 2: capas 220x330, abas em cápsula, categoria selecionada translúcida |
+| 1.12.2 | Etapa 3: título dentro da capa (como na arte), chips de ordem à vista, entrada mais rápida |
+| 1.12.3 | Troca de abas fluida: ordenações e anos pré-calculados, favoritos por índice |
 
 ## 7. O caso do app fechando na busca (1.10.2 → 1.10.3)
 
@@ -155,7 +161,7 @@ Saídas:
 - **Filmes/séries "só carregando" e HTTP 429:** o servidor da lista limita conexões. Mitigado com espera/repetição, pausa das consultas de capa durante o vídeo e espera entre episódios. A causa exata **não foi confirmada**; a lista funciona em outro app e só há 1 usuário na conta.
 - **Capas:** fonte principal agora é o TMDB (chave no Secret `TMDB_KEY`). A chave foi colada no chat: convém gerar outra.
 - **Risco aberto:** a grade única de "Todas" com a biblioteca inteira (dezenas de milhares de filmes) pode pesar; se pesar, limitar ou paginar.
-- Ainda **não verificado na TV:** 1.10.9 a 1.11.4 (capas TMDB, linhas novas, 429, se os fechamentos pararam).
+- Ainda **não verificado na TV:** 1.12.2 e 1.12.3 (visual novo, entrada, troca de abas). Antes disso, 1.10.9 a 1.11.4 (capas TMDB, linhas novas, 429, se os fechamentos pararam).
 
 ## 10. Pendências e cuidados
 
@@ -167,3 +173,9 @@ Saídas:
 6. `Updater.BASE` ainda aponta para `github.com/natanpg/...` (minúsculo). Funciona pelo redirecionamento do GitHub e foi conferido em 30/10/2026, mas vale corrigir para `NataNpg` e não depender disso.
 7. Ativar a verificação em duas etapas (2FA) no GitHub antes de 02/12/2026.
 8. Ideias: perfil infantil com PIN, assinar o executável do PC, atualização automática do PC.
+
+## 11. PC 3.5.0 e site web
+- O app de PC (e o de celular) passou a exigir **login** (mesma conta da TV/painel); validação no `ntsync`, revalida a cada 5 min.
+- O site `natanpg.github.io/NTPlay/` foi encerrado: só mostra um aviso; continuam no ar `contas.html`, `admin.html` e `enviar.html`.
+- Pendências de segurança anotadas: repasse local do PC aceita CORS aberto (porta aleatória; ideal exigir token) e não valida certificado dos servidores IPTV.
+- Próximo ganho de velocidade na abertura da TV: guardar a lista já processada em cache (hoje a lista é lida do arquivo a cada abertura).
