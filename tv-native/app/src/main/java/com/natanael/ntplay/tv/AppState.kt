@@ -112,6 +112,9 @@ class AppState(val ctx: Context) {
                 val b = Library.build(files, adult, store.base64, store.adultByName)
                 // pré-calcula agrupamentos fora da tela (evita travar ao trocar de aba)
                 b.every; b.byKey; b.liveGroups; b.movieGroups; b.serieGroups; b.kids; b.anime
+                // pré-calcula ordenações e anos das abas (a troca de aba só escolhe o que já está pronto)
+                b.sorted("m", b.movies, "novos"); b.sorted("s", b.series, "novos"); b.sorted("a", b.anime, "novos"); b.animeCR; b.animeFN
+                b.years("FILMES|", b.movies) { yearOfItem(this@AppState, it) }; b.years("SÉRIES|", b.series) { yearOfItem(this@AppState, it) }; b.years("ANIMES|", b.anime) { yearOfItem(this@AppState, it) }
                 b
             }
             lib = l

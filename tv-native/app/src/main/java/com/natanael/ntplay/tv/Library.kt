@@ -47,6 +47,15 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
             .sortedWith(compareBy<Map.Entry<String, List<Item>>>({ it.value.firstOrNull()?.adult == true }).thenBy { it.key.lowercase() })
             .map { it.key to it.value }
 
+    // ---- cache de ordenações/anos/animes: a troca de aba só escolhe o que já está pronto
+    private val sortCache = java.util.concurrent.ConcurrentHashMap<String, List<Item>>()
+    fun sorted(name: String, l: List<Item>, mode: String): List<Item> = sortCache.getOrPut("$name|$mode") { sortItems(l, mode) }
+    private val yearCache = java.util.concurrent.ConcurrentHashMap<String, List<Pair<String, Int>>>()
+    fun years(name: String, l: List<Item>, of: (Item) -> String): List<Pair<String, Int>> =
+        yearCache.getOrPut(name) { l.groupingBy(of).eachCount().filterKeys { it.isNotEmpty() }.toList().sortedByDescending { it.first } }
+    val animeCR: List<Item> by lazy { anime.filter { Util.animeSrc(it) == "CR" } }
+    val animeFN: List<Item> by lazy { anime.filter { Util.animeSrc(it) == "FN" } }
+
     val liveGroups by lazy { grp(live) }
     val movieGroups by lazy { grp(movies) }
     val serieGroups by lazy { grp(series) }

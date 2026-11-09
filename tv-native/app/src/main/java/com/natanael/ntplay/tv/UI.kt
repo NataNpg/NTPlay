@@ -300,7 +300,7 @@ fun Header(st: AppState) {
                 val fi = rememberFocus()
                 val sel = st.tab == t
                 Text(
-                    t, maxLines = 1, fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = if (sel || fi.on) FontWeight.Bold else FontWeight.Medium,
+                    t, maxLines = 1, fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
                     color = if (sel || fi.on) Color.White else Color(0xCCFFFFFF),
                     modifier = Modifier.tvClick(fi, RoundedCornerShape(50), 1.08f, border = true) { st.selectTab(t) }
                         .background(if (sel) Pink else if (fi.on) FocusBg else Color.Transparent, RoundedCornerShape(50))
@@ -477,7 +477,7 @@ fun Browse(st: AppState) {
     val sortable = tab == "FILMES" || tab == "SÉRIES" || tab == "ANIMES"
     val sm = st.sortMode
     val years = remember(lib, tab, st.group, yearBase) {
-        if (yearBase == null) emptyList() else yearBase.groupingBy { yearOfItem(st, it) }.eachCount().filterKeys { it.isNotEmpty() }.toList().sortedByDescending { it.first }
+        if (yearBase == null) emptyList() else lib.years(tab + "|" + st.group, yearBase) { yearOfItem(st, it) }
     }
     Row(Modifier.fillMaxSize().padding(top = 6.dp)) {
         if (groups != null) Sidebar(st, groups, when (tab) { "TV AO VIVO" -> lib.live.size; "FILMES" -> lib.movies.size; else -> lib.series.size }, tab)
@@ -494,10 +494,10 @@ fun Browse(st: AppState) {
                         GridOf(st, f.take(900), (if (st.group.isEmpty()) tab else st.group) + " · " + st.yearSel, "$sm|" + (if (st.group.isEmpty()) tab else st.group) + "|" + st.yearSel)
                     } else if (st.group.isEmpty()) {
                         // "Todas": tudo junto numa grade só; as categorias ficam só na lateral
-                        val all = remember(lib, tab, sm) { when (tab) { "TV AO VIVO" -> lib.live; "FILMES" -> sortItems(lib.movies, sm); else -> sortItems(lib.series, sm) } }
+                        val all = remember(lib, tab, sm) { when (tab) { "TV AO VIVO" -> lib.live; "FILMES" -> lib.sorted("m", lib.movies, sm); else -> lib.sorted("s", lib.series, sm) } }
                         GridOf(st, all, tab, "$sm|$tab")
                     } else {
-                        val l = remember(groups, st.group, sm) { val x = groups.firstOrNull { it.first == st.group }?.second ?: emptyList(); if (sortable) sortItems(x, sm) else x }
+                        val l = remember(groups, st.group, sm) { val x = groups.firstOrNull { it.first == st.group }?.second ?: emptyList(); if (sortable) lib.sorted(tab + "|" + st.group, x, sm) else x }
                         GridOf(st, l, st.group, "$sm|" + st.group)
                     }
                 } else when (tab) {
@@ -618,7 +618,7 @@ fun CatBtn(name: String, n: Int, sel: Boolean, onClick: () -> Unit) {
 fun Recom(st: AppState, lib: Library) {
     val ver = st.progVer
     val cw = remember(ver, lib) { st.continueList() }
-    val favs = remember(st.favs, lib) { lib.every.filter { st.favs.contains(it.key) } }
+    val favs = remember(st.favs, lib) { st.favs.mapNotNull { lib.byKey[it] } }
     val favL = favs.filter { it.kind == 'l' }; val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
     val trend = remember(st.trend) { st.trend.map { Trending.Row(it.title, it.items.filter { x -> x.kind != 'l' }) }.filter { it.items.isNotEmpty() } }
     val ls = rememberLazyListState()
@@ -825,7 +825,7 @@ fun fieldColors() = OutlinedTextFieldDefaults.colors(
 fun FavoritesScreen(st: AppState, lib: Library) {
     @Suppress("UNUSED_VARIABLE") val gv = st.groupsVer
     val names = st.groupNames()
-    val favs = lib.every.filter { st.favs.contains(it.key) }
+    val favs = remember(st.favs, lib) { st.favs.mapNotNull { lib.byKey[it] } }
     val ls = savedListState(st, "favorites")
     LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)) {
         item {
@@ -1016,8 +1016,8 @@ fun Splash(st: AppState) {
 @Composable
 fun AnimeScreen(st: AppState, lib: Library) {
     var src by remember { mutableStateOf("") }
-    val cr = remember(lib) { lib.anime.filter { Util.animeSrc(it) == "CR" } }
-    val fn = remember(lib) { lib.anime.filter { Util.animeSrc(it) == "FN" } }
+    val cr = lib.animeCR
+    val fn = lib.animeFN
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(start = 16.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((k, lab, n, col) in listOf(
@@ -1031,7 +1031,7 @@ fun AnimeScreen(st: AppState, lib: Library) {
             }
         }
         val sm = st.sortMode
-        val l0 = remember(lib, src, sm) { sortItems(when (src) { "CR" -> cr; "FN" -> fn; else -> lib.anime }, sm) }
+        val l0 = remember(lib, src, sm) { lib.sorted("a$src", when (src) { "CR" -> cr; "FN" -> fn; else -> lib.anime }, sm) }
         val l = if (st.yearSel.isNotEmpty()) l0.filter { yearOfItem(st, it) == st.yearSel } else l0.take(600)
         val name = when (src) { "CR" -> "Crunchyroll"; "FN" -> "Funimation Now"; else -> "Animes" }
         Box(Modifier.weight(1f).fillMaxWidth()) {

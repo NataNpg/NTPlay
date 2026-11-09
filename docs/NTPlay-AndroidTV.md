@@ -323,3 +323,8 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Ordem à vista: botões Novidades / Adicionados recentes / Lançamentos / A–Z ao lado de "📅 Ano" em Filmes, Séries e Animes.
 - Entrada mais rápida: a tela de abertura espera no máximo ~2,5 s pelas capas dos recomendados (antes até ~10 s) e, ao recarregar a lista, os recomendados já carregados não somem mais (era isso que dava a impressão de carregar duas vezes).
 - Observação: a lista inteira é lida do arquivo a cada abertura. Guardar a lista já processada em cache seria o próximo ganho de velocidade na abertura.
+
+## 1.12.3 — troca de abas fluida
+- Ordenações (Novidades etc.), lista de anos e fontes de anime (Crunchyroll/Funimation) agora são calculadas uma vez, em segundo plano, ao carregar a lista; a troca de aba só escolhe o resultado pronto (antes reordenava ~30 mil títulos no momento do clique).
+- Favoritos e Recomendações buscam os favoritos direto pelo índice da biblioteca (antes varriam a lista inteira a cada vez que a aba abria).
+- Abas do topo: o peso da fonte não muda mais ao focar (evita refazer o texto a cada movimento do controle).
