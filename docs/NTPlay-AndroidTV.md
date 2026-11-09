@@ -312,3 +312,8 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Foco: borda azul-clara (`D6E2FF`) em vez de branco puro, mais suave e ainda bem visível.
 - Mais leve: DUB/LEG, título limpo e a linha "ano · qualidade" de cada card passam a ser calculados uma vez por título (antes rodavam regex a cada rolagem, em cada card visível). Removida a imagem em tela cheia atrás da tela de detalhes.
 - Sem efeitos de vidro/desfoque de propósito: pesam em TV box. Próximas etapas (cards, cabeçalho) só se esta continuar fluida.
+
+## 1.12.1 — etapa 2: cards/cabeçalho + mais fluidez
+- Capas decodificadas em 220x330 (antes 300x450): menos memória e rolagem mais fluida; pedido de imagem montado uma vez por capa (antes a cada redesenho).
+- Grade com `contentType` (reaproveita melhor os cards ao rolar).
+- Visual: abas do topo dentro de uma cápsula suave, com letras espaçadas; categoria selecionada na lateral com fundo azul translúcido e fio fino (sem bloco chapado); título da grade grande e fino.

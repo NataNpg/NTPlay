@@ -295,12 +295,12 @@ fun Header(st: AppState) {
         Spacer(Modifier.width(6.dp))
         Text("NTPlay", style = TextStyle(brush = Brush.horizontalGradient(listOf(Cyan, Purple)), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold))
         Spacer(Modifier.width(12.dp))
-        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()).background(Color(0x0FFFFFFF), RoundedCornerShape(50)).padding(horizontal = 4.dp, vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
             for (t in TABS) {
                 val fi = rememberFocus()
                 val sel = st.tab == t
                 Text(
-                    t, maxLines = 1, fontSize = 10.sp, fontWeight = if (sel || fi.on) FontWeight.ExtraBold else FontWeight.Medium,
+                    t, maxLines = 1, fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = if (sel || fi.on) FontWeight.Bold else FontWeight.Medium,
                     color = if (sel || fi.on) Color.White else Color(0xCCFFFFFF),
                     modifier = Modifier.tvClick(fi, RoundedCornerShape(50), 1.08f, border = true) { st.selectTab(t) }
                         .background(if (sel) Pink else if (fi.on) FocusBg else Color.Transparent, RoundedCornerShape(50))
@@ -350,8 +350,10 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     Column(Modifier.width(w)) {
         Box(Modifier.tvClick(fi, RoundedCornerShape(12.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(12.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
             if (img.isNotEmpty()) {
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val req = remember(img) { coil.request.ImageRequest.Builder(ctx).data(img).size(220, 330).build() }
                 AsyncImage(
-                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(img).size(300, 450).build(),
+                    model = req,
                     contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
                     onSuccess = { s -> val z = s.painter.intrinsicSize; if (z.width > 0f && z.height > 0f && z.width / z.height > 0.85f) scene = true },
                     onError = { val c = Meta.cached(st.store, item)?.img ?: ""; img = if (c.isNotEmpty() && c != img) c else ""}
@@ -570,16 +572,16 @@ fun GridOf(st: AppState, l: List<Item>, title: String, skey: String = title) {
         Row(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(4.dp).height(18.dp).background(Pink, RoundedCornerShape(2.dp)))
             Spacer(Modifier.width(8.dp))
-            Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
-            Spacer(Modifier.width(8.dp))
-            Text("${l.size}", color = Muted, fontSize = 12.sp)
+            Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Light)
+            Spacer(Modifier.width(10.dp))
+            Text("${l.size}", color = Muted, fontSize = 11.sp, letterSpacing = 1.sp)
         }
         val gs = savedGridState(st, "grid:" + skey)
         LazyVerticalGrid(
             columns = GridCells.Adaptive(if (live) 170.dp else 112.dp), modifier = Modifier.fillMaxSize().mouseScroll(gs), state = gs,
             contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(l, key = { it.key }) { it2 -> CardFor(st, it2, l) }
+            items(l, key = { it.key }, contentType = { it.kind }) { it2 -> CardFor(st, it2, l) }
         }
     }
 }
@@ -599,10 +601,11 @@ fun Sidebar(st: AppState, groups: List<Pair<String, List<Item>>>, total: Int, ta
 @Composable
 fun CatBtn(name: String, n: Int, sel: Boolean, onClick: () -> Unit) {
     val fi = rememberFocus()
-    val bg = if (sel) Pink else if (fi.on) FocusBg else Color.Transparent
+    val bg = if (sel) Color(0x403A6DF0) else if (fi.on) FocusBg else Color.Transparent
     val fg = if (sel || fi.on) Color.White else Color(0xCCFFFFFF)
     Row(
-        Modifier.fillMaxWidth().tvClick(fi, RoundedCornerShape(10.dp), 1.03f, border = true, onClick = onClick).background(bg, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 7.dp),
+        Modifier.fillMaxWidth().tvClick(fi, RoundedCornerShape(10.dp), 1.03f, border = true, onClick = onClick).background(bg, RoundedCornerShape(10.dp))
+            .then(if (sel && !fi.on) Modifier.border(1.dp, Color(0x885B8CFF), RoundedCornerShape(10.dp)) else Modifier).padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(name, Modifier.weight(1f), color = fg, fontSize = 12.sp, fontWeight = if (sel || fi.on) FontWeight.Bold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
