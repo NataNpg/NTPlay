@@ -348,7 +348,7 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     }
     val fi = rememberFocus()
     Column(Modifier.width(w)) {
-        Box(Modifier.tvClick(fi, RoundedCornerShape(12.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(12.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
+        Box(Modifier.tvClick(fi, RoundedCornerShape(14.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(14.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
             if (img.isNotEmpty()) {
                 val ctx = androidx.compose.ui.platform.LocalContext.current
                 val req = remember(img) { coil.request.ImageRequest.Builder(ctx).data(img).size(220, 330).build() }
@@ -358,8 +358,10 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
                     onSuccess = { s -> val z = s.painter.intrinsicSize; if (z.width > 0f && z.height > 0f && z.width / z.height > 0.85f) scene = true },
                     onError = { val c = Meta.cached(st.store, item)?.img ?: ""; img = if (c.isNotEmpty() && c != img) c else ""}
                 )
-            } else {
-                Text(item.shown, Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xDDFFFFFF), fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 4, overflow = TextOverflow.Ellipsis)
+            }
+            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xEE050814)))).padding(start = 8.dp, end = 8.dp, top = 26.dp, bottom = 9.dp)) {
+                Text(item.shown, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp)
+                if (item.subT.isNotEmpty()) Text(item.subT, color = Color(0xFF9AA5D8), fontSize = 8.sp, letterSpacing = 0.8.sp, maxLines = 1)
             }
             val tag = item.aud
             if (tag.isNotEmpty()) Text(tag, Modifier.align(Alignment.TopStart).padding(6.dp).background(if (tag == "DUB") Color(0xE68B5CF6) else Color(0xE63CE0E6), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
@@ -367,18 +369,15 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
             if (onRemove != null) {
                 val rfi = rememberFocus()
                 Text("✕", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 10.dp)
+                    modifier = Modifier.align(Alignment.TopEnd).padding(end = 6.dp, top = 6.dp)
                         .tvClick(rfi, CircleShape, 1.2f, onClick = onRemove)
                         .background(if (rfi.on) Color(0xFFE5484D) else Color(0xCC000000), CircleShape).padding(horizontal = 7.dp, vertical = 3.dp))
             }
-            if (st.favs.contains(item.key)) Text("★", Modifier.align(Alignment.TopEnd).padding(6.dp).background(Color(0x99000000), CircleShape).padding(horizontal = 6.dp, vertical = 2.dp), color = Color(0xFFFFC107), fontSize = 12.sp)
+            if (onRemove == null && st.favs.contains(item.key)) Text("★", Modifier.align(Alignment.TopEnd).padding(6.dp).background(Color(0x99000000), CircleShape).padding(horizontal = 6.dp, vertical = 2.dp), color = Color(0xFFFFC107), fontSize = 12.sp)
             if (prog > 0f) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x66000000))) {
                 Box(Modifier.fillMaxWidth(prog.coerceIn(0f, 1f)).fillMaxHeight().background(Pink))
             }
         }
-        Text(item.shown, Modifier.padding(top = 6.dp, start = 2.dp), color = if (fi.on) Color.White else Color(0xDDFFFFFF), fontSize = 11.sp, fontWeight = if (fi.on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        val sub = item.subT
-        if (sub.isNotEmpty()) Text(sub, Modifier.padding(start = 2.dp), color = Muted, fontSize = 9.sp, maxLines = 1)
     }
 }
 
@@ -485,7 +484,8 @@ fun Browse(st: AppState) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             if (yearBase != null) Row(Modifier.fillMaxWidth().padding(end = 16.dp, bottom = 2.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 if (st.yearSel.isNotEmpty()) { TvButton("✕ Limpar", Btn, 10.sp, compact = true) { st.yearSel = "" }; Spacer(Modifier.width(8.dp)) }
-                TvButton("📅 Ano: " + (st.yearSel.ifEmpty { "Todos" }) + (if (sortable) " · " + sortLabel(st.sortMode) else ""), if (st.yearSel.isNotEmpty()) Pink else Btn, 10.sp, compact = true) { st.yearDialog = true }
+                if (sortable) for (m in listOf("novos", "recentes", "lanc", "az")) { TvButton(sortLabel(m), Btn, 10.sp, selected = st.sortMode == m, compact = true) { st.sortMode = m }; Spacer(Modifier.width(6.dp)) }
+                TvButton("📅 Ano" + (if (st.yearSel.isNotEmpty()) ": " + st.yearSel else ""), if (st.yearSel.isNotEmpty()) Pink else Btn, 10.sp, compact = true) { st.yearDialog = true }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (groups != null) {

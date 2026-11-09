@@ -317,3 +317,9 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Capas decodificadas em 220x330 (antes 300x450): menos memória e rolagem mais fluida; pedido de imagem montado uma vez por capa (antes a cada redesenho).
 - Grade com `contentType` (reaproveita melhor os cards ao rolar).
 - Visual: abas do topo dentro de uma cápsula suave, com letras espaçadas; categoria selecionada na lateral com fundo azul translúcido e fio fino (sem bloco chapado); título da grade grande e fino.
+
+## 1.12.2 — etapa 3: visual da arte + entrada sem "carregar de novo"
+- Cards: título e "ano · qualidade" dentro da capa, sobre um degradê no rodapé (como na arte); sem texto embaixo, o que deixa a grade mais compacta. Cantos de 14 dp. O ✕ de "Continuar assistindo" foi para o canto superior direito da capa.
+- Ordem à vista: botões Novidades / Adicionados recentes / Lançamentos / A–Z ao lado de "📅 Ano" em Filmes, Séries e Animes.
+- Entrada mais rápida: a tela de abertura espera no máximo ~2,5 s pelas capas dos recomendados (antes até ~10 s) e, ao recarregar a lista, os recomendados já carregados não somem mais (era isso que dava a impressão de carregar duas vezes).
+- Observação: a lista inteira é lida do arquivo a cada abertura. Guardar a lista já processada em cache seria o próximo ganho de velocidade na abertura.

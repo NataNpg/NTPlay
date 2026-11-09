@@ -119,14 +119,13 @@ class AppState(val ctx: Context) {
             status = "${l.live.size} canais • ${l.movies.size} filmes • ${l.series.size} séries"
             logosLater()
             scope.launch { try { Epg.load(store, l, true); epgVer++ } catch (e: Throwable) { } }
-            trend = emptyList()
-            trendBusy = true
+            trendBusy = trend.isEmpty()
             scope.launch {
                 try {
                     trend = withContext(Dispatchers.IO) { Trending.load(ctx, l) }
                     // pré-carrega capas dos primeiros itens para a tela inicial já abrir pronta (máx. ~6 s)
-                    kotlinx.coroutines.withTimeoutOrNull(6000) {
-                        val first = trend.flatMap { it.items.take(8) }.filter { it.kind != 'l' }.distinctBy { it.key }.take(40)
+                    kotlinx.coroutines.withTimeoutOrNull(2500) {
+                        val first = trend.flatMap { it.items.take(8) }.filter { it.kind != 'l' }.distinctBy { it.key }.take(24)
                         withContext(Dispatchers.IO) {
                             val sem = kotlinx.coroutines.sync.Semaphore(6)
                             first.map { it0 -> scope.launch(Dispatchers.IO) { sem.acquire(); try {
