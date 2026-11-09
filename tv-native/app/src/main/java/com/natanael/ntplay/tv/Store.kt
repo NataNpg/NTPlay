@@ -112,6 +112,15 @@ class Store(ctx: Context) {
         get() = sp.getString("sync_hash", "") ?: ""
         set(v) { sp.edit().putString("sync_hash", v).apply() }
 
+    /** quantos episódios a série tinha na última vez que você assistiu (para marcar "NOVO EP") */
+    fun epSeen(key: String): Int = sp.getInt("es|" + key, 0)
+    fun setEpSeen(key: String, n: Int) { if (n > 0 && epSeen(key) != n) sp.edit().putInt("es|" + key, n).apply() }
+    var warnDay: Long   // último dia (dias desde 1970) em que avisamos que o acesso está perto de vencer
+        get() = sp.getLong("warn_day", 0L)
+        set(v) { sp.edit().putLong("warn_day", v).apply() }
+    var searchHist: List<String>   // últimas buscas (mais recente primeiro)
+        get() = (sp.getString("search_hist", "") ?: "").split('\n').filter { it.isNotBlank() }
+        set(v) { sp.edit().putString("search_hist", v.take(8).joinToString("\n")).apply() }
     var accessExp: Long   // validade do acesso (ms), última confirmada pelo servidor
         get() = sp.getLong("access_exp", 0L)
         set(v) { sp.edit().putLong("access_exp", v).apply() }

@@ -337,3 +337,11 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 
 ## 1.13.1
 - Correção de build do celular: `sortItems`, `yearOfItem` e o cache da lista foram para `Library.kt` (o celular copia os arquivos do motor, não o `UI.kt`). O build do celular estava falhando desde a 1.12.3 por isso.
+
+## 1.14.0 — busca melhor, continuar assistindo, aviso de vencimento
+- **Busca**: também acha canais ao vivo (toque no canal e ele já abre), tolera 1 letra errada ("vingadors") quando há poucos resultados e mostra as últimas buscas ("Recentes").
+- **Continuar assistindo**: série cujo episódio terminou volta com o **próximo episódio** (selo PRÓXIMO); série que ganhou episódio novo depois da última vez que você assistiu recebe o selo **NOVO EP**.
+- **Limite de aparelhos por conta** (servidor `ntsync` v7, coluna `max_devices`, 0 = sem limite). Definido em `contas.html`; ao passar do limite o login mostra o motivo.
+- **Aviso de vencimento**: faltando 7 dias ou menos, aparece no cabeçalho e um aviso uma vez por dia.
+- Cards de TV ao vivo menores (170dp → 140dp).
+- PC 3.5.1: faixa de aviso de vencimento no topo.

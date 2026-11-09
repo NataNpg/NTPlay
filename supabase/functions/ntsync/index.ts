@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     const u = String(b.u ?? "").trim().toLowerCase();
     const days = Math.max(1, Math.min(3650, Math.floor(Number(b.days) || 0)));
     if (op === "list") {
-      const { data } = await db.from("ntplay_accounts").select("username,expires_at,note,created_at,last_seen,devices").order("created_at", { ascending: false });
+      const { data } = await db.from("ntplay_accounts").select("username,expires_at,note,created_at,last_seen,devices,max_devices").order("created_at", { ascending: false });
       return out({ ok: true, users: data ?? [] });
     }
     // grupos do painel (clientes NTPlay + clientes do painel Sigma, cadastrados à mão)
@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
       return out({ ok: true });
     }
     if (op === "note") { await db.from("ntplay_accounts").update({ note: String(b.note ?? "").slice(0, 80) }).eq("username", u); return out({ ok: true }); }
+    if (op === "setmax") { const n = Math.max(0, Math.min(20, Math.floor(Number(b.max) || 0))); await db.from("ntplay_accounts").update({ max_devices: n }).eq("username", u); return out({ ok: true, max: n }); }
     if (op === "cleardev") { await db.from("ntplay_accounts").update({ devices: {} }).eq("username", u); return out({ ok: true }); }
     if (op === "setpass") {
       const k = String(b.k ?? "");
@@ -112,11 +113,15 @@ Deno.serve(async (req) => {
   // aparelhos que usam esta conta: { id: { t: último contato (ms), n: nome } } (guarda 30 dias, no máximo 20)
   const upd: Record<string, unknown> = { fails: 0, locked_until: null, last_seen: new Date().toISOString() };
   const dev = String(b.dev ?? "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 32);
+  if (!dev && Number(row.max_devices ?? 0) > 0) return out({ err: "limite", msg: "Atualize o aplicativo para continuar usando esta conta." }, 403);
   if (dev) {
     const now = Date.now();
     const m: Record<string, { t: number; n: string }> = {};
     const old = (row.devices ?? {}) as Record<string, { t: number; n: string }>;
     for (const [id, v] of Object.entries(old)) if (v && now - Number(v.t) < 30 * DAY) m[id] = v;
+    // limite de aparelhos (0 = sem limite): aparelho novo é recusado quando a conta já está cheia
+    const lim = Number(row.max_devices ?? 0);
+    if (lim > 0 && !m[dev] && Object.keys(m).length >= lim) return out({ err: "limite", msg: "Esta conta já está sendo usada em " + lim + " aparelho(s). Peça ao administrador para liberar um aparelho." }, 403);
     m[dev] = { t: now, n: String(b.dn ?? "").slice(0, 40) };
     const ids = Object.keys(m).sort((x, y) => m[y].t - m[x].t).slice(0, 20);
     const keep: Record<string, { t: number; n: string }> = {};

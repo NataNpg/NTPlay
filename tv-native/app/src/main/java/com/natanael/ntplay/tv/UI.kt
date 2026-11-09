@@ -314,14 +314,16 @@ fun Header(st: AppState) {
         Spacer(Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End) {
             Text(clock, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text(if (st.busy) "⏳ " + st.status else st.status, color = Muted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(170.dp), textAlign = TextAlign.End)
+            val exd = st.expiryDays()
+            if (exd != null) Text("⚠ Acesso vence " + (if (exd == 0) "hoje" else "em $exd dia" + (if (exd == 1) "" else "s")), color = Color(0xFFFFB454), fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.width(170.dp), textAlign = TextAlign.End)
+            else Text(if (st.busy) "⏳ " + st.status else st.status, color = Muted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(170.dp), textAlign = TextAlign.End)
         }
     }
 }
 
 // ---------------------------------------------------------------- cartões
 @Composable
-fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() -> Unit)? = null, onClick: () -> Unit) {
+fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() -> Unit)? = null, badge: String = "", onClick: () -> Unit) {
     if (item.kind == 'l') { LiveCard(st, item, w, onClick); return }
     val onLong = { st.toggleFav(item.key) }
     val h = w * 1.5f
@@ -364,8 +366,12 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
                 if (item.subT.isNotEmpty()) Text(item.subT, color = Color(0xFF9AA5D8), fontSize = 8.sp, letterSpacing = 0.8.sp, maxLines = 1)
             }
             val tag = item.aud
-            if (tag.isNotEmpty()) Text(tag, Modifier.align(Alignment.TopStart).padding(6.dp).background(if (tag == "DUB") Color(0xE68B5CF6) else Color(0xE63CE0E6), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
-                color = if (tag == "DUB") Color.White else Color(0xFF05101F), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+            Column(Modifier.align(Alignment.TopStart).padding(6.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                if (tag.isNotEmpty()) Text(tag, Modifier.background(if (tag == "DUB") Color(0xE68B5CF6) else Color(0xE63CE0E6), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+                    color = if (tag == "DUB") Color.White else Color(0xFF05101F), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+                if (badge.isNotEmpty()) Text(badge, Modifier.background(if (badge == "NOVO EP") Color(0xFFFF8A00) else Color(0xCC1B2450), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+                    color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.6.sp)
+            }
             if (onRemove != null) {
                 val rfi = rememberFocus()
                 Text("✕", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
@@ -541,7 +547,7 @@ fun YearDialog(st: AppState, years: List<Pair<String, Int>>) {
 
 @Composable
 fun CardFor(st: AppState, item: Item, queue: List<Item>) {
-    PosterCard(st, item, if (item.kind == 'l') 170.dp else 112.dp) {
+    PosterCard(st, item, if (item.kind == 'l') 140.dp else 112.dp) {
         if (item.kind == 'l') st.playItem(item, null, queue) else { st.queue = queue; st.openDetail(item) }
     }
 }
@@ -560,7 +566,7 @@ fun GridOf(st: AppState, l: List<Item>, title: String, skey: String = title) {
         }
         val gs = savedGridState(st, "grid:" + skey)
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(if (live) 170.dp else 112.dp), modifier = Modifier.fillMaxSize().mouseScroll(gs), state = gs,
+            columns = GridCells.Adaptive(if (live) 140.dp else 112.dp), modifier = Modifier.fillMaxSize().mouseScroll(gs), state = gs,
             contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(l, key = { it.key }, contentType = { it.kind }) { it2 -> CardFor(st, it2, l) }
@@ -609,7 +615,8 @@ fun Recom(st: AppState, lib: Library) {
             ShelfRow("Continuar assistindo", cw.size, null) {
                 items(cw, key = { it.first.key }) { (it2, ep) ->
                     val p = st.progOf(ep)
-                    PosterCard(st, it2, if (it2.kind == 'l') 170.dp else 112.dp, prog = if (p != null && p.d > 0) p.t.toFloat() / p.d else 0f, onRemove = { st.removeProg(it2.key) }) {
+                    val bdg = if (it2.kind != 's' || st.needsEps(it2)) "" else if (st.store.epSeen(it2.key).let { s0 -> s0 > 0 && it2.eps.size > s0 }) "NOVO EP" else if (p == null) "PRÓXIMO" else ""
+                    PosterCard(st, it2, if (it2.kind == 'l') 140.dp else 112.dp, prog = if (p != null && p.d > 0) p.t.toFloat() / p.d else 0f, onRemove = { st.removeProg(it2.key) }, badge = bdg) {
                         st.playItem(it2, ep)
                     }
                 }
@@ -774,7 +781,7 @@ fun SearchDialog(st: AppState) {
         Surface(Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.9f), shape = RoundedCornerShape(18.dp), color = PanelC) {
             Column(Modifier.padding(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(q, { q = it }, Modifier.weight(1f), placeholder = { Text("Buscar filmes, séries e animes…") }, singleLine = true, colors = fieldColors())
+                    OutlinedTextField(q, { q = it }, Modifier.weight(1f), placeholder = { Text("Buscar filmes, séries, animes e canais…") }, singleLine = true, colors = fieldColors())
                     Spacer(Modifier.width(10.dp))
                     TvButton("Fechar", Btn) { st.showSearch = false }
                 }
@@ -783,12 +790,20 @@ fun SearchDialog(st: AppState) {
                     when { q.trim().length < 2 -> "Digite pelo menos 2 letras."; busy -> "Buscando…"; res.isEmpty() -> "Nada encontrado."; else -> "${res.size} resultado(s)" },
                     color = Muted, fontSize = 12.sp
                 )
+                if (q.trim().length < 2 && st.searchHist.isNotEmpty()) {
+                    Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Recentes:", color = Muted, fontSize = 11.sp)
+                        for (h in st.searchHist.take(5)) TvButton(h, Btn, 11.sp, compact = true) { q = h }
+                    }
+                }
                 val gs = rememberLazyGridState()
                 LazyVerticalGrid(columns = GridCells.Adaptive(112.dp), modifier = Modifier.mouseScroll(gs), state = gs, contentPadding = PaddingValues(6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(res, key = { it.key }) { it2 ->
-                        PosterCard(st, it2, 112.dp) {
+                        PosterCard(st, it2, if (it2.kind == 'l') 140.dp else 112.dp) {
+                            st.rememberSearch(q)
                             st.showSearch = false
-                            st.queue = res; st.openDetail(it2)
+                            if (it2.kind == 'l') st.playItem(it2, null, res.filter { r -> r.kind == 'l' })
+                            else { st.queue = res; st.openDetail(it2) }
                         }
                     }
                 }

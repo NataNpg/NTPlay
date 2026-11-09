@@ -27,8 +27,19 @@
     SCRIPTS.forEach((s) => { const e = document.createElement('script'); e.src = s; e.async = false; document.body.appendChild(e); });
   }
   function lock(msg) { ls.del(LSK); if (msg) ls.set('ntLockMsg', msg); location.reload(); }
+  function warn(exp) {
+    const old = document.getElementById('ntwarn'); if (old) old.remove();
+    const d = Math.ceil((exp - Date.now()) / 86400000);
+    if (!exp || d < 0 || d > 7) return;
+    const e = document.createElement('div'); e.id = 'ntwarn';
+    e.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9998;background:#b45f06;color:#fff;font:600 12px system-ui,Segoe UI,sans-serif;text-align:center;padding:5px 30px 5px 10px';
+    e.textContent = '⚠ Seu acesso ' + (d === 0 ? 'vence hoje' : 'vence em ' + d + ' dia' + (d === 1 ? '' : 's')) + '. Fale com quem forneceu o acesso para renovar.';
+    const x = document.createElement('span'); x.textContent = '✕'; x.style.cssText = 'position:absolute;right:10px;cursor:pointer'; x.onclick = () => e.remove(); e.appendChild(x);
+    document.body.appendChild(e);
+  }
   function watch(acc) {
-    const run = async () => { const r = await check(acc.u, acc.k); if (r.ok) { acc.exp = r.exp; acc.t = Date.now(); ls.set(LSK, JSON.stringify(acc)); } else if (!r.net) lock(r.msg); };
+    warn(acc.exp);
+    const run = async () => { const r = await check(acc.u, acc.k); if (r.ok) { acc.exp = r.exp; acc.t = Date.now(); ls.set(LSK, JSON.stringify(acc)); warn(acc.exp); } else if (!r.net) lock(r.msg); };
     setInterval(run, 5 * 60 * 1000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) run(); });
   }

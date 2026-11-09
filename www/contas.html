@@ -309,6 +309,11 @@ tbody tr:hover{background:rgba(255,255,255,.025)}
       <label>Anotação (nome da pessoa, opcional)</label>
       <input class="input" id="fNota" maxlength="80" placeholder="ex: João – cliente do centro">
     </div>
+    <div class="campo" id="campoMax">
+      <label>Limite de aparelhos (0 = sem limite)</label>
+      <div style="display:flex;gap:8px"><input class="input" id="fMax" type="number" min="0" max="20" value="0" style="max-width:110px">
+      <button type="button" class="btn" onclick="liberarAparelhos()" title="Esquece os aparelhos já registrados desta conta">Liberar aparelhos</button></div>
+    </div>
     <div class="modal-acoes">
       <button type="button" class="btn btn-danger" id="btnBloq" style="margin-right:auto;display:none" onclick="bloquearAgora()">⛔ Bloquear agora</button>
       <button type="button" class="btn btn-ghost" onclick="fecharModal()">Cancelar</button>
@@ -399,6 +404,7 @@ async function carregar(avisar){
     validade: u.expires_at ? new Date(u.expires_at).getTime() : 0,
     criado: u.created_at ? new Date(u.created_at).getTime() : Date.now(),
     visto: u.last_seen ? new Date(u.last_seen).getTime() : 0,
+    max: Number(u.max_devices) || 0,
     aparelhos: Object.values(u.devices || {}).map(d => ({ t: Number(d.t) || 0, n: d.n || "Aparelho" })).sort((a,b) => b.t - a.t)
   }));
   logado = true;
@@ -411,10 +417,10 @@ async function carregar(avisar){
 const ONLINE_MS = 5 * 60 * 1000; // o app avisa o servidor a cada ~90 s
 function celulaAparelhos(c){
   const l = c.aparelhos || [];
-  if (!l.length) return '<span class="visto">—</span>';
+  if (!l.length) return '<span class="visto">' + (c.max ? "0/" + c.max + " aparelho(s)" : "—") + '</span>';
   const on = l.filter(d => Date.now() - d.t < ONLINE_MS).length;
   const tip = l.map(d => `${d.n} — ${Date.now() - d.t < ONLINE_MS ? "online agora" : quando(d.t)}`).join("\n");
-  return `<span class="visto" title="${esc(tip)}" style="cursor:help"><b style="color:${on ? "var(--green)" : "var(--muted)"}">● ${on} online</b> · ${l.length} aparelho(s)</span>`;
+  return `<span class="visto" title="${esc(tip)}" style="cursor:help"><b style="color:${on ? "var(--green)" : "var(--muted)"}">● ${on} online</b> · ${l.length}${c.max ? "/" + c.max : ""} aparelho(s)</span>`;
 }
 
 /* ================= STATUS ================= */
@@ -553,6 +559,7 @@ function abrirModal(usuario = null){
   $("fSenha").value = ""; $("fSenha").required = !c;
   $("fData").value = c && c.validade ? toISO(new Date(c.validade)) : "";
   $("fNota").value = c ? c.nota : "";
+  $("fMax").value = c ? c.max : 0; $("campoMax").style.display = c ? "block" : "none";
   $("btnBloq").style.display = c ? "inline-flex" : "none";
   $("btnSalvar").textContent = c ? "Salvar alterações" : "Criar conta";
   selecionarPlano(c ? null : 30);
@@ -592,6 +599,7 @@ async function salvar(e){
       if (prazo){ const r = await api({op:"renew", u:editando, days:prazo}); if (!r.ok) return toast(r.j.msg||"Erro", true); }
       else if (data){ const r = await api({op:"setexp", u:editando, date:data}); if (!r.ok) return toast(r.j.msg||"Erro", true); }
       await api({op:"note", u:editando, note:nota});
+      await api({op:"setmax", u:editando, max:Number($("fMax").value) || 0});
       toast("Conta atualizada ✔"); fecharModal(); await carregar(false); return;
     }
     const senha = $("fSenha").value.trim();
@@ -615,6 +623,12 @@ async function renovar(usuario){
   await carregar(false);
   const c = contas.find(x => x.usuario === usuario);
   toast(`${usuario} renovado até ${c ? fmtData(c.validade) : ""} 🔄`);
+}
+async function liberarAparelhos(){
+  if (!editando || !confirm(`Esquecer os aparelhos registrados de "${editando}"? Eles voltam a se registrar ao abrir o app.`)) return;
+  const r = await api({op:"cleardev", u:editando});
+  if (!r.ok) return toast(r.j.msg||"Erro", true);
+  toast("Aparelhos liberados ✔"); carregar(false);
 }
 async function bloquearAgora(){
   if (!editando || !confirm(`Bloquear o acesso de "${editando}" agora?`)) return;

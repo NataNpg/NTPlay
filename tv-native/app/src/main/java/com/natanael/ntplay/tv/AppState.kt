@@ -83,6 +83,15 @@ class AppState(val ctx: Context) {
         scope.launch { reload() }
         // sincronização na nuvem: ao abrir e a cada 90 s (só se a conta estiver ligada)
         scope.launch { delay(1500); while (true) { if (store.syncUser.isNotEmpty()) syncNow(false); delay(90_000L) } }
+        // aviso de vencimento: uma vez por dia, quando faltam 7 dias ou menos
+        scope.launch {
+            delay(6000)
+            val d = expiryDays(); val today = System.currentTimeMillis() / 86_400_000L
+            if (d != null && !locked && store.warnDay != today) {
+                store.warnDay = today
+                toast(if (d == 0) "⚠ Seu acesso vence hoje. Fale com quem forneceu o acesso para renovar." else "⚠ Seu acesso vence em $d dia" + (if (d == 1) "" else "s") + ". Fale com quem forneceu o acesso para renovar.")
+            }
+        }
         autoUpdate()
         scope.launch { delay(90_000); while (true) { lib?.let { try { Epg.load(store, it); epgVer++ } catch (e: Throwable) { } }; delay(3 * 3600_000L) } }
         // atualização do próprio app: confere ao abrir e a cada 6 h
@@ -380,11 +389,16 @@ class AppState(val ctx: Context) {
         val l = lib ?: return emptyList()
         val seen = HashSet<String>()
         val out = ArrayList<Pair<Item, Ep>>()
-        for (p in progMap.entries.filter { !it.value.done }.sortedByDescending { it.value.ts }) {
+        // o mais recente de cada título; série cujo último episódio terminou volta com o PRÓXIMO episódio
+        for (p in progMap.entries.sortedByDescending { it.value.ts }) {
             val it = l.byKey[p.value.k] ?: continue
             if (!seen.add(it.key)) continue
             val ep = it.eps.firstOrNull { e -> e.url == p.key } ?: (if (needsEps(it)) it.eps[0] else null) ?: continue
-            out.add(it to ep)
+            if (!p.value.done) { out.add(it to ep) }
+            else if (it.kind == 's' && !needsEps(it)) {
+                val i = it.eps.indexOf(ep)
+                if (i >= 0 && i < it.eps.size - 1) out.add(it to it.eps[i + 1])
+            }
             if (out.size >= 24) break
         }
         return out
@@ -429,6 +443,7 @@ class AppState(val ctx: Context) {
     fun playItem(it: Item, ep: Ep? = null, q: List<Item>? = null) {
         if (needsEps(it)) { openDetail(it); return }
         val e = ep ?: startEp(it)
+        if (it.kind == 's' && !needsEps(it)) store.setEpSeen(it.key, it.eps.size)
         if (q != null) queue = q
         play = PlayReq(it, e, if (it.kind == 'l') 0 else resumeOf(e))
     }
@@ -489,9 +504,34 @@ class AppState(val ctx: Context) {
                     if (t.contains(n) || g.contains(n)) rest.add(it)
                 }
             }
+            // poucos resultados: tenta de novo tolerando 1 letra errada (ex.: "vingadors")
+            val fuzzy = ArrayList<Item>()
+            if (first.size + rest.size < 12) {
+                val qw = n.split(' ').filter { it.length >= 3 }
+                if (qw.isNotEmpty()) for (it in l.movies.asSequence() + l.series.asSequence()) {
+                    val tw = it.norm.split(' ')
+                    if (qw.all { w -> tw.any { x -> near(x, w) } }) { fuzzy.add(it); if (fuzzy.size >= 60) break }
+                }
+            }
+            // canais ao vivo que combinam com o nome (depois de filmes e séries)
+            val ch = ArrayList<Item>()
+            for (it in l.live) { if (it.norm.contains(n)) { ch.add(it); if (ch.size >= 40) break } }
             // última barreira: chave repetida na grade do Compose fecha o app
-            (first + rest).distinctBy { it.key }.take(200)
+            (first + rest + fuzzy + ch).distinctBy { it.key }.take(240)
         }
+    }
+
+    /** palavras iguais ou com 1 letra de diferença (só para palavras de 4+ letras) */
+    private fun near(a: String, b: String): Boolean {
+        if (a == b) return true
+        if (a.length < 4 || b.length < 4 || Math.abs(a.length - b.length) > 1) return false
+        var i = 0; var j = 0; var d = 0
+        while (i < a.length && j < b.length) {
+            if (a[i] == b[j]) { i++; j++; continue }
+            if (++d > 1) return false
+            if (a.length > b.length) i++ else if (b.length > a.length) j++ else { i++; j++ }
+        }
+        return d + (a.length - i) + (b.length - j) <= 1
     }
 
     fun logosLater() {
@@ -510,6 +550,19 @@ class AppState(val ctx: Context) {
     var syncUser by mutableStateOf(store.syncUser)
     var locked by mutableStateOf(store.syncUser.isEmpty() || (store.accessExp > 0 && System.currentTimeMillis() > store.accessExp))
     var accessMsg by mutableStateOf(if (store.syncUser.isNotEmpty() && store.accessExp > 0 && System.currentTimeMillis() > store.accessExp) "Seu acesso expirou. Conecte-se à internet e entre de novo ou peça a renovação." else "")
+    /** dias que faltam para o acesso vencer (só quando faltam 7 dias ou menos) */
+    fun expiryDays(): Int? {
+        val e = store.accessExp
+        if (e <= 0) return null
+        val d = Math.ceil((e - System.currentTimeMillis()) / 86_400_000.0).toInt()
+        return if (d in 0..7) d else null
+    }
+    var searchHist by mutableStateOf(store.searchHist)
+    fun rememberSearch(q: String) {
+        val t = q.trim(); if (t.length < 2) return
+        val l = listOf(t) + searchHist.filter { !it.equals(t, true) }
+        searchHist = l.take(8); store.searchHist = searchHist
+    }
     fun accessText(): String = if (store.accessExp > 0) "Válido até " + java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("pt", "BR")).format(java.util.Date(store.accessExp)) else ""
 
     private fun lockOut(msg: String) {
