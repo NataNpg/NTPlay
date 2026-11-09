@@ -24,6 +24,22 @@ O **NTPlay** transforma sua lista M3U ou Xtream Codes num app com cara de stream
   <a href="https://github.com/NataNpg/NTPlay/releases/tag/pc-latest"><img src="https://img.shields.io/badge/Windows-Baixar-9333F7?style=for-the-badge&labelColor=070B1A" alt="Baixar para Windows"></a>
 </p>
 
+## Telas
+
+<p align="center">
+  <img src="docs/assets/screens/recomendacoes.png" alt="Recomendações" width="100%">
+</p>
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/assets/screens/filmes.png" alt="Filmes"><p align="center"><sub>Filmes</sub></p></td>
+    <td width="33%"><img src="docs/assets/screens/futebol.png" alt="Futebol"><p align="center"><sub>Futebol</sub></p></td>
+    <td width="33%"><img src="docs/assets/screens/configuracoes.png" alt="Configurações"><p align="center"><sub>Configurações</sub></p></td>
+  </tr>
+</table>
+
+<sub>Capas e dados das listas aparecem desfocados: o NTPlay mostra o conteúdo da lista que você carrega e não traz nenhum conteúdo próprio.</sub>
+
 ## Recursos
 
 | | |

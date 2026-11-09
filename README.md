@@ -24,6 +24,22 @@
   <a href="https://github.com/NataNpg/NTPlay/releases/tag/pc-latest"><img src="https://img.shields.io/badge/Windows-Download-9333F7?style=for-the-badge&labelColor=070B1A" alt="Download for Windows"></a>
 </p>
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/assets/screens/recomendacoes.png" alt="Recommendations" width="100%">
+</p>
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/assets/screens/filmes.png" alt="Movies"><p align="center"><sub>Movies</sub></p></td>
+    <td width="33%"><img src="docs/assets/screens/futebol.png" alt="Football"><p align="center"><sub>Football</sub></p></td>
+    <td width="33%"><img src="docs/assets/screens/configuracoes.png" alt="Settings"><p align="center"><sub>Settings</sub></p></td>
+  </tr>
+</table>
+
+<sub>Posters and list details are blurred: NTPlay shows the content of the list you load and ships none of its own.</sub>
+
 ## Features
 
 | | |
