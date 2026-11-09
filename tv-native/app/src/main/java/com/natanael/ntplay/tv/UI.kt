@@ -722,15 +722,15 @@ fun DetailScreen(st: AppState, item: Item) {
                 else Text(showTitle(item), Modifier.align(Alignment.Center).padding(10.dp), color = Color(0xCCFFFFFF), fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
             Column(Modifier.weight(1f).fillMaxHeight()) {
-                Text(showTitle(item), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(meta, color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 5.dp))
-                Text(ovText, color = Color(0xCCB8C4F0), fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
+                Text(showTitle(item), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Light, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(meta, color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.2.sp, modifier = Modifier.padding(vertical = 6.dp))
+                Text(ovText, color = Color(0xCCB8C4F0), fontSize = 12.sp, maxLines = 4, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     TvButton(label, Pink, 13.sp, shape = RoundedCornerShape(10.dp)) { if (needEps) { if (!st.epsLoading) st.loadEps(item) } else st.playItem(item, cont) }
-                    TvButton(if (st.favs.contains(item.key)) "★ Favorito" else "☆ Favorito", Btn, 13.sp, shape = RoundedCornerShape(10.dp)) { st.toggleFav(item.key) }
-                    TvButton("＋ Grupo", Btn, 13.sp, shape = RoundedCornerShape(10.dp)) { st.openGroups(item) }
-                    TvButton("‹ Voltar", Btn, 13.sp, shape = RoundedCornerShape(10.dp)) { st.detail = null }
+                    TvButton(if (st.favs.contains(item.key)) "★ Favorito" else "☆ Favorito", Color(0xFF1B2450), 13.sp, shape = RoundedCornerShape(10.dp)) { st.toggleFav(item.key) }
+                    TvButton("＋ Grupo", Color(0xFF1B2450), 13.sp, shape = RoundedCornerShape(10.dp)) { st.openGroups(item) }
+                    TvButton("‹ Voltar", Color(0xFF1B2450), 13.sp, shape = RoundedCornerShape(10.dp)) { st.detail = null }
                 }
                 if (needEps && st.epsErr.isNotEmpty()) Text(st.epsErr + " Toque em \"Carregar episódios\" para tentar de novo.", color = Color(0xFFFF9A9A), fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                 if (serie) {
@@ -769,10 +769,10 @@ fun EpisodeRow(st: AppState, item: Item, e: Ep) {
     val fg = Color.White
     Row(
         Modifier.fillMaxWidth().tvClick(fi, RoundedCornerShape(10.dp), 1.02f, border = true) { st.playItem(item, e) }
-            .background(if (fi.on) FocusBg else Color(0x14FFFFFF), RoundedCornerShape(10.dp)).padding(horizontal = 14.dp, vertical = 9.dp),
+            .background(if (fi.on) FocusBg else Color(0x0DFFFFFF), RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("${e.e}", Modifier.width(34.dp), color = Cyan, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+        Text("${e.e}", Modifier.width(34.dp), color = Cyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         Text(epTitle(item, e), Modifier.weight(1f), color = fg, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(if (p?.done == true) "✓ visto" else if (p != null && p.t > 0) Util.fmt(p.t) else "▶", color = Muted, fontSize = 11.sp)
     }

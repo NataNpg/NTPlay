@@ -109,7 +109,11 @@ class AppState(val ctx: Context) {
         status = "Carregando lista…"
         try {
             val l = withContext(Dispatchers.Default) {
-                val b = Library.build(files, adult, store.base64, store.adultByName)
+                val sig = LibCache.sig(files, adult, store.base64, store.adultByName)
+                // lista igual à da última vez: lê o arquivo já processado (bem mais rápido que analisar o M3U)
+                val cached = LibCache.load(ctx.filesDir, sig)
+                val b = cached ?: Library.build(files, adult, store.base64, store.adultByName)
+                if (cached == null) Thread { LibCache.save(ctx.filesDir, sig, b) }.also { it.priority = Thread.MIN_PRIORITY }.start()
                 // pré-calcula agrupamentos fora da tela (evita travar ao trocar de aba)
                 b.every; b.byKey; b.liveGroups; b.movieGroups; b.serieGroups; b.kids; b.anime
                 // pré-calcula ordenações e anos das abas (a troca de aba só escolhe o que já está pronto)

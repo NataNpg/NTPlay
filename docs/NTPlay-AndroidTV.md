@@ -328,3 +328,9 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Ordenações (Novidades etc.), lista de anos e fontes de anime (Crunchyroll/Funimation) agora são calculadas uma vez, em segundo plano, ao carregar a lista; a troca de aba só escolhe o resultado pronto (antes reordenava ~30 mil títulos no momento do clique).
 - Favoritos e Recomendações buscam os favoritos direto pelo índice da biblioteca (antes varriam a lista inteira a cada vez que a aba abria).
 - Abas do topo: o peso da fonte não muda mais ao focar (evita refazer o texto a cada movimento do controle).
+
+## 1.13.0 — abertura mais rápida (cache da lista) + detalhes no visual novo
+- **Cache da lista já processada** (`LibCache.kt`, arquivo `lib.bin`): ao abrir, se a lista não mudou (mesmo tamanho/data), a biblioteca é lida do arquivo binário em vez de analisar o M3U inteiro de novo. Mudou a lista, o app ou as opções (adulto/Base64) → refaz e regrava sozinho. Arquivo ilegível → apaga e usa o caminho normal.
+- Tela de detalhes: título grande e fino, linha de informações em ciano espaçada, botões secundários mais discretos, episódios em linhas arredondadas translúcidas.
+- Player: sem mudanças (já está no estilo da webOS; botões em azul-marinho de propósito, para não "estourar" em TVs saturadas).
+- Aba Futebol: carrega só quando aberta (nada roda em segundo plano), então retirá-la não deixa o resto mais leve; mantida.
