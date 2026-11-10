@@ -67,7 +67,7 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
     val serieGroups by lazy { grp(series) }
 
     companion object {
-        private val TV_PACK = Regex("^\\s*\\d+\\s*\\|\\s*filmes\\s*&\\s*s[eé]ries", RegexOption.IGNORE_CASE)
+        private val TV_PACK = Regex("^\\s*[A-Za-z0-9]{1,8}\\s*\\|\\s*filmes\\s*&\\s*s[eé]ries", RegexOption.IGNORE_CASE)
         fun build(files: List<File>, showAdult: Boolean, b64: Boolean = false, adultByName: Boolean = true, hidden: Set<String> = emptySet()): Library {
             val live = ArrayList<Item>()
             val mv = ArrayList<Item>()

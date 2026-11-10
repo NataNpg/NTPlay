@@ -126,6 +126,7 @@ class AppState(val ctx: Context) {
                 val b = cached ?: Library.build(files, adult, store.base64, store.adultByName, store.hiddenGroups)
                 if (cached == null) Thread { LibCache.save(ctx.filesDir, sig, b) }.also { it.priority = Thread.MIN_PRIORITY }.start()
                 // pré-calcula agrupamentos fora da tela (evita travar ao trocar de aba)
+                store.info("warm"); store.genres("warm") // lê os arquivos de capas/gêneros aqui, fora da tela
                 b.every; b.byKey; b.liveGroups; b.movieGroups; b.serieGroups; b.kids; b.anime
                 // pré-calcula ordenações e anos das abas (a troca de aba só escolhe o que já está pronto)
                 b.sorted("m", b.movies, "novos"); b.sorted("s", b.series, "novos"); b.sorted("a", b.anime, "novos"); b.animeCR; b.animeFN

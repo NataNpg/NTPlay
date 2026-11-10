@@ -189,7 +189,8 @@ private val ICONS = Ic.values()
 @Composable
 fun TvButton(label: String, bg: Color, fontSize: TextUnit = 13.sp, selected: Boolean = false, shape: Shape = RoundedCornerShape(10.dp), compact: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val fi = rememberFocus()
-    val base = if (selected) Pink else bg
+    // azul "principal" mais escuro: em TV com cor estourada o Pink vira azul-claro e o texto branco some
+    val base = if (selected || bg == Pink) Color(0xFF2A48B5) else bg
     // focado ou sob o mouse: fundo branco e texto escuro. Em TV com cor estourada (stick saturado),
     // texto branco sobre roxo vira branco no branco e o botão some.
     val back = if (fi.on) Color.White else base
@@ -204,6 +205,7 @@ fun TvButton(label: String, bg: Color, fontSize: TextUnit = 13.sp, selected: Boo
     val isz = fontSize.value * 1.15f
     Row(
         modifier.tvClick(fi, shape, 1.08f, border = true, onClick = onClick).background(back, shape)
+            .then(if (selected && !fi.on) Modifier.border(1.5.dp, Color(0xCCFFFFFF), shape) else Modifier)
             .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 5.dp else 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -638,9 +640,7 @@ fun Recom(st: AppState, lib: Library) {
     val favL = favs.filter { it.kind == 'l' }; val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
     val trend = remember(st.trend) { st.trend.map { Trending.Row(it.title, it.items.filter { x -> x.kind != 'l' }) }.filter { it.items.isNotEmpty() } }
     val ls = rememberLazyListState()
-    val hero = remember(trend) { trend.firstOrNull()?.items?.filter { it.kind != 'l' }?.take(6) ?: emptyList() }
     LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(bottom = 20.dp)) {
-        if (hero.isNotEmpty()) item(key = "hero") { HeroCarousel(st, hero) }
         if (cw.isNotEmpty()) item {
             ShelfRow("Continuar assistindo", cw.size, null) {
                 items(cw, key = { it.first.key }) { (it2, ep) ->

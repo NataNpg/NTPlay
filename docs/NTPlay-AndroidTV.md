@@ -380,3 +380,9 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 ## 1.20.0 — destaque no topo da tela inicial
 - Recomendações volta a abrir com um destaque grande: os 6 primeiros títulos da primeira prateleira "em alta" (sem canais), com fundo, título fino, ano/nota/categoria, sinopse e botões Assistir / Detalhes / favorito. Capa oficial no cartão da direita.
 - Troca sozinho a cada 9 s (parado enquanto o foco está nele; no modo leve não troca sozinho). Todas as abas e prateleiras anteriores continuam.
+
+## 1.21.0 — sem destaque, canais fora das séries (todas as variações), botões legíveis
+- **Destaque grande removido** da tela inicial (ao rodar sozinho ele trocava o conteúdo e o foco voltava para o menu do topo). `HeroCarousel`/`Hero` ficam no código, sem uso.
+- Categorias "<prefixo> | FILMES & SERIES" (ex.: "EXCL | FILMES & SERIES", "1 | …", "5 | …") saem de Filmes/Séries (`TV_PACK` agora aceita qualquer prefixo curto).
+- Botões principais/selecionados (Assistir, Novidades, Temporada) usam azul mais escuro com texto branco (em TV de cor estourada o azul antigo virava azul-claro e o texto sumia); selecionado ganha contorno branco fino.
+- Abertura: o arquivo de capas (`info.json`) e o de gêneros são lidos na carga da lista, fora da tela (antes o primeiro card lido travava a primeira tela).
