@@ -186,6 +186,8 @@ object Meta {
 
     private fun ck(it: Item) = "3|" + it.key
     fun cached(store: Store, it: Item): Info? = store.info(ck(it))
+    /** capa oficial já guardada (vazio se ainda não buscou ou não achou) */
+    fun cachedPoster(store: Store, it: Item): String = store.info("4|" + it.key)?.takeIf { c -> !c.none }?.img ?: ""
 
     /** priority = tela de detalhes (não espera a fila das capas) */
     suspend fun get(store: Store, it: Item, priority: Boolean = false): Info? =

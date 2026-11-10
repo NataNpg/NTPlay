@@ -361,3 +361,8 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 
 ## 1.17.1
 - Botões: a separação do emoji/ícone do texto agora é feita só quando o texto muda (antes refazia a cada foco), para não pesar a navegação.
+
+## 1.18.0 — capas oficiais sempre + visual novo, etapa 3 (capas e selos)
+- Filmes e séries agora usam **sempre a capa oficial** (TMDB/TVmaze/iTunes/Wikipédia, guardada no aparelho): a imagem da lista (muitas vezes um print de cena) só aparece até a capa chegar. Antes só trocava se a imagem fosse "larga", e a detecção falhava.
+- Capas com cantos de 8dp, selos (LEG/DUB/NOVO EP/PRÓXIMO) menores, contorno branco fino (2dp) no foco.
+- Observação: as categorias (ex.: "Comédia") são as do provedor da lista; o app não reclassifica gênero.

@@ -179,7 +179,7 @@ fun Modifier.tvClick(
             }
         })
         .graphicsLayer { scaleX = s; scaleY = s }
-        .then(if (border && fi.focused) Modifier.border(3.dp, Color(0xFFD6E2FF), shape) else if (border && hov) Modifier.border(2.dp, Color(0xAAFFFFFF), shape) else Modifier)
+        .then(if (border && fi.focused) Modifier.border(2.dp, Color.White, shape) else if (border && hov) Modifier.border(2.dp, Color(0xAAFFFFFF), shape) else Modifier)
         .clickable(interactionSource = src, indication = null, onClick = onClick)
 }
 
@@ -354,12 +354,15 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     var posterTried by remember(item.key) { mutableStateOf(false) }
     var scene by remember(item.key, item.logo) { mutableStateOf(false) }
     // imagem da lista que é cena/foto horizontal (não é capa): troca pela capa oficial
-    LaunchedEffect(scene) {
-        if (scene && !posterTried && !item.adult) {
-            posterTried = true
-            val p = Meta.poster(st.store, item)
-            if (p.isNotEmpty() && p != img) img = p
-        }
+    // a imagem da lista costuma ser print de cena: usa sempre a capa oficial (guardada no aparelho; busca uma vez só)
+    LaunchedEffect(item.key) {
+        if (posterTried || item.adult) return@LaunchedEffect
+        val c = Meta.cachedPoster(st.store, item)
+        if (c.isNotEmpty()) { posterTried = true; if (c != img) img = c; return@LaunchedEffect }
+        delay(250) // só busca se o cartão continuar na tela
+        posterTried = true
+        val p = Meta.poster(st.store, item)
+        if (p.isNotEmpty() && p != img) img = p
     }
     LaunchedEffect(item.key, img) {
         if (img.isEmpty() && !tried && !item.adult) {
@@ -371,7 +374,7 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     }
     val fi = rememberFocus()
     Column(Modifier.width(w)) {
-        Box(Modifier.tvClick(fi, RoundedCornerShape(14.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(14.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
+        Box(Modifier.tvClick(fi, RoundedCornerShape(8.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(8.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
             if (img.isNotEmpty()) {
                 val ctx = androidx.compose.ui.platform.LocalContext.current
                 val req = remember(img) { coil.request.ImageRequest.Builder(ctx).data(img).size(if (st.lite) 150 else 220, if (st.lite) 225 else 330).build() }
@@ -388,10 +391,10 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
             }
             val tag = item.aud
             Column(Modifier.align(Alignment.TopStart).padding(6.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                if (tag.isNotEmpty()) Text(tag, Modifier.background(if (tag == "DUB") Color(0xE68B5CF6) else Color(0xE63CE0E6), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
-                    color = if (tag == "DUB") Color.White else Color(0xFF05101F), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
-                if (badge.isNotEmpty()) Text(badge, Modifier.background(if (badge == "NOVO EP") Color(0xFFFF8A00) else Color(0xCC1B2450), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
-                    color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.6.sp)
+                if (tag.isNotEmpty()) Text(tag, Modifier.background(if (tag == "DUB") Color(0xE68B5CF6) else Color(0xE63CE0E6), RoundedCornerShape(3.dp)).padding(horizontal = 5.dp, vertical = 1.dp),
+                    color = if (tag == "DUB") Color.White else Color(0xFF05101F), fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+                if (badge.isNotEmpty()) Text(badge, Modifier.background(if (badge == "NOVO EP") Color(0xFFFF8A00) else Color(0xCC1B2450), RoundedCornerShape(3.dp)).padding(horizontal = 5.dp, vertical = 1.dp),
+                    color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
             }
             if (onRemove != null) {
                 val rfi = rememberFocus()
