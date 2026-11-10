@@ -63,6 +63,8 @@ class AppState(val ctx: Context) {
     var yearDialog by mutableStateOf(false)
     var epsErr by mutableStateOf("")
     var queue: List<Item> = emptyList()
+    /** título que estava em foco ao abrir o detalhe: recebe o foco de volta ao fechar */
+    var focusBack: String? = null
     val scroll = HashMap<String, Pair<Int, Int>>() // posição de rolagem por tela (volta onde parou)
     private val progMap: HashMap<String, Prog> = store.progress()
 
@@ -72,7 +74,7 @@ class AppState(val ctx: Context) {
     }
 
     fun selectTab(t: String) {
-        tab = t; groupState = store.groupFor(t); detail = null; store.tab = t; yearSel = ""
+        tab = t; groupState = store.groupFor(t); detail = null; focusBack = null; store.tab = t; yearSel = ""
     }
 
     val canBack: Boolean get() = play != null || detail != null || group.isNotEmpty()
@@ -132,12 +134,7 @@ class AppState(val ctx: Context) {
                 val b = cached ?: Library.build(files, adult, store.base64, store.adultByName, store.hiddenGroups)
                 Util.Diag.span(if (cached != null) "Lista lida do cache" else "Lista analisada do zero (sem cache)", System.currentTimeMillis() - tL)
                 if (cached == null) Thread { LibCache.save(ctx.filesDir, sig, b) }.also { it.priority = Thread.MIN_PRIORITY }.start()
-                // pré-calcula agrupamentos fora da tela (evita travar ao trocar de aba)
                 store.info("warm"); store.genres("warm") // lê os arquivos de capas/gêneros aqui, fora da tela
-                b.every; b.byKey; b.liveGroups; b.movieGroups; b.serieGroups; b.kids; b.anime
-                // pré-calcula ordenações e anos das abas (a troca de aba só escolhe o que já está pronto)
-                b.sorted("m", b.movies, "novos"); b.sorted("s", b.series, "novos"); b.sorted("a", b.anime, "novos"); b.animeCR; b.animeFN
-                b.years("FILMES|", b.movies) { yearOfItem(this@AppState, it) }; b.years("SÉRIES|", b.series) { yearOfItem(this@AppState, it) }; b.years("ANIMES|", b.anime) { yearOfItem(this@AppState, it) }
                 b
             }
             lib = l
@@ -146,7 +143,16 @@ class AppState(val ctx: Context) {
             groupState = store.groupFor(tab).takeIf { g -> g.isNotEmpty() && (l.liveGroups + l.movieGroups + l.serieGroups).any { it.first == g } } ?: ""
             status = "${l.live.size} canais • ${l.movies.size} filmes • ${l.series.size} séries"
             logosLater()
-            scope.launch { try { Epg.load(store, l, true); epgVer++ } catch (e: Throwable) { } }
+            // pré-cálculos pesados em segundo plano e com prioridade baixa: a tela já abre sem esperar por eles
+            scope.launch(Dispatchers.Default) {
+                try {
+                    l.movieGroups; l.serieGroups; l.liveGroups; l.every; l.byKey
+                    l.sorted("m", l.movies, "novos"); l.sorted("s", l.series, "novos")
+                    l.kids; l.anime; l.sorted("a", l.anime, "novos"); l.animeCR; l.animeFN
+                    l.years("FILMES|", l.movies) { yearOfItem(this@AppState, it) }; l.years("SÉRIES|", l.series) { yearOfItem(this@AppState, it) }; l.years("ANIMES|", l.anime) { yearOfItem(this@AppState, it) }
+                } catch (e: Throwable) { }
+            }
+            scope.launch { delay(8000); try { Epg.load(store, l, true); epgVer++ } catch (e: Throwable) { } }
             trendBusy = trend.isEmpty()
             scope.launch {
                 try {
@@ -559,6 +565,7 @@ class AppState(val ctx: Context) {
     fun needsEps(it: Item) = it.kind == 's' && it.eps.size == 1 && it.eps[0].url.endsWith(Xtream.SERIES_EXT)
 
     fun openDetail(it: Item) {
+        focusBack = it.key
         detail = it
         season = if (it.kind == 's') startEp(it).s else 1
         if (needsEps(it)) loadEps(it)

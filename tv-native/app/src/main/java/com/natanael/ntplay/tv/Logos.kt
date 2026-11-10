@@ -22,13 +22,14 @@ object Logos {
     private val brk = Regex("\\[.*?\\]|\\(.*?\\)|\\{.*?\\}")
     private val diac = Regex("\\p{InCombiningDiacriticalMarks}+")
 
+    private val nonAlnum = Regex("[^a-z0-9]+")
     fun key(name: String): String {
         var t = Normalizer.normalize(name.lowercase(), Normalizer.Form.NFD)
         t = diac.replace(t, "")
         t = brk.replace(t, " ")
         t = t.replace("+", " plus ").replace("&", " e ")
         t = tags.replace(t, " ")
-        return t.replace(Regex("[^a-z0-9]+"), "")
+        return nonAlnum.replace(t, "")
     }
 
     fun find(name: String): String? {

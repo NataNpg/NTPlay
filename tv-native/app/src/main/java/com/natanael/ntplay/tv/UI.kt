@@ -64,6 +64,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -378,8 +380,16 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
         }
     }
     val fi = rememberFocus()
+    // ao voltar do detalhe, o foco volta para o mesmo título (antes caía no menu de cima)
+    val fr = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(item.key) {
+        if (st.focusBack == item.key) {
+            st.focusBack = null
+            repeat(4) { delay(80); try { fr.requestFocus(); return@LaunchedEffect } catch (e: Throwable) { } }
+        }
+    }
     Column(Modifier.width(w)) {
-        Box(Modifier.tvClick(fi, RoundedCornerShape(8.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(8.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
+        Box(Modifier.focusRequester(fr).tvClick(fi, RoundedCornerShape(8.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(8.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
             if (img.isNotEmpty()) {
                 val ctx = androidx.compose.ui.platform.LocalContext.current
                 val req = remember(img) { coil.request.ImageRequest.Builder(ctx).data(img).size(if (st.lite) 150 else 220, if (st.lite) 225 else 330).build() }
@@ -439,14 +449,6 @@ fun LiveCard(st: AppState, item: Item, w: Dp, onClick: () -> Unit) {
             if (st.favs.contains(item.key)) Text("★", Modifier.align(Alignment.TopEnd).padding(6.dp), color = Color(0xFFFFC107), fontSize = 12.sp)
         }
         Text(item.title, Modifier.padding(top = 6.dp, start = 2.dp), color = if (fi.on) Color.White else Color(0xDDFFFFFF), fontSize = 11.sp, fontWeight = if (fi.on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        @Suppress("UNUSED_VARIABLE") val ev = st.epgVer
-        val nn = Epg.nowNext(item)
-        nn.first?.let { p ->
-            Text(p.title, Modifier.padding(start = 2.dp), color = Cyan, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val frac = ((System.currentTimeMillis() - p.start).toFloat() / (p.stop - p.start).coerceAtLeast(1L)).coerceIn(0f, 1f)
-            Box(Modifier.padding(start = 2.dp, top = 2.dp).fillMaxWidth().height(2.dp).background(Color(0x33FFFFFF), RoundedCornerShape(1.dp))) { Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFF5B8CFF), RoundedCornerShape(1.dp))) }
-        }
-        nn.second?.let { Text("Depois: " + it.title, Modifier.padding(start = 2.dp, top = 1.dp), color = Muted, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
 }
 
@@ -525,7 +527,7 @@ fun Browse(st: AppState) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             if (yearBase != null) Row(Modifier.fillMaxWidth().padding(end = 16.dp, bottom = 2.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 if (st.yearSel.isNotEmpty()) { TvButton("✕ Limpar", Btn, 10.sp, compact = true) { st.yearSel = "" }; Spacer(Modifier.width(8.dp)) }
-                if (sortable) for (m in listOf("novos", "recentes", "lanc", "az")) { TvButton(sortLabel(m), Btn, 10.sp, selected = st.sortMode == m, compact = true) { st.sortMode = m }; Spacer(Modifier.width(6.dp)) }
+                if (sortable) for (m in listOf("novos", "recentes", "lanc", "az")) { TvButton((if (st.sortMode == m) "✓ " else "") + sortLabel(m), Btn, 10.sp, selected = st.sortMode == m, compact = true) { st.sortMode = m; st.toast("Ordem: " + sortLabel(m)) }; Spacer(Modifier.width(6.dp)) }
                 TvButton("📅 Ano" + (if (st.yearSel.isNotEmpty()) ": " + st.yearSel else ""), if (st.yearSel.isNotEmpty()) Pink else Btn, 10.sp, compact = true) { st.yearDialog = true }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -541,7 +543,7 @@ fun Browse(st: AppState) {
                         val raw = remember(groups, st.group) { groups.firstOrNull { it.first == st.group }?.second ?: emptyList() }
                         LaunchedEffect(st.group, tab) { if (tab != "TV AO VIVO") st.enrichGenres(st.group, raw) }
                         val gv = st.genresVer
-                        val l = remember(raw, sm, gv) { val x = if (tab == "TV AO VIVO") raw else st.genreFilter(st.group, raw); if (sortable) lib.sorted(tab + "|" + st.group + "|" + gv, x, sm) else x }
+                        val l = remember(raw, sm, gv) { val x = if (tab == "TV AO VIVO") raw else st.genreFilter(st.group, raw); if (sortable) lib.sorted(tab + "|" + st.group + "|" + gv, x, sm) { y -> if (y.yr > 0) y.yr else (Meta.cached(st.store, y)?.y?.toIntOrNull() ?: 0) } else x }
                         GridOf(st, l, st.group, "$sm|" + st.group)
                     }
                 } else when (tab) {
@@ -607,11 +609,12 @@ fun GridOf(st: AppState, l: List<Item>, title: String, skey: String = title) {
         var shown by remember(l) { mutableStateOf(minOf(l.size, maxOf(240, (st.scroll["grid:" + skey]?.first ?: 0) + 120))) }
         val gctx = androidx.compose.ui.platform.LocalContext.current
         LaunchedEffect(gs, l) {
-            androidx.compose.runtime.snapshotFlow { gs.firstVisibleItemIndex }.collect { fv ->
+            androidx.compose.runtime.snapshotFlow { gs.firstVisibleItemIndex }.collectLatest { fv ->
                 if (fv > shown - 90 && shown < l.size) shown = minOf(l.size, shown + 240)
+                delay(220) // movimento rápido do controle: só adianta as capas quando parar
                 if (!live) {
                     val loader = coil.Coil.imageLoader(gctx)
-                    for (i in fv + 18..fv + 40) {
+                    for (i in fv + 18..fv + 30) {
                         val x = l.getOrNull(i) ?: break
                         if (x.adult) continue
                         val u = Meta.cachedPoster(st.store, x).ifEmpty { Meta.cached(st.store, x)?.img ?: "" }
@@ -622,7 +625,7 @@ fun GridOf(st: AppState, l: List<Item>, title: String, skey: String = title) {
         }
         LazyVerticalGrid(
             columns = GridCells.Adaptive(if (live) 140.dp else 112.dp), modifier = Modifier.fillMaxSize().mouseScroll(gs), state = gs,
-            contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 56.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(l.subList(0, shown), key = { it.key }, contentType = { it.kind }) { it2 -> CardFor(st, it2, l) }
         }

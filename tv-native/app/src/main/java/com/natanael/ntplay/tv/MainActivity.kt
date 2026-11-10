@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
     // "LayoutCoordinate operations are only valid when isAttached is true" (derrubava o app ao escolher
     // canal/filme/série). Engolimos só esse erro: o botão apertado é ignorado e o app continua.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =
-        try { super.dispatchKeyEvent(event) } catch (e: IllegalStateException) { true }
+        try { super.dispatchKeyEvent(event) } catch (e: RuntimeException) { true }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val st = state

@@ -406,3 +406,12 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 
 ## 1.23.1
 - Removidos a prateleira "Canais recentes" e o botão/tela "Guia" (não ficaram bons). Mantido o "agora / depois" dentro de cada card de canal. O registro de canais recentes continua gravado internamente, sem aparecer.
+
+## 1.24.0 — foco, ordem, canais e entrada mais rápida
+- Ao voltar do detalhe (Voltar ou botão do controle) o foco volta para o título que você tinha escolhido, não mais para o menu de cima.
+- Canais ao vivo: tirado "agora/depois" (programa e barra) dos cartões.
+- Controle rápido: a busca antecipada de capas só roda quando a rolagem para (menos carga e menos memória); erros de foco do Compose (qualquer RuntimeException na tecla) são ignorados em vez de fechar o app.
+- Fim da grade com folga: a última fileira e o rodapé aparecem inteiros.
+- Chips Novidades / Adicionados recentes / Lançamentos / A–Z: o escolhido ganha "✓" e um aviso; "Lançamentos" e "Novidades" passam a usar também o ano do TMDB quando o nome do título não traz o ano (antes listas sem ano ficavam iguais).
+- Player ao vivo: quando o servidor devolve algo que não é vídeo (PARSING_CONTAINER_UNSUPPORTED) alterna o formato (HLS forçado → .ts/.m3u8) com espera maior; em HLS com várias resoluções fixa a melhor que o aparelho aceita (HD não começa mais em SD).
+- Entrada: o cache da lista não é mais apagado a cada atualização do app (constante ENGINE em LibCache); a tela abre sem esperar os pré-cálculos (rodam em segundo plano); EPG só carrega 8 s depois; regex e limpeza de grupo em cache. A primeira abertura depois desta versão ainda refaz o cache uma vez.

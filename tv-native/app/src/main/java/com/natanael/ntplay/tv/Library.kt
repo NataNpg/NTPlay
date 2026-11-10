@@ -55,7 +55,7 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
 
     // ---- cache de ordenações/anos/animes: a troca de aba só escolhe o que já está pronto
     private val sortCache = java.util.concurrent.ConcurrentHashMap<String, List<Item>>()
-    fun sorted(name: String, l: List<Item>, mode: String): List<Item> = sortCache.getOrPut("$name|$mode") { sortItems(l, mode) }
+    fun sorted(name: String, l: List<Item>, mode: String, yf: (Item) -> Int = { it.yr }): List<Item> = sortCache.getOrPut("$name|$mode") { sortItems(l, mode, yf) }
     private val yearCache = java.util.concurrent.ConcurrentHashMap<String, List<Pair<String, Int>>>()
     fun years(name: String, l: List<Item>, of: (Item) -> String): List<Pair<String, Int>> =
         yearCache.getOrPut(name) { l.groupingBy(of).eachCount().filterKeys { it.isNotEmpty() }.toList().sortedByDescending { it.first } }
@@ -173,14 +173,15 @@ object M3u {
 
 // ---- ordenação e ano (ficam aqui, no motor, porque o celular copia este arquivo e não tem o UI.kt da TV)
 /** Novidades = lançamentos (ano atual e anterior, mais novo primeiro) e depois o que entrou há pouco na lista */
-fun sortItems(l: List<Item>, mode: String): List<Item> = when (mode) {
+fun sortItems(l: List<Item>, mode: String, yf: (Item) -> Int = { it.yr }): List<Item> = when (mode) {
     "recentes" -> l.sortedByDescending { it.pos }
-    "lanc" -> l.sortedWith(compareByDescending<Item> { it.yr }.thenByDescending { it.pos })
+    "lanc" -> { val y = HashMap<String, Int>(l.size * 2); for (x in l) y[x.key] = yf(x); l.sortedWith(compareByDescending<Item> { y[it.key] ?: 0 }.thenByDescending { it.pos }) }
     "az" -> l.sortedBy { it.norm }
     else -> {
         val cut = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) - 1
-        val (a, b) = l.partition { it.yr >= cut }
-        a.sortedWith(compareByDescending<Item> { it.yr }.thenByDescending { it.pos }) + b.sortedByDescending { it.pos }
+        val y = HashMap<String, Int>(l.size * 2); for (x in l) y[x.key] = yf(x)
+        val (a, b) = l.partition { (y[it.key] ?: 0) >= cut }
+        a.sortedWith(compareByDescending<Item> { y[it.key] ?: 0 }.thenByDescending { it.pos }) + b.sortedByDescending { it.pos }
     }
 }
 
@@ -200,9 +201,11 @@ fun yearOfItem(st: AppState, it: Item): String {
 object LibCache {
     private const val MAGIC = 0x4E544C42 // "NTLB"
     private const val FORMAT = 1
+    /** subir este número só quando mudar a forma de ler/classificar a lista (assim o cache não é jogado fora a cada atualização do app) */
+    private const val ENGINE = 2
 
     fun sig(files: List<File>, showAdult: Boolean, b64: Boolean, adultByName: Boolean, hidden: Set<String> = emptySet()): String =
-        files.joinToString("|") { it.name + ":" + it.length() + ":" + it.lastModified() } + "#" + showAdult + b64 + adultByName + hidden.sorted().hashCode() + "#" + BuildConfig.VERSION_NAME + "#" + FORMAT
+        files.joinToString("|") { it.name + ":" + it.length() + ":" + it.lastModified() } + "#" + showAdult + b64 + adultByName + hidden.sorted().hashCode() + "#e" + ENGINE + "#" + FORMAT
 
     private fun file(dir: File) = File(dir, "lib.bin")
 

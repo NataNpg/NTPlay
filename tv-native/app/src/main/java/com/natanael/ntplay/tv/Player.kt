@@ -86,6 +86,22 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
+/** vídeo com várias resoluções (HLS): fixa a melhor que o aparelho aceita, em vez de começar pela mais baixa */
+private fun pinBestVideo(p: ExoPlayer) {
+    try {
+        if (p.trackSelectionParameters.overrides.keys.any { it.type == C.TRACK_TYPE_VIDEO }) return
+        val g = p.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO } ?: return
+        if (g.length < 2) return
+        var best = -1; var bh = -1; var bb = -1
+        for (i in 0 until g.length) {
+            if (!g.isTrackSupported(i)) continue
+            val f = g.getTrackFormat(i)
+            if (f.height > bh || (f.height == bh && f.bitrate > bb)) { best = i; bh = f.height; bb = f.bitrate }
+        }
+        if (best >= 0) p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setOverrideForType(TrackSelectionOverride(g.mediaTrackGroup, best)).build()
+    } catch (e: Throwable) { }
+}
+
 private fun qualityOf(p: ExoPlayer): String {
     val f = p.videoFormat ?: return ""
     val h = minOf(f.height, f.width).let { if (it <= 0) f.height else it }
@@ -150,9 +166,10 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     val rootFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
 
+    val hlsForce = remember(req.ep.url) { booleanArrayOf(false) } // endereço sem .m3u8 que na verdade é HLS
     val player = remember(req.ep.url) {
         val okF = OkHttpDataSource.Factory(Net.client).setUserAgent(Util.UA)
-        val ds: androidx.media3.datasource.DataSource.Factory = if (live) androidx.media3.datasource.DataSource.Factory { LiveLoopDataSource(okF.createDataSource(), req.ep.url) } else okF
+        val ds: androidx.media3.datasource.DataSource.Factory = if (live) androidx.media3.datasource.DataSource.Factory { LiveLoopDataSource(okF.createDataSource(), req.ep.url) { hlsForce[0] } } else okF
         val ex = DefaultExtractorsFactory()
             .setConstantBitrateSeekingEnabled(true)
             .setTsExtractorFlags(DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS)
@@ -173,7 +190,8 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     }
 
     fun load(u: String, at: Long) {
-        val mi = MediaItem.Builder().setUri(u).apply { if (u.lowercase().contains(".m3u8")) setMimeType(MimeTypes.APPLICATION_M3U8) }.build()
+        val mi = MediaItem.Builder().setUri(u).apply { if (hlsForce[0] || u.lowercase().contains(".m3u8")) setMimeType(MimeTypes.APPLICATION_M3U8) }.build()
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_VIDEO).build()
         player.setMediaItem(mi, at)
         player.playWhenReady = true
         player.prepare()
@@ -273,6 +291,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
             }
 
             override fun onTracksChanged(tracks: Tracks) {
+                pinBestVideo(player)
                 quality = qualityOf(player)
                 nSubs = groups(C.TRACK_TYPE_TEXT).size
                 val a = groups(C.TRACK_TYPE_AUDIO); nAudio = a.size
@@ -287,6 +306,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                     PlaybackException.ERROR_CODE_DECODING_FAILED, PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
                     PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED
                 )
+                val parse = e.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED || e.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED || e.errorCode == PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED
                 val http = e.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
                 val limited = http?.responseCode == 429 || http?.responseCode == 509
                 val max = if (live) 8 else if (limited) 7 else 4
@@ -297,7 +317,18 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                     scope.launch {
                         val ra = http?.headerFields?.entries?.firstOrNull { it.key.equals("Retry-After", true) }?.value?.firstOrNull()?.trim()?.toLongOrNull()
                         // servidor limitando (429): espera de verdade (ele pede, ou 4 s, 8 s, 12 s…), senão só piora
-                        delay(if (limited) maxOf((ra ?: 0L) * 1000L, 4000L * retries).coerceAtMost(20_000L) else if (retries < 3) 800L else 2000L)
+                        delay(if (limited) maxOf((ra ?: 0L) * 1000L, 4000L * retries).coerceAtMost(20_000L) else if (parse) 2500L * retries.coerceAtMost(4) else if (retries < 3) 800L else 2000L)
+                        // o servidor respondeu algo que o player não reconhece como vídeo: alterna o formato
+                        // (força HLS no endereço → troca .ts/.m3u8 → volta ao original) em vez de repetir o mesmo pedido
+                        if (live && parse) {
+                            val swap = { u: String -> if (u.endsWith(".ts")) u.removeSuffix(".ts") + ".m3u8" else if (u.endsWith(".m3u8")) u.removeSuffix(".m3u8") + ".ts" else u }
+                            when (retries) {
+                                1 -> hlsForce[0] = !url.lowercase().contains(".m3u8")
+                                2 -> { hlsForce[0] = false; url = swap(url) }
+                                3 -> { hlsForce[0] = false; url = swap(url) }
+                                else -> hlsForce[0] = false
+                            }
+                        }
                         // canal ao vivo .ts falhando: tenta a versão HLS (.m3u8) do mesmo canal
                         if (live && retries == 3 && url.contains("/live/") && url.endsWith(".ts")) url = url.removeSuffix(".ts") + ".m3u8"
                         load(url, at)

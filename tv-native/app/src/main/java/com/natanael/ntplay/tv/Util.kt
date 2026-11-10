@@ -56,9 +56,10 @@ object Util {
         } catch (e: Exception) { s }
     }
 
-    fun cleanG(g: String): String {
+    private val cleanGCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    fun cleanG(g: String): String = cleanGCache.getOrPut(g) {
         val r = cleanGr.replace(g, "").trim()
-        return if (r.isEmpty()) (g.trim().ifEmpty { "Sem grupo" }) else r
+        if (r.isEmpty()) (g.trim().ifEmpty { "Sem grupo" }) else r
     }
 
     fun epInfo(n: String): Triple<String, Int, Int>? {

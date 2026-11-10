@@ -12,7 +12,7 @@ import java.io.IOException
  * Esta fonte pede o próximo pedaço sozinha e entrega tudo emendado ao player,
  * como o VLC faz — sem travar nem reiniciar o canal.
  */
-class LiveLoopDataSource(private val up: DataSource, private val mainUrl: String) : DataSource {
+class LiveLoopDataSource(private val up: DataSource, private val mainUrl: String, private val noLoop: () -> Boolean = { false }) : DataSource {
     private var loopOn = false
     private var spec: DataSpec? = null
     private var fails = 0
@@ -23,7 +23,7 @@ class LiveLoopDataSource(private val up: DataSource, private val mainUrl: String
     override fun open(dataSpec: DataSpec): Long {
         spec = dataSpec
         // só emenda o endereço principal do canal (nunca listas HLS nem segmentos)
-        loopOn = dataSpec.uri.toString() == mainUrl && !mainUrl.lowercase().contains(".m3u8")
+        loopOn = !noLoop() && dataSpec.uri.toString() == mainUrl && !mainUrl.lowercase().contains(".m3u8")
         val n = up.open(dataSpec)
         opened = true
         return if (loopOn) C.LENGTH_UNSET.toLong() else n
