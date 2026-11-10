@@ -138,6 +138,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
     var quality by remember(req.ep.url) { mutableStateOf("") }
     var subLabel by remember(req.ep.url) { mutableStateOf("Desligada") }
     var audioLabel by remember(req.ep.url) { mutableStateOf("") }
+    var speed by remember(req.ep.url) { mutableStateOf(1f) }
     var epgNow by remember(req.ep.url) { mutableStateOf<Fut.Prog2?>(null) }
     var epgNext by remember(req.ep.url) { mutableStateOf<Fut.Prog2?>(null) }
     var guide by remember(req.ep.url) { mutableStateOf(false) }
@@ -440,6 +441,10 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                     if (live) TvButton("▼ Canal", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { zap(true) }
                     else {
                         TvButton("10s ⏩", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { seek(10_000); show() }
+                        TvButton("Velocidade " + (if (speed == 1f) "1x" else "${speed}x"), PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) {
+                            speed = when (speed) { 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; 2f -> 0.75f; else -> 1f }
+                            player.setPlaybackSpeed(speed); show()
+                        }
                         if (st.next(req) != null) TvButton("Próximo ⏭", PB, 10.sp, compact = true, shape = RoundedCornerShape(8.dp)) { zap(true) }
                     }
                     if (live) {

@@ -392,3 +392,14 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **TV ao vivo**: o card mostra o programa de agora, uma barra de progresso e "Depois: …" (quando há guia XMLTV). Grade completa por horário ainda não existe.
 - **Erros**: `Util.friendlyErr` traduz erros de rede (sem internet, tempo esgotado, HTTPS, 401/403, 404, 429, conexão caída) ao atualizar lista, ler lista, episódios e sincronizar.
 - **Categoria lembrada**: a última categoria aberta de cada aba (Filmes, Séries, TV ao vivo) volta ao reabrir o app, se ainda existir. A posição de rolagem não é guardada entre aberturas.
+
+## 1.23.0 — guia, canais recentes, perfis, PIN, velocidade, voz, backup, diagnóstico, madrugada
+- **Guia** (botão na aba TV ao vivo): canais da categoria aberta com os próximos programas (até 5, próximas 6 h); OK no programa abre o canal. Vem do XMLTV da lista.
+- **Canais recentes**: prateleira na tela inicial (últimos 12). Troca de canal ▲/▼ e Canal +/- já existiam no player.
+- **Perfis** (4): Listas → "Perfil…" troca. Favoritos, grupos, progresso, buscas, categoria lembrada, categorias ocultas e canais recentes são por perfil (chaves `pN:` em SharedPreferences; perfil 1 mantém as chaves antigas). **Nuvem só funciona no Perfil 1.** Listas e contas são compartilhadas.
+- **Controle dos pais (PIN de 4 dígitos)**: pede PIN para ligar "conteúdo adulto", ocultar categorias e mostrar as ocultas. Criar/desligar em Listas. Guardado em texto no aparelho (`pin`) — é controle simples, não segurança forte.
+- **Player**: botão Velocidade (1x → 1,25x → 1,5x → 2x → 0,75x) em filmes/séries. Áudio, legenda e pular abertura já existiam.
+- **Busca por voz**: botão "Falar" (usa o reconhecimento de voz do Android; se a TV não tiver, avisa).
+- **Atualizar de madrugada** (opcional, WorkManager, ~4h, com internet): baixa a lista, compara, e se mudou já deixa o cache pronto. Depende do Android deixar o app rodar em segundo plano.
+- **Backup/Restaurar**: `NTPlay-backup.json` em Android/data/com.natanael.ntplay.tv/files (listas com link, favoritos, grupos, progresso do perfil ativo). Restaurar mescla.
+- **Diagnóstico**: Listas → mostra aparelho, RAM, modo leve, tamanhos e tempos (cache lido x lista analisada, total).

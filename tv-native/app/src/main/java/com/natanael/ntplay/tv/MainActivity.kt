@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             NtTheme {
                 val st = remember { AppState(applicationContext).also { state = it } }
-                LaunchedEffect(Unit) { st.start() }
+                LaunchedEffect(Unit) { st.start(); if (st.store.nightUpdate) NightUpdate.schedule(applicationContext, true) }
                 BackHandler(enabled = st.canBack && st.play == null && !st.showLists && !st.showSearch) { st.back() }
                 App(st)
                 var crash by remember { mutableStateOf(lastCrash) }

@@ -17,6 +17,28 @@ class Store(ctx: Context) {
     private val infoFile = File(ctx.filesDir, "info.json")
     private var infoMap: HashMap<String, Info>? = null
 
+    /** perfil ativo (0 = principal; os dados do perfil 0 mantêm os nomes antigos) */
+    var profile: Int
+        get() = sp.getInt("profile", 0)
+        set(v) { sp.edit().putInt("profile", v).apply() }
+    private fun pk(n: String) = if (profile == 0) n else "p$profile:$n"
+    val profileNames = listOf("Perfil 1", "Perfil 2", "Perfil 3", "Perfil 4")
+
+    /** controle dos pais: PIN de 4 dígitos (vazio = sem PIN) */
+    var pin: String
+        get() = sp.getString("pin", "") ?: ""
+        set(v) { sp.edit().putString("pin", v).apply() }
+
+    /** últimos canais assistidos (mais recente primeiro) */
+    var recentLive: List<String>
+        get() = (sp.getString(pk("recent_live"), "") ?: "").split('\n').filter { it.isNotBlank() }
+        set(v) { sp.edit().putString(pk("recent_live"), v.take(12).joinToString("\n")).apply() }
+
+    /** atualização automática de madrugada (WorkManager não é usado: alarme simples) */
+    var nightUpdate: Boolean
+        get() = sp.getBoolean("night_update", false)
+        set(v) { sp.edit().putBoolean("night_update", v).apply() }
+
     fun file(id: String) = File(dir, "$id.m3u")
 
     fun lists(): MutableList<ListMeta> {
@@ -40,8 +62,8 @@ class Store(ctx: Context) {
     fun deleteList(id: String) { file(id).delete() }
 
     var favs: Set<String>
-        get() = HashSet(sp.getStringSet("favs", emptySet()) ?: emptySet())
-        set(v) { sp.edit().putStringSet("favs", HashSet(v)).apply() }
+        get() = HashSet(sp.getStringSet(pk("favs"), emptySet()) ?: emptySet())
+        set(v) { sp.edit().putStringSet(pk("favs"), HashSet(v)).apply() }
 
     var adult: Boolean
         get() = sp.getBoolean("adult", false)
@@ -84,8 +106,8 @@ class Store(ctx: Context) {
 
     // grupos personalizados do usuário: JSON { "nome": ["key1","key2"], ... }
     var groupsRaw: String
-        get() = sp.getString("groups", "{}") ?: "{}"
-        set(v) { sp.edit().putString("groups", v).apply() }
+        get() = sp.getString(pk("groups"), "{}") ?: "{}"
+        set(v) { sp.edit().putString(pk("groups"), v).apply() }
 
     // atualização automática das listas
     var updateHours: Int
@@ -113,8 +135,8 @@ class Store(ctx: Context) {
         set(v) { sp.edit().putString("sync_hash", v).apply() }
 
     /** quantos episódios a série tinha na última vez que você assistiu (para marcar "NOVO EP") */
-    fun epSeen(key: String): Int = sp.getInt("es|" + key, 0)
-    fun setEpSeen(key: String, n: Int) { if (n > 0 && epSeen(key) != n) sp.edit().putInt("es|" + key, n).apply() }
+    fun epSeen(key: String): Int = sp.getInt(pk("es|" + key), 0)
+    fun setEpSeen(key: String, n: Int) { if (n > 0 && epSeen(key) != n) sp.edit().putInt(pk("es|" + key), n).apply() }
     /** modo leve: 0 = automático (pela memória do aparelho), 1 = ligado, 2 = desligado */
     var liteMode: Int
         get() = sp.getInt("lite_mode", 0)
@@ -149,18 +171,18 @@ class Store(ctx: Context) {
             }.start()
         }
     }
-    fun groupFor(tab: String): String = sp.getString("grp|$tab", "") ?: ""
-    fun setGroupFor(tab: String, g: String) { if (groupFor(tab) != g) sp.edit().putString("grp|$tab", g).apply() }
+    fun groupFor(tab: String): String = sp.getString(pk("grp|$tab"), "") ?: ""
+    fun setGroupFor(tab: String, g: String) { if (groupFor(tab) != g) sp.edit().putString(pk("grp|$tab"), g).apply() }
     /** categorias que o usuário ocultou (nomes já limpos, um por linha) */
     var hiddenGroups: Set<String>
-        get() = (sp.getString("hidden_groups", "") ?: "").split('\n').filter { it.isNotBlank() }.toSet()
-        set(v) { sp.edit().putString("hidden_groups", v.joinToString("\n")).apply() }
+        get() = (sp.getString(pk("hidden_groups"), "") ?: "").split('\n').filter { it.isNotBlank() }.toSet()
+        set(v) { sp.edit().putString(pk("hidden_groups"), v.joinToString("\n")).apply() }
     var warnDay: Long   // último dia (dias desde 1970) em que avisamos que o acesso está perto de vencer
         get() = sp.getLong("warn_day", 0L)
         set(v) { sp.edit().putLong("warn_day", v).apply() }
     var searchHist: List<String>   // últimas buscas (mais recente primeiro)
-        get() = (sp.getString("search_hist", "") ?: "").split('\n').filter { it.isNotBlank() }
-        set(v) { sp.edit().putString("search_hist", v.take(8).joinToString("\n")).apply() }
+        get() = (sp.getString(pk("search_hist"), "") ?: "").split('\n').filter { it.isNotBlank() }
+        set(v) { sp.edit().putString(pk("search_hist"), v.take(8).joinToString("\n")).apply() }
     var accessExp: Long   // validade do acesso (ms), última confirmada pelo servidor
         get() = sp.getLong("access_exp", 0L)
         set(v) { sp.edit().putLong("access_exp", v).apply() }
@@ -203,7 +225,7 @@ class Store(ctx: Context) {
     fun progress(): HashMap<String, Prog> {
         val m = HashMap<String, Prog>()
         try {
-            val o = JSONObject(sp.getString("prog", "{}"))
+            val o = JSONObject(sp.getString(pk("prog"), "{}"))
             for (u in o.keys()) {
                 val p = o.getJSONObject(u)
                 m[u] = Prog(p.optLong("t"), p.optLong("d"), p.optLong("ts"), p.optBoolean("done"), p.optString("k"), p.optString("n"))
@@ -217,7 +239,7 @@ class Store(ctx: Context) {
         if (e.size > 600) e = e.sortedByDescending { it.value.ts }.take(500)
         val o = JSONObject()
         for ((u, p) in e) o.put(u, JSONObject().put("t", p.t).put("d", p.d).put("ts", p.ts).put("done", p.done).put("k", p.k).put("n", p.title))
-        sp.edit().putString("prog", o.toString()).apply()
+        sp.edit().putString(pk("prog"), o.toString()).apply()
     }
 
     @Synchronized

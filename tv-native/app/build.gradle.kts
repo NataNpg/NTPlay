@@ -12,7 +12,7 @@ android {
         targetSdk = 34
         // versionCode sobe sozinho a cada compilação no GitHub (NT_VERSION_CODE = 1000 + nº da execução); local usa 14
         versionCode = (System.getenv("NT_VERSION_CODE") ?: "14").toInt()
-        versionName = "1.22.0"
+        versionName = "1.23.0"
         // chave do TMDB vem do GitHub Secret TMDB_KEY (fica fora do repositório); sem ela o app usa só as outras fontes
         buildConfigField("String", "TMDB_KEY", "\"" + (System.getenv("TMDB_KEY") ?: "") + "\"")
     }
@@ -63,4 +63,5 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("com.google.zxing:core:3.5.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 }

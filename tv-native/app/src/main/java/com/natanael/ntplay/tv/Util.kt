@@ -68,6 +68,14 @@ object Util {
     }
 
     /** 'l' = ao vivo, 'm' = filme, 's' = série */
+    /** tempos medidos no aparelho (tela Diagnóstico) */
+    object Diag {
+        private val t0 = System.currentTimeMillis()
+        val lines: MutableList<String> = java.util.Collections.synchronizedList(ArrayList())
+        fun span(what: String, ms: Long) { lines.add("$what: $ms ms"); while (lines.size > 60) lines.removeAt(0) }
+        fun mark(what: String) { lines.add("+" + (System.currentTimeMillis() - t0) + " ms  " + what); while (lines.size > 60) lines.removeAt(0) }
+    }
+
     /** mensagem de erro de rede em português simples, com o que fazer */
     fun friendlyErr(e: Throwable): String {
         val m = (e.message ?: "").lowercase()

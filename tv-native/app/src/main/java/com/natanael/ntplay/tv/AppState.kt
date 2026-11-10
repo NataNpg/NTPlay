@@ -122,12 +122,15 @@ class AppState(val ctx: Context) {
         }
         busy = true
         status = "Carregando lista…"
+        val tR = System.currentTimeMillis()
         try {
             val l = withContext(Dispatchers.Default) {
+                val tL = System.currentTimeMillis()
                 val sig = LibCache.sig(files, adult, store.base64, store.adultByName, store.hiddenGroups)
                 // lista igual à da última vez: lê o arquivo já processado (bem mais rápido que analisar o M3U)
                 val cached = LibCache.load(ctx.filesDir, sig)
                 val b = cached ?: Library.build(files, adult, store.base64, store.adultByName, store.hiddenGroups)
+                Util.Diag.span(if (cached != null) "Lista lida do cache" else "Lista analisada do zero (sem cache)", System.currentTimeMillis() - tL)
                 if (cached == null) Thread { LibCache.save(ctx.filesDir, sig, b) }.also { it.priority = Thread.MIN_PRIORITY }.start()
                 // pré-calcula agrupamentos fora da tela (evita travar ao trocar de aba)
                 store.info("warm"); store.genres("warm") // lê os arquivos de capas/gêneros aqui, fora da tela
@@ -138,6 +141,7 @@ class AppState(val ctx: Context) {
                 b
             }
             lib = l
+            Util.Diag.span("Lista pronta (total)", System.currentTimeMillis() - tR)
             // volta na categoria em que você estava, se ela ainda existe
             groupState = store.groupFor(tab).takeIf { g -> g.isNotEmpty() && (l.liveGroups + l.movieGroups + l.serieGroups).any { it.first == g } } ?: ""
             status = "${l.live.size} canais • ${l.movies.size} filmes • ${l.series.size} séries"
@@ -328,6 +332,64 @@ class AppState(val ctx: Context) {
         }
     }
     var hiddenCount by mutableIntStateOf(store.hiddenGroups.size)
+    // ---------- perfis, PIN, guia, voz, backup, diagnóstico ----------
+    var profile by mutableIntStateOf(store.profile)
+    var recentVer by mutableIntStateOf(0)
+    fun switchProfile(n: Int) {
+        val p = ((n % 4) + 4) % 4
+        store.profile = p; profile = p
+        progMap.clear(); progMap.putAll(store.progress())
+        favs = store.favs; searchHist = store.searchHist; hiddenCount = store.hiddenGroups.size
+        groupState = ""; groupsVer++; progVer++; recentVer++
+        toast("Perfil: " + store.profileNames[p] + (if (p != 0) " (sem nuvem: favoritos e progresso ficam só nesta TV)" else ""))
+        scope.launch { reload() }
+    }
+    var showPin by mutableStateOf(false)
+    var pinMode by mutableStateOf("ask")    // ask = pedir PIN para uma ação | set = criar | off = desligar
+    private var pinAction: (() -> Unit)? = null
+    var pinHasPin by mutableStateOf(store.pin.isNotEmpty())
+    /** roda a ação direto se não há PIN; senão pede o PIN antes */
+    fun needPin(action: () -> Unit) { if (store.pin.isEmpty()) action() else { pinMode = "ask"; pinAction = action; showPin = true } }
+    fun pinEntered(code: String, first: String?): String? {   // devolve mensagem de erro ou null se concluiu
+        when (pinMode) {
+            "ask" -> { if (code == store.pin) { showPin = false; val a = pinAction; pinAction = null; a?.invoke(); return null }; return "PIN incorreto." }
+            "off" -> { if (code == store.pin) { store.pin = ""; pinHasPin = false; showPin = false; toast("PIN desligado."); return null }; return "PIN incorreto." }
+            else -> { if (first == null) return "" ; if (code == first) { store.pin = code; pinHasPin = true; showPin = false; toast("PIN dos pais ativado."); return null }; return "Os dois PIN são diferentes. Tente de novo." }
+        }
+    }
+    fun openPinSetup() { pinMode = if (store.pin.isEmpty()) "set" else "off"; pinAction = null; showPin = true }
+    var showGuide by mutableStateOf(false)
+    var showDiag by mutableStateOf(false)
+    var nightUpdate by mutableStateOf(store.nightUpdate)
+    fun changeNight(v: Boolean) { nightUpdate = v; store.nightUpdate = v; toast(if (v) "Atualização de madrugada ligada (por volta das 4h, se a TV estiver ligada à energia)." else "Atualização de madrugada desligada.") }
+    fun backupFile(): java.io.File = java.io.File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "NTPlay-backup.json")
+    fun backupSave() {
+        try { val f = backupFile(); f.writeText(payload(System.currentTimeMillis()).toString()); toast("Backup salvo em: " + f.absolutePath) }
+        catch (e: Throwable) { toast("Não consegui salvar o backup: " + (e.message ?: "erro")) }
+    }
+    fun backupRestore() {
+        scope.launch {
+            try {
+                val f = backupFile()
+                if (!f.exists()) { toast("Nenhum backup encontrado em: " + f.absolutePath); return@launch }
+                val o = withContext(Dispatchers.IO) { JSONObject(f.readText()) }
+                applyRemote(o, true); toast("Backup restaurado (favoritos, grupos, progresso e listas).")
+            } catch (e: Throwable) { toast("Backup inválido ou ilegível.") }
+        }
+    }
+    fun diagText(): String {
+        val sb = StringBuilder()
+        try {
+            val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            sb.append("Aparelho: ").append(android.os.Build.MODEL).append("  Android ").append(android.os.Build.VERSION.RELEASE).append('\n')
+            sb.append("Memória do app: ").append(am.memoryClass).append(" MB  |  pouca RAM: ").append(am.isLowRamDevice).append("  |  modo leve: ").append(lite).append('\n')
+            sb.append("Perfil: ").append(store.profileNames[profile]).append('\n')
+        } catch (e: Throwable) { }
+        lib?.let { sb.append("Itens: ").append(it.live.size).append(" canais, ").append(it.movies.size).append(" filmes, ").append(it.series.size).append(" séries\n") }
+        sb.append("\nTempos desta sessão:\n")
+        for (l in Util.Diag.lines.toList()) sb.append(l).append('\n')
+        return sb.toString()
+    }
     fun hideGroup(name: String) {
         store.hiddenGroups = store.hiddenGroups + name; hiddenCount = store.hiddenGroups.size
         group = ""; toast("Categoria \"$name\" ocultada. Para mostrar de novo: Listas → Categorias ocultas.")
@@ -523,6 +585,7 @@ class AppState(val ctx: Context) {
         if (needsEps(it)) { openDetail(it); return }
         val e = ep ?: startEp(it)
         if (it.kind == 's' && !needsEps(it)) store.setEpSeen(it.key, it.eps.size)
+        if (it.kind == 'l') { store.recentLive = listOf(it.key) + store.recentLive.filter { x -> x != it.key }; recentVer++ }
         if (q != null) queue = q
         play = PlayReq(it, e, if (it.kind == 'l') 0 else resumeOf(e))
     }
@@ -742,7 +805,7 @@ class AppState(val ctx: Context) {
     }
 
     suspend fun syncNow(manual: Boolean) {
-        val u = store.syncUser; if (u.isEmpty() || syncBusy) return
+        val u = store.syncUser; if (u.isEmpty() || syncBusy || store.profile != 0) return
         syncBusy = true; blockPush = false
         try {
             val ak = store.syncAuth; val ek = store.syncEnc

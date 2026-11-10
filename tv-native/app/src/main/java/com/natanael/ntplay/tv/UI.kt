@@ -279,6 +279,9 @@ fun App(st: AppState) {
         if (p != null) PlayerScreen(st, p)
         if (st.showLists) ListsDialog(st)
         if (st.showSearch) SearchDialog(st)
+        if (st.showGuide) GuideDialog(st)
+        if (st.showPin) PinDialog(st)
+        if (st.showDiag) DiagDialog(st)
         if (st.groupDialog) GroupDialog(st)
         if (st.accountDialog) AccountDialog(st)
         }
@@ -331,6 +334,7 @@ fun Header(st: AppState) {
                 }
             }
         }
+        if (st.tab == "TV AO VIVO") { TvButton("Guia", Color(0x1AFFFFFF), 10.sp, compact = true) { st.showGuide = true }; Spacer(Modifier.width(6.dp)) }
         TvButton("🔍 Buscar", Color(0x1AFFFFFF), 10.sp, compact = true) { st.showSearch = true }
         Spacer(Modifier.width(6.dp))
         TvButton("☰ Listas", Color(0x1AFFFFFF), 10.sp, compact = true) { st.showLists = true }
@@ -634,7 +638,7 @@ fun Sidebar(st: AppState, groups: List<Pair<String, List<Item>>>, total: Int, ta
         val ls = rememberLazyListState()
         LazyColumn(Modifier.weight(1f).mouseScroll(ls), state = ls, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             item { CatBtn("Todas", total, st.group.isEmpty()) { st.group = "" } }
-            items(groups, key = { it.first }) { g -> CatBtn(g.first, g.second.size, st.group == g.first, onLong = { st.hideGroup(g.first) }) { st.group = g.first } }
+            items(groups, key = { it.first }) { g -> CatBtn(g.first, g.second.size, st.group == g.first, onLong = { st.needPin { st.hideGroup(g.first) } }) { st.group = g.first } }
         }
     }
 }
@@ -662,8 +666,12 @@ fun Recom(st: AppState, lib: Library) {
     val favs = remember(st.favs, lib) { st.favs.mapNotNull { lib.byKey[it] } }
     val favL = favs.filter { it.kind == 'l' }; val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
     val trend = remember(st.trend) { st.trend.map { Trending.Row(it.title, it.items.filter { x -> x.kind != 'l' }) }.filter { it.items.isNotEmpty() } }
+    val rec = remember(st.recentVer, lib) { st.store.recentLive.mapNotNull { k -> lib.byKey[k] } }
     val ls = rememberLazyListState()
     LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(bottom = 20.dp)) {
+        if (rec.isNotEmpty()) item(key = "recentlive") {
+            ShelfRow("Canais recentes", rec.size, null) { items(rec, key = { it.key }) { c -> CardFor(st, c, rec) } }
+        }
         if (cw.isNotEmpty()) item {
             ShelfRow("Continuar assistindo", cw.size, null) {
                 items(cw, key = { it.first.key }) { (it2, ep) ->
@@ -838,6 +846,16 @@ fun SearchDialog(st: AppState) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(q, { q = it }, Modifier.weight(1f), placeholder = { Text("Buscar filmes, séries, animes e canais…") }, singleLine = true, colors = fieldColors())
                     Spacer(Modifier.width(10.dp))
+                    val vctx = androidx.compose.ui.platform.LocalContext.current
+                    val voice = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { r ->
+                        val t = r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+                        if (!t.isNullOrBlank()) q = t
+                    }
+                    TvButton("Falar", Btn) {
+                        try { voice.launch(android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")) }
+                        catch (e: Throwable) { st.toast("Busca por voz não está disponível nesta TV.") }
+                    }
+                    Spacer(Modifier.width(8.dp))
                     TvButton("Fechar", Btn) { st.showSearch = false }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -1035,11 +1053,17 @@ fun ListsDialog(st: AppState) {
                     if (st.busy) item { Text(st.status, color = Cyan, fontSize = 11.sp) }
                     if (st.lastErr.isNotEmpty()) item { Text(st.lastErr, color = Color(0xFFFF8A8A), fontSize = 11.sp, lineHeight = 15.sp) }
                     item { Spacer(Modifier.height(4.dp)); Text("PREFERÊNCIAS", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-                    item { TvButton((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAdult(!st.adult) } }
+                    item { TvButton((if (st.adult) "☑" else "☐") + " Mostrar conteúdo adulto (fica no fim da lista)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { if (!st.adult) st.needPin { st.changeAdult(true) } else st.changeAdult(false) } }
                     item { TvButton((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAutoNext(!st.autoNext) } }
                     item { TvButton((if (st.subs) "☑" else "☐") + " Mostrar legendas (desmarcado = legendas desligadas em tudo)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeSubs(!st.subs) } }
                     item { TvButton("Buffer de filmes/séries: " + when (st.bufferMode) { 1 -> "Grande (~25 s)"; 2 -> "Muito grande (~45 s)"; else -> "Padrão" }, Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeBuffer((st.bufferMode + 1) % 3) } }
-                    if (st.hiddenCount > 0) item { TvButton("Categorias ocultas: ${st.hiddenCount} — mostrar todas de novo", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.showAllGroups() } }
+                    if (st.hiddenCount > 0) item { TvButton("Categorias ocultas: ${st.hiddenCount} — mostrar todas de novo", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.needPin { st.showAllGroups() } } }
+                    item { Spacer(Modifier.height(4.dp)); Text("PERFIS, PAIS E BACKUP", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                    item { TvButton("Perfil: " + st.store.profileNames[st.profile] + " — trocar (favoritos e progresso separados)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.switchProfile(st.profile + 1) } }
+                    item { TvButton("Controle dos pais (PIN): " + (if (st.pinHasPin) "ligado — desligar" else "desligado — criar PIN"), Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.openPinSetup() } }
+                    item { TvButton((if (st.nightUpdate) "☑" else "☐") + " Atualizar listas de madrugada", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeNight(!st.nightUpdate); NightUpdate.schedule(st.ctx, st.nightUpdate) } }
+                    item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { TvButton("Salvar backup", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.backupSave() }; TvButton("Restaurar backup", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.backupRestore() } } }
+                    item { TvButton("Diagnóstico (tempos e informações do aparelho)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.showDiag = true } }
                     item { Spacer(Modifier.height(4.dp)); Text("DESEMPENHO", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     item { TvButton("Modo leve: " + when (st.liteMode) { 1 -> "ligado"; 2 -> "desligado"; else -> "automático (" + (if (st.lowRam) "ligado" else "desligado") + ")" } + " — capas menores e menos itens por tela", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeLite((st.liteMode + 1) % 3) } }
                     item { Spacer(Modifier.height(4.dp)); Text("COMPATIBILIDADE DE FONTE (XTREAM)", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
