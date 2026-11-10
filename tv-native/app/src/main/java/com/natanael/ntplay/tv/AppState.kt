@@ -358,7 +358,6 @@ class AppState(val ctx: Context) {
         }
     }
     fun openPinSetup() { pinMode = if (store.pin.isEmpty()) "set" else "off"; pinAction = null; showPin = true }
-    var showGuide by mutableStateOf(false)
     var showDiag by mutableStateOf(false)
     var nightUpdate by mutableStateOf(store.nightUpdate)
     fun changeNight(v: Boolean) { nightUpdate = v; store.nightUpdate = v; toast(if (v) "Atualização de madrugada ligada (por volta das 4h, se a TV estiver ligada à energia)." else "Atualização de madrugada desligada.") }

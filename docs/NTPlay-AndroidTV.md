@@ -403,3 +403,6 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **Atualizar de madrugada** (opcional, WorkManager, ~4h, com internet): baixa a lista, compara, e se mudou já deixa o cache pronto. Depende do Android deixar o app rodar em segundo plano.
 - **Backup/Restaurar**: `NTPlay-backup.json` em Android/data/com.natanael.ntplay.tv/files (listas com link, favoritos, grupos, progresso do perfil ativo). Restaurar mescla.
 - **Diagnóstico**: Listas → mostra aparelho, RAM, modo leve, tamanhos e tempos (cache lido x lista analisada, total).
+
+## 1.23.1
+- Removidos a prateleira "Canais recentes" e o botão/tela "Guia" (não ficaram bons). Mantido o "agora / depois" dentro de cada card de canal. O registro de canais recentes continua gravado internamente, sem aparecer.

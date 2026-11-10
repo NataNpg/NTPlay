@@ -279,7 +279,6 @@ fun App(st: AppState) {
         if (p != null) PlayerScreen(st, p)
         if (st.showLists) ListsDialog(st)
         if (st.showSearch) SearchDialog(st)
-        if (st.showGuide) GuideDialog(st)
         if (st.showPin) PinDialog(st)
         if (st.showDiag) DiagDialog(st)
         if (st.groupDialog) GroupDialog(st)
@@ -334,7 +333,6 @@ fun Header(st: AppState) {
                 }
             }
         }
-        if (st.tab == "TV AO VIVO") { TvButton("Guia", Color(0x1AFFFFFF), 10.sp, compact = true) { st.showGuide = true }; Spacer(Modifier.width(6.dp)) }
         TvButton("🔍 Buscar", Color(0x1AFFFFFF), 10.sp, compact = true) { st.showSearch = true }
         Spacer(Modifier.width(6.dp))
         TvButton("☰ Listas", Color(0x1AFFFFFF), 10.sp, compact = true) { st.showLists = true }
@@ -666,12 +664,8 @@ fun Recom(st: AppState, lib: Library) {
     val favs = remember(st.favs, lib) { st.favs.mapNotNull { lib.byKey[it] } }
     val favL = favs.filter { it.kind == 'l' }; val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
     val trend = remember(st.trend) { st.trend.map { Trending.Row(it.title, it.items.filter { x -> x.kind != 'l' }) }.filter { it.items.isNotEmpty() } }
-    val rec = remember(st.recentVer, lib) { st.store.recentLive.mapNotNull { k -> lib.byKey[k] } }
     val ls = rememberLazyListState()
     LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(bottom = 20.dp)) {
-        if (rec.isNotEmpty()) item(key = "recentlive") {
-            ShelfRow("Canais recentes", rec.size, null) { items(rec, key = { it.key }) { c -> CardFor(st, c, rec) } }
-        }
         if (cw.isNotEmpty()) item {
             ShelfRow("Continuar assistindo", cw.size, null) {
                 items(cw, key = { it.first.key }) { (it2, ep) ->
