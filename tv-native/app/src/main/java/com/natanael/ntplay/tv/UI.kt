@@ -349,7 +349,8 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     val onLong = { st.toggleFav(item.key) }
     val h = w * 1.5f
     @Suppress("UNUSED_VARIABLE") val lv = st.logoVer
-    var img by remember(item.key, item.logo) { mutableStateOf(item.logo.ifEmpty { Meta.cached(st.store, item)?.img ?: "" }) }
+    // capa oficial primeiro; a imagem da lista (quase sempre um print de cena) só entra se não existir capa oficial
+    var img by remember(item.key, item.logo) { mutableStateOf(if (item.adult) item.logo else Meta.cachedPoster(st.store, item).ifEmpty { Meta.cached(st.store, item)?.img ?: "" }) }
     var tried by remember(item.key) { mutableStateOf(false) }
     var posterTried by remember(item.key) { mutableStateOf(false) }
     var scene by remember(item.key, item.logo) { mutableStateOf(false) }
@@ -362,10 +363,10 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
         delay(250) // só busca se o cartão continuar na tela
         posterTried = true
         val p = Meta.poster(st.store, item)
-        if (p.isNotEmpty() && p != img) img = p
+        if (p.isNotEmpty() && p != img) img = p else if (p.isEmpty() && img.isEmpty()) img = item.logo
     }
-    LaunchedEffect(item.key, img) {
-        if (img.isEmpty() && !tried && !item.adult) {
+    LaunchedEffect(item.key, img, posterTried) {
+        if (img.isEmpty() && posterTried && !tried && !item.adult) {
             tried = true
             delay(120) // só busca se o cartão continuar na tela
             val i = Meta.get(st.store, item)
@@ -605,18 +606,18 @@ fun Sidebar(st: AppState, groups: List<Pair<String, List<Item>>>, total: Int, ta
         val ls = rememberLazyListState()
         LazyColumn(Modifier.weight(1f).mouseScroll(ls), state = ls, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             item { CatBtn("Todas", total, st.group.isEmpty()) { st.group = "" } }
-            items(groups, key = { it.first }) { g -> CatBtn(g.first, g.second.size, st.group == g.first) { st.group = g.first } }
+            items(groups, key = { it.first }) { g -> CatBtn(g.first, g.second.size, st.group == g.first, onLong = { st.hideGroup(g.first) }) { st.group = g.first } }
         }
     }
 }
 
 @Composable
-fun CatBtn(name: String, n: Int, sel: Boolean, onClick: () -> Unit) {
+fun CatBtn(name: String, n: Int, sel: Boolean, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
     val fi = rememberFocus()
     val bg = if (sel) Color(0x403A6DF0) else if (fi.on) FocusBg else Color.Transparent
     val fg = if (sel || fi.on) Color.White else Color(0xCCFFFFFF)
     Row(
-        Modifier.fillMaxWidth().tvClick(fi, RoundedCornerShape(10.dp), 1.03f, border = true, onClick = onClick).background(bg, RoundedCornerShape(10.dp))
+        Modifier.fillMaxWidth().tvClick(fi, RoundedCornerShape(10.dp), 1.03f, border = true, onLong = onLong, onClick = onClick).background(bg, RoundedCornerShape(10.dp))
             .then(if (sel && !fi.on) Modifier.border(1.dp, Color(0x885B8CFF), RoundedCornerShape(10.dp)) else Modifier).padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1008,6 +1009,7 @@ fun ListsDialog(st: AppState) {
                     item { TvButton((if (st.autoNext) "☑" else "☐") + " Próximo episódio automático", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeAutoNext(!st.autoNext) } }
                     item { TvButton((if (st.subs) "☑" else "☐") + " Mostrar legendas (desmarcado = legendas desligadas em tudo)", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeSubs(!st.subs) } }
                     item { TvButton("Buffer de filmes/séries: " + when (st.bufferMode) { 1 -> "Grande (~25 s)"; 2 -> "Muito grande (~45 s)"; else -> "Padrão" }, Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeBuffer((st.bufferMode + 1) % 3) } }
+                    if (st.hiddenCount > 0) item { TvButton("Categorias ocultas: ${st.hiddenCount} — mostrar todas de novo", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.showAllGroups() } }
                     item { Spacer(Modifier.height(4.dp)); Text("DESEMPENHO", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     item { TvButton("Modo leve: " + when (st.liteMode) { 1 -> "ligado"; 2 -> "desligado"; else -> "automático (" + (if (st.lowRam) "ligado" else "desligado") + ")" } + " — capas menores e menos itens por tela", Btn, 12.sp, shape = RoundedCornerShape(10.dp)) { st.changeLite((st.liteMode + 1) % 3) } }
                     item { Spacer(Modifier.height(4.dp)); Text("COMPATIBILIDADE DE FONTE (XTREAM)", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) }

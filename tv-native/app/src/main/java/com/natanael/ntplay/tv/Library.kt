@@ -67,7 +67,7 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
     val serieGroups by lazy { grp(series) }
 
     companion object {
-        fun build(files: List<File>, showAdult: Boolean, b64: Boolean = false, adultByName: Boolean = true): Library {
+        fun build(files: List<File>, showAdult: Boolean, b64: Boolean = false, adultByName: Boolean = true, hidden: Set<String> = emptySet()): Library {
             val live = ArrayList<Item>()
             val mv = ArrayList<Item>()
             val sm = LinkedHashMap<String, Item>()
@@ -80,6 +80,7 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
                     val group = if (b64) Util.maybeB64(rawGroup) else rawGroup
                     val adult = adultByName && Util.isAdult("$name $group")
                     if (adult && !showAdult) return@parse
+                    if (hidden.isNotEmpty() && Util.cleanG(group) in hidden) return@parse
                     when (Util.guess(url, group, name)) {
                         // o mesmo filme costuma vir em mais de uma categoria (ou em mais de uma lista).
                         // duas vezes a mesma "key" derruba o app nas grades do Compose, então entra só uma vez.
@@ -196,8 +197,8 @@ object LibCache {
     private const val MAGIC = 0x4E544C42 // "NTLB"
     private const val FORMAT = 1
 
-    fun sig(files: List<File>, showAdult: Boolean, b64: Boolean, adultByName: Boolean): String =
-        files.joinToString("|") { it.name + ":" + it.length() + ":" + it.lastModified() } + "#" + showAdult + b64 + adultByName + "#" + BuildConfig.VERSION_NAME + "#" + FORMAT
+    fun sig(files: List<File>, showAdult: Boolean, b64: Boolean, adultByName: Boolean, hidden: Set<String> = emptySet()): String =
+        files.joinToString("|") { it.name + ":" + it.length() + ":" + it.lastModified() } + "#" + showAdult + b64 + adultByName + hidden.sorted().hashCode() + "#" + BuildConfig.VERSION_NAME + "#" + FORMAT
 
     private fun file(dir: File) = File(dir, "lib.bin")
 

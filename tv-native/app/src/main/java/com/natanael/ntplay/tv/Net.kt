@@ -119,7 +119,7 @@ object Meta {
     @Volatile var paused = false  // enquanto um vídeo toca, não consulta o servidor da lista (evita HTTP 429)
     private val semBg = Semaphore(4)
     private val semX = Semaphore(2)   // consultas ao servidor da lista (muitas ao mesmo tempo derrubam filmes/séries)
-    private val semP = Semaphore(3)   // capas oficiais (não podem tomar a vez das outras)
+    private val semP = Semaphore(6)   // capas oficiais (não podem tomar a vez das outras)
 
     /** semelhança entre títulos (palavras em comum) */
     fun sim(a: String, b: String): Double {

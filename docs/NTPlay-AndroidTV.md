@@ -366,3 +366,9 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Filmes e séries agora usam **sempre a capa oficial** (TMDB/TVmaze/iTunes/Wikipédia, guardada no aparelho): a imagem da lista (muitas vezes um print de cena) só aparece até a capa chegar. Antes só trocava se a imagem fosse "larga", e a detecção falhava.
 - Capas com cantos de 8dp, selos (LEG/DUB/NOVO EP/PRÓXIMO) menores, contorno branco fino (2dp) no foco.
 - Observação: as categorias (ex.: "Comédia") são as do provedor da lista; o app não reclassifica gênero.
+
+## 1.18.0 — lista mais rápida na entrada, capas oficiais primeiro, ocultar categorias
+- **Abertura**: a atualização automática ao abrir agora baixa para um arquivo temporário e compara (tamanho + CRC) com a lista salva. Se for igual, não troca o arquivo e **não recarrega** (antes recarregava e refazia a lista 12 s depois de abrir, e o cache `lib.bin` era invalidado). Ao abrir, só atualiza se a lista tem mais de 3 h.
+- **Capas**: o card de filme/série mostra primeiro a capa oficial (cache local ou TMDB); a imagem da lista (print de cena) só aparece se não existir capa oficial. Até a capa chegar, aparece o fundo colorido com o título. Capas oficiais buscadas 6 em paralelo (antes 3).
+- **Categorias misturadas**: segurar OK (ou o botão Menu) numa categoria da lateral a **oculta** (some da aba, de "Todas" e dos animes). Para voltar: Listas → "Categorias ocultas… mostrar todas". Guardado em `hidden_groups` e entra na assinatura do cache.
+- Os gêneros vêm das categorias do provedor; o app não reclassifica sozinho.

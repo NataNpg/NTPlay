@@ -118,10 +118,10 @@ class AppState(val ctx: Context) {
         status = "Carregando lista…"
         try {
             val l = withContext(Dispatchers.Default) {
-                val sig = LibCache.sig(files, adult, store.base64, store.adultByName)
+                val sig = LibCache.sig(files, adult, store.base64, store.adultByName, store.hiddenGroups)
                 // lista igual à da última vez: lê o arquivo já processado (bem mais rápido que analisar o M3U)
                 val cached = LibCache.load(ctx.filesDir, sig)
-                val b = cached ?: Library.build(files, adult, store.base64, store.adultByName)
+                val b = cached ?: Library.build(files, adult, store.base64, store.adultByName, store.hiddenGroups)
                 if (cached == null) Thread { LibCache.save(ctx.filesDir, sig, b) }.also { it.priority = Thread.MIN_PRIORITY }.start()
                 // pré-calcula agrupamentos fora da tela (evita travar ao trocar de aba)
                 b.every; b.byKey; b.liveGroups; b.movieGroups; b.serieGroups; b.kids; b.anime
@@ -277,6 +277,13 @@ class AppState(val ctx: Context) {
         }
     }
 
+    var hiddenCount by mutableIntStateOf(store.hiddenGroups.size)
+    fun hideGroup(name: String) {
+        store.hiddenGroups = store.hiddenGroups + name; hiddenCount = store.hiddenGroups.size
+        group = ""; toast("Categoria \"$name\" ocultada. Para mostrar de novo: Listas → Categorias ocultas.")
+        scope.launch { reload() }
+    }
+    fun showAllGroups() { store.hiddenGroups = emptySet(); hiddenCount = 0; toast("Categorias ocultas voltaram."); scope.launch { reload() } }
     fun changeAdult(v: Boolean) { adult = v; store.adult = v; scope.launch { reload() } }
     fun changeAutoNext(v: Boolean) { autoNext = v; store.autoNext = v }
     fun changeSubs(v: Boolean) { subs = v; store.subs = v }
@@ -319,22 +326,36 @@ class AppState(val ctx: Context) {
     var updateOnStart by mutableStateOf(store.updateOnStart)
     fun changeUpdateOnStart(v: Boolean) { updateOnStart = v; store.updateOnStart = v }
 
-    private suspend fun syncList(m: ListMeta) {
-        withContext(Dispatchers.IO) {
-            val f = store.file(m.id); val cr = Xtream.creds(m.url)
-            if (cr != null) Xtream.buildM3u(cr, f) { } else Net.downloadAny(m.url, f)
-            val l = store.lists(); l.firstOrNull { it.id == m.id }?.let { it.count = countItems(f); it.date = System.currentTimeMillis() }; store.saveLists(l)
-        }
+    /** baixa para um arquivo temporário; se for igual ao que já está salvo, não troca nada (e o cache da lista continua valendo). true = a lista mudou */
+    private suspend fun syncList(m: ListMeta): Boolean = withContext(Dispatchers.IO) {
+        val f = store.file(m.id); val cr = Xtream.creds(m.url)
+        val tmp = java.io.File(f.parentFile, f.name + ".new")
+        try {
+            if (cr != null) Xtream.buildM3u(cr, tmp) { } else Net.downloadAny(m.url, tmp)
+            val same = f.exists() && f.length() == tmp.length() && crcOf(f) == crcOf(tmp)
+            val l = store.lists()
+            if (same) { tmp.delete(); l.firstOrNull { it.id == m.id }?.let { it.date = System.currentTimeMillis() } }
+            else { f.delete(); tmp.renameTo(f); l.firstOrNull { it.id == m.id }?.let { it.count = countItems(f); it.date = System.currentTimeMillis() } }
+            store.saveLists(l)
+            !same
+        } catch (e: Throwable) { try { tmp.delete() } catch (x: Throwable) { }; false }
+    }
+    private fun crcOf(f: java.io.File): Long {
+        val c = java.util.zip.CRC32(); val buf = ByteArray(1 shl 16)
+        java.io.FileInputStream(f).use { i -> while (true) { val n = i.read(buf); if (n <= 0) break; c.update(buf, 0, n) } }
+        return c.value
     }
     private fun autoUpdate() {
         if (!store.updateOnStart && store.updateHours <= 0) return
         scope.launch {
             delay(12000)
             val now = System.currentTimeMillis()
-            val due = store.lists().filter { it.active && it.url.isNotEmpty() && (store.updateOnStart || (store.updateHours > 0 && now - it.date > store.updateHours * 3600_000L)) }
+            // ao abrir: só atualiza se a lista tem mais de 3 horas (abrir o app várias vezes não baixa tudo de novo)
+            val due = store.lists().filter { it.active && it.url.isNotEmpty() && (now - it.date > (if (store.updateOnStart) 3 * 3600_000L else store.updateHours * 3600_000L)) }
             if (due.isEmpty()) return@launch
-            for (m in due) try { syncList(m) } catch (e: Throwable) { }
-            reload()
+            var changed = false
+            for (m in due) try { if (syncList(m)) changed = true } catch (e: Throwable) { }
+            if (changed) reload()
         }
     }
 

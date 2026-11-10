@@ -119,6 +119,10 @@ class Store(ctx: Context) {
     var liteMode: Int
         get() = sp.getInt("lite_mode", 0)
         set(v) { sp.edit().putInt("lite_mode", v).apply() }
+    /** categorias que o usuário ocultou (nomes já limpos, um por linha) */
+    var hiddenGroups: Set<String>
+        get() = (sp.getString("hidden_groups", "") ?: "").split('\n').filter { it.isNotBlank() }.toSet()
+        set(v) { sp.edit().putString("hidden_groups", v.joinToString("\n")).apply() }
     var warnDay: Long   // último dia (dias desde 1970) em que avisamos que o acesso está perto de vencer
         get() = sp.getLong("warn_day", 0L)
         set(v) { sp.edit().putLong("warn_day", v).apply() }
