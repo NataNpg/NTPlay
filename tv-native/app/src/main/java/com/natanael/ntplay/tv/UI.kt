@@ -183,6 +183,8 @@ fun Modifier.tvClick(
         .clickable(interactionSource = src, indication = null, onClick = onClick)
 }
 
+private val ICONS = Ic.values()
+
 /** botão de TV: focado = fundo branco com texto escuro (sempre legível). Emoji no começo vira ícone de traço; ☑/☐ vira interruptor. */
 @Composable
 fun TvButton(label: String, bg: Color, fontSize: TextUnit = 13.sp, selected: Boolean = false, shape: Shape = RoundedCornerShape(10.dp), compact: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
@@ -192,16 +194,21 @@ fun TvButton(label: String, bg: Color, fontSize: TextUnit = 13.sp, selected: Boo
     // texto branco sobre roxo vira branco no branco e o botão some.
     val back = if (fi.on) Color.White else base
     val fg = if (fi.on) Color(0xFF0E1430) else Color.White
-    val sw = if (label.startsWith("☑")) 1 else if (label.startsWith("☐")) 0 else -1
-    val ic = if (sw >= 0) null else Ic.values().firstOrNull { label.startsWith(it.prefix) && (label.length == it.prefix.length || label[it.prefix.length] == ' ' || it.prefix == "⏳" || it.prefix == "🗑") }
-    val text = when { sw >= 0 -> label.drop(1).trimStart(); ic != null -> label.drop(ic.prefix.length).trimStart(); else -> label }
+    // separa o emoji do começo só quando o texto muda (não a cada foco)
+    val parts = remember(label) {
+        val sw0 = if (label.startsWith("☑")) 1 else if (label.startsWith("☐")) 0 else -1
+        val ic0 = if (sw0 >= 0) null else ICONS.firstOrNull { label.startsWith(it.prefix) && (label.length == it.prefix.length || label[it.prefix.length] == ' ' || it.prefix == "⏳" || it.prefix == "🗑") }
+        Triple(sw0, ic0, when { sw0 >= 0 -> label.drop(1).trimStart(); ic0 != null -> label.drop(ic0.prefix.length).trimStart(); else -> label })
+    }
+    val sw = parts.first; val ic = parts.second; val text = parts.third
+    val isz = fontSize.value * 1.15f
     Row(
         modifier.tvClick(fi, shape, 1.08f, border = true, onClick = onClick).background(back, shape)
             .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 5.dp else 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (sw >= 0) { NtSwitch(sw == 1, fg); Spacer(Modifier.width(8.dp)) }
-        if (ic != null) { NtIcon(ic, fg, with(androidx.compose.ui.platform.LocalDensity.current) { (fontSize.toPx() * 1.15f).toDp() }); if (text.isNotEmpty()) Spacer(Modifier.width(6.dp)) }
+        if (ic != null) { NtIcon(ic, fg, isz.dp); if (text.isNotEmpty()) Spacer(Modifier.width(6.dp)) }
         if (text.isNotEmpty()) Text(text, color = fg, fontSize = fontSize, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

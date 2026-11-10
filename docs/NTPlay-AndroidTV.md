@@ -358,3 +358,6 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 ## 1.17.0 — visual novo, etapa 2 (cabeçalho e abas)
 - Abas do topo sem a cápsula: só texto, com traço azul fino embaixo da aba ativa; focada ganha fundo translúcido discreto. Todas as abas continuam (inclui Futebol).
 - Logo "NTPlay" em branco com "Play" em azul (sem degradê). Botões Buscar/Listas translúcidos, sem azul forte.
+
+## 1.17.1
+- Botões: a separação do emoji/ícone do texto agora é feita só quando o texto muda (antes refazia a cada foco), para não pesar a navegação.
