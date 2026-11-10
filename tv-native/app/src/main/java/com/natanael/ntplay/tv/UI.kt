@@ -301,24 +301,30 @@ fun Header(st: AppState) {
     Row(Modifier.fillMaxWidth().height(46.dp), verticalAlignment = Alignment.CenterVertically) {
         Image(painterResource(R.drawable.logo), null, Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)))
         Spacer(Modifier.width(6.dp))
-        Text("NTPlay", style = TextStyle(brush = Brush.horizontalGradient(listOf(Cyan, Purple)), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold))
+        Text(androidx.compose.ui.text.buildAnnotatedString { append("NT"); pushStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFF5B8CFF))); append("Play"); pop() }, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp)
         Spacer(Modifier.width(12.dp))
-        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()).background(Color(0x0FFFFFFF), RoundedCornerShape(50)).padding(horizontal = 4.dp, vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             for (t in TABS) {
                 val fi = rememberFocus()
                 val sel = st.tab == t
-                Text(
-                    t, maxLines = 1, fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
-                    color = if (sel || fi.on) Color.White else Color(0xCCFFFFFF),
-                    modifier = Modifier.tvClick(fi, RoundedCornerShape(50), 1.08f, border = true) { st.selectTab(t) }
-                        .background(if (sel) Pink else if (fi.on) FocusBg else Color.Transparent, RoundedCornerShape(50))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                )
+                Column(
+                    Modifier.tvClick(fi, RoundedCornerShape(8.dp), 1.04f, border = false) { st.selectTab(t) }
+                        .background(if (fi.on) Color(0x26FFFFFF) else Color.Transparent, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 11.dp, vertical = 5.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        t, maxLines = 1, fontSize = 10.sp, letterSpacing = 1.2.sp, fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Medium,
+                        color = if (sel || fi.on) Color.White else Color(0x99FFFFFF)
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Box(Modifier.width(if (sel) 18.dp else 0.dp).height(2.dp).background(Color(0xFF5B8CFF), RoundedCornerShape(2.dp)))
+                }
             }
         }
-        TvButton("🔍 Buscar", Btn, 10.sp, compact = true) { st.showSearch = true }
+        TvButton("🔍 Buscar", Color(0x1AFFFFFF), 10.sp, compact = true) { st.showSearch = true }
         Spacer(Modifier.width(6.dp))
-        TvButton("☰ Listas", Color(0xFF2F5FD8), 10.sp, compact = true) { st.showLists = true }
+        TvButton("☰ Listas", Color(0x1AFFFFFF), 10.sp, compact = true) { st.showLists = true }
         Spacer(Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End) {
             Text(clock, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)

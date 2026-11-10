@@ -354,3 +354,7 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Emojis nos botões viraram **ícones de traço** desenhados no app (`Icons.kt`): busca, calendário, menu, lixeira, chave, atualizar, play, mais, fechar, relógio, info, estrela. As caixinhas ☑/☐ viraram **interruptores**.
 - Botões com cantos menos arredondados (10dp em vez de pílula) e texto semibold. Foco continua fundo branco/texto escuro.
 - Removidos emojis soltos de textos (aviso de vencimento, nuvem, versão nova). Nada de função mudou.
+
+## 1.17.0 — visual novo, etapa 2 (cabeçalho e abas)
+- Abas do topo sem a cápsula: só texto, com traço azul fino embaixo da aba ativa; focada ganha fundo translúcido discreto. Todas as abas continuam (inclui Futebol).
+- Logo "NTPlay" em branco com "Play" em azul (sem degradê). Botões Buscar/Listas translúcidos, sem azul forte.
