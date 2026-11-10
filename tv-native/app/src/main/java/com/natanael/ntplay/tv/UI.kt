@@ -183,19 +183,27 @@ fun Modifier.tvClick(
         .clickable(interactionSource = src, indication = null, onClick = onClick)
 }
 
-/** botão de TV: focado = fundo branco com texto escuro (sempre legível) */
+/** botão de TV: focado = fundo branco com texto escuro (sempre legível). Emoji no começo vira ícone de traço; ☑/☐ vira interruptor. */
 @Composable
-fun TvButton(label: String, bg: Color, fontSize: TextUnit = 13.sp, selected: Boolean = false, shape: Shape = RoundedCornerShape(50), compact: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun TvButton(label: String, bg: Color, fontSize: TextUnit = 13.sp, selected: Boolean = false, shape: Shape = RoundedCornerShape(10.dp), compact: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val fi = rememberFocus()
     val base = if (selected) Pink else bg
     // focado ou sob o mouse: fundo branco e texto escuro. Em TV com cor estourada (stick saturado),
     // texto branco sobre roxo vira branco no branco e o botão some.
     val back = if (fi.on) Color.White else base
-    Text(
-        label, color = if (fi.on) Color(0xFF0E1430) else Color.White, fontSize = fontSize, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-        modifier = modifier.tvClick(fi, shape, 1.08f, border = true, onClick = onClick).background(back, shape)
-            .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 5.dp else 9.dp)
-    )
+    val fg = if (fi.on) Color(0xFF0E1430) else Color.White
+    val sw = if (label.startsWith("☑")) 1 else if (label.startsWith("☐")) 0 else -1
+    val ic = if (sw >= 0) null else Ic.values().firstOrNull { label.startsWith(it.prefix) && (label.length == it.prefix.length || label[it.prefix.length] == ' ' || it.prefix == "⏳" || it.prefix == "🗑") }
+    val text = when { sw >= 0 -> label.drop(1).trimStart(); ic != null -> label.drop(ic.prefix.length).trimStart(); else -> label }
+    Row(
+        modifier.tvClick(fi, shape, 1.08f, border = true, onClick = onClick).background(back, shape)
+            .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 5.dp else 9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (sw >= 0) { NtSwitch(sw == 1, fg); Spacer(Modifier.width(8.dp)) }
+        if (ic != null) { NtIcon(ic, fg, with(androidx.compose.ui.platform.LocalDensity.current) { (fontSize.toPx() * 1.15f).toDp() }); if (text.isNotEmpty()) Spacer(Modifier.width(6.dp)) }
+        if (text.isNotEmpty()) Text(text, color = fg, fontSize = fontSize, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 /** rolagem com mouse: roda do mouse e arrastar com o botão pressionado */
@@ -315,8 +323,8 @@ fun Header(st: AppState) {
         Column(horizontalAlignment = Alignment.End) {
             Text(clock, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             val exd = st.expiryDays()
-            if (exd != null) Text("⚠ Acesso vence " + (if (exd == 0) "hoje" else "em $exd dia" + (if (exd == 1) "" else "s")), color = Color(0xFFFFB454), fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.width(170.dp), textAlign = TextAlign.End)
-            else Text(if (st.busy) "⏳ " + st.status else st.status, color = Muted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(170.dp), textAlign = TextAlign.End)
+            if (exd != null) Text("Acesso vence " + (if (exd == 0) "hoje" else "em $exd dia" + (if (exd == 1) "" else "s")), color = Color(0xFFFFB454), fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.width(170.dp), textAlign = TextAlign.End)
+            else Text(if (st.busy) st.status else st.status, color = Muted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(170.dp), textAlign = TextAlign.End)
         }
     }
 }
@@ -917,7 +925,7 @@ fun ListsDialog(st: AppState) {
                     Spacer(Modifier.height(8.dp))
                     Image(qr, "QR code", Modifier.size(150.dp).background(Color.White, RoundedCornerShape(10.dp)).padding(8.dp))
                     Text(if (local != null) "Celular e TV no mesmo Wi‑Fi: aponte a câmera, cole o link da lista e envie. Funciona sem internet externa." else "Aponte a câmera do celular, cole o link da lista e envie. Ela chega aqui sozinha.", color = Color(0xDDFFFFFF), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
-                    Text("⏳ Aguardando o celular…", color = Cyan, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
+                    Text("Aguardando o celular…", color = Cyan, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
                     Spacer(Modifier.height(12.dp))
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x22FFFFFF)))
                     Spacer(Modifier.height(10.dp))
@@ -927,8 +935,8 @@ fun ListsDialog(st: AppState) {
                 LazyColumn(Modifier.weight(1f).fillMaxHeight().mouseScroll(ls), state = ls, verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(end = 4.dp, bottom = 24.dp)) {
                     item {
                         Column(Modifier.fillMaxWidth().background(Color(0x1A8B5CF6), RoundedCornerShape(12.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text("☁ NUVEM  ·  conta " + st.syncUser, color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
-                            if (st.accessText().isNotEmpty()) Text("🗓 " + st.accessText(), color = Color(0xFF34D399), fontSize = 10.sp)
+                            Text("NUVEM  ·  conta " + st.syncUser, color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                            if (st.accessText().isNotEmpty()) Text(st.accessText(), color = Color(0xFF34D399), fontSize = 10.sp)
                             Text("Suas listas, favoritos, grupos e progresso ficam salvos na conta (criptografados) e aparecem em outro aparelho.", color = Muted, fontSize = 9.sp, lineHeight = 12.sp)
                             if (st.syncMsg.isNotEmpty()) Text(st.syncMsg, color = if (st.syncMsg.startsWith("☁")) Color(0xFF34D399) else Color(0xFFFFB4B4), fontSize = 10.sp)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1051,11 +1059,11 @@ fun AccountDialog(st: AppState) {
     Dialog(onDismissRequest = { st.accountDialog = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxWidth(0.55f).wrapContentHeight(), shape = RoundedCornerShape(18.dp), color = PanelC) {
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("☁ Conta NTPlay", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Conta NTPlay", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                 Text("Guarda suas listas, favoritos, grupos e progresso na nuvem para usar em outro aparelho. Seus dados são criptografados no aparelho: nem o servidor consegue ler. Se esquecer a senha, não há como recuperar os dados da nuvem.", color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
                 if (st.syncUser.isNotEmpty()) {
                     Text("Conectado como  " + st.syncUser, color = Cyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    if (st.accessText().isNotEmpty()) Text("🗓 " + st.accessText(), color = Color(0xFF34D399), fontSize = 12.sp)
+                    if (st.accessText().isNotEmpty()) Text(st.accessText(), color = Color(0xFF34D399), fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TvButton(if (st.syncBusy) "⏳ Sincronizando…" else "↻ Sincronizar agora", Pink, 12.sp) { if (!st.syncBusy) st.scope.launch { st.syncNow(true) } }
                         TvButton("Sair", Color(0xFF7A2E3A), 12.sp) { st.accountLogout() }
@@ -1121,7 +1129,7 @@ fun UpdateDialog(st: AppState) {
     Dialog(onDismissRequest = { if (!forced) st.updSnooze = true }, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = !forced, dismissOnClickOutside = false)) {
         Surface(Modifier.width(420.dp), shape = RoundedCornerShape(18.dp), color = PanelC) {
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("⬆ Nova versão " + i.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Nova versão " + i.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                 if (st.updStage == 2) {
                     Text(if (forced) "Esta versão do NTPlay não é mais aceita. Instale a atualização para continuar." else "A atualização já foi baixada e está pronta. Toque em Instalar; o Android vai pedir uma confirmação.", color = Muted, fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -349,3 +349,8 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 ## 1.15.0 — modo leve
 - Nova opção em Configurações → Desempenho: **Modo leve** (automático / ligado / desligado). Automático liga em aparelho com pouca memória (`isLowRamDevice` ou classe de memória ≤ 192 MB).
 - Ligado: capas decodificadas menores (150×225), cache de imagens em RAM menor (12% em vez de 20%, vale na próxima abertura), prateleiras e grades com metade dos itens. Desligado: tudo como antes.
+
+## 1.16.0 — visual novo, etapa 1 (ícones e botões)
+- Emojis nos botões viraram **ícones de traço** desenhados no app (`Icons.kt`): busca, calendário, menu, lixeira, chave, atualizar, play, mais, fechar, relógio, info, estrela. As caixinhas ☑/☐ viraram **interruptores**.
+- Botões com cantos menos arredondados (10dp em vez de pílula) e texto semibold. Foco continua fundo branco/texto escuro.
+- Removidos emojis soltos de textos (aviso de vencimento, nuvem, versão nova). Nada de função mudou.
