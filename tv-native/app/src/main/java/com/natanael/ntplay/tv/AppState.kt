@@ -10,6 +10,8 @@ import org.json.JSONObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -277,6 +279,48 @@ class AppState(val ctx: Context) {
         }
     }
 
+    // ---- gêneros: confere a categoria com o gênero do TMDB (só quando o título já tem gênero conhecido)
+    var genresVer by mutableIntStateOf(0)
+    private var genreJob: Job? = null
+    private fun genreIdsFor(group: String): Set<Int> {
+        val tk = Util.norm(group).split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }
+        val out = HashSet<Int>()
+        for (w in tk) when (w) {
+            "comedia", "comedy", "humor" -> out += setOf(35)
+            "acao", "action" -> out += setOf(28, 10759)
+            "aventura", "adventure" -> out += setOf(12, 10759)
+            "drama" -> out += setOf(18)
+            "terror", "horror" -> out += setOf(27)
+            "suspense", "thriller" -> out += setOf(53, 9648, 80)
+            "romance" -> out += setOf(10749)
+            "ficcao", "scifi", "sci" -> out += setOf(878, 10765)
+            "documentario", "documentarios", "documentary" -> out += setOf(99)
+            "crime", "policial" -> out += setOf(80)
+            "fantasia", "fantasy" -> out += setOf(14, 10765)
+            "guerra", "war" -> out += setOf(10752, 10768)
+            "faroeste", "western" -> out += setOf(37)
+            "misterio", "mystery" -> out += setOf(9648)
+        }
+        return out
+    }
+    /** tira da categoria (ex.: "Comédia") o título que o TMDB classifica em outro gênero. Sem gênero conhecido, o título fica. */
+    fun genreFilter(group: String, l: List<Item>): List<Item> {
+        val ok = genreIdsFor(group); if (ok.isEmpty()) return l
+        return l.filter { val g = store.genres(it.key); g == null || g.isEmpty() || g.any { x -> x in ok } }
+    }
+    fun enrichGenres(group: String, l: List<Item>) {
+        genreJob?.cancel()
+        if (group.isEmpty() || genreIdsFor(group).isEmpty()) return
+        genreJob = scope.launch(Dispatchers.IO) {
+            var n = 0; var done = 0
+            for (chunk in l.filter { it.kind != 'l' && store.genres(it.key) == null && !store.genreTriedRecently(it.key) }.take(200).chunked(8)) {
+                val r = chunk.map { x -> async { Meta.genreIds(store, x) } }.map { it.await() }
+                n += r.count { it }; done += chunk.size
+                if (n >= 8) { genresVer++; n = 0 }
+            }
+            if (n > 0) genresVer++
+        }
+    }
     var hiddenCount by mutableIntStateOf(store.hiddenGroups.size)
     fun hideGroup(name: String) {
         store.hiddenGroups = store.hiddenGroups + name; hiddenCount = store.hiddenGroups.size

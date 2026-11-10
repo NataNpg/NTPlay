@@ -67,6 +67,7 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
     val serieGroups by lazy { grp(series) }
 
     companion object {
+        private val TV_PACK = Regex("^\\s*\\d+\\s*\\|\\s*filmes\\s*&\\s*s[eé]ries", RegexOption.IGNORE_CASE)
         fun build(files: List<File>, showAdult: Boolean, b64: Boolean = false, adultByName: Boolean = true, hidden: Set<String> = emptySet()): Library {
             val live = ArrayList<Item>()
             val mv = ArrayList<Item>()
@@ -81,7 +82,10 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
                     val adult = adultByName && Util.isAdult("$name $group")
                     if (adult && !showAdult) return@parse
                     if (hidden.isNotEmpty() && Util.cleanG(group) in hidden) return@parse
-                    when (Util.guess(url, group, name)) {
+                    val kd = Util.guess(url, group, name)
+                    // categorias "1 | FILMES & SERIES", "5 | FILMES & SERIES"… são canais de TV (Warner, USA, Universal…) empacotados como série: ficam fora
+                    if (kd != 'l' && TV_PACK.containsMatchIn(group)) return@parse
+                    when (kd) {
                         // o mesmo filme costuma vir em mais de uma categoria (ou em mais de uma lista).
                         // duas vezes a mesma "key" derruba o app nas grades do Compose, então entra só uma vez.
                         'm' -> if (seenMovie.add("m:$url")) mv.add(Item('m', "m:$url", name, Util.cleanG(group), logo, arrayListOf(Ep(name, url, 0, 0)), adult).also { it.pos = seq++ })

@@ -207,7 +207,7 @@ object Meta {
     }
 
     /** busca no TMDB (precisa da chave do build). Devolve null se não achar título parecido. */
-    private fun tmdb(it: Item, t: String, y: String): Info? {
+    private fun tmdb(it: Item, t: String, y: String, store: Store? = null): Info? {
         val k = BuildConfig.TMDB_KEY
         if (k.isEmpty()) return null
         val tv = it.kind == 's'
@@ -224,10 +224,23 @@ object Meta {
             val bonus = if (o.optString("poster_path").isNotEmpty() && o.optString("poster_path") != "null") 0.01 else 0.0
             if (s + bonus > bs) { bs = s + bonus; best = o }
         }
-        if (best == null || bs < 0.6) return null
+        if (best == null || bs < 0.6) { store?.putGenres(it.key, null); return null }
+        store?.let { s -> val ga = best.optJSONArray("genre_ids"); s.putGenres(it.key, (0 until (ga?.length() ?: 0)).map { i -> ga!!.getInt(i) }) }
         val pp = best.optString("poster_path").let { if (it == "null") "" else it }
         val dt = best.optString(if (tv) "first_air_date" else "release_date").take(4)
         return Info(if (pp.isNotEmpty()) "https://image.tmdb.org/t/p/w342$pp" else "", best.optString("overview"), best.optDouble("vote_average", 0.0), dt, false, System.currentTimeMillis())
+    }
+
+    /** só descobre os gêneros (TMDB) de um título; guarda no aparelho. Devolve true se gravou algo novo. */
+    suspend fun genreIds(store: Store, it: Item): Boolean {
+        if (it.kind == 'l' || BuildConfig.TMDB_KEY.isEmpty()) return false
+        if (store.genres(it.key) != null || store.genreTriedRecently(it.key)) return false
+        return try {
+            semP.withPermit { withContext(Dispatchers.IO) {
+                val t = Util.cleanT(it.title).replace(Regex("\\b(19|20)\\d{2}\\b"), " ").replace(Regex("\\s+"), " ").trim()
+                tmdb(it, t, Util.yearOf(it.title), store); true
+            } }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Throwable) { false }
     }
 
     /** capa oficial (vertical) de fora do servidor: usada quando a imagem da lista é cena/foto horizontal */
@@ -246,7 +259,7 @@ object Meta {
         var img = ""; var ov = ""; var r = 0.0; var yr = y
         fun take(i: String, o: String) { if (img.isEmpty() && i.isNotEmpty()) img = i; if (ov.isEmpty() && o.length > 30) ov = o }
         // TMDB (capa vertical oficial, sinopse em português, nota e ano) vem primeiro
-        try { tmdb(it, t, y)?.let { x -> take(x.img, x.ov); if (x.r > 0) r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
+        try { tmdb(it, t, y, store)?.let { x -> take(x.img, x.ov); if (x.r > 0) r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
         if (!noX && (full || !paused)) try { kotlinx.coroutines.withTimeoutOrNull(12_000) { if (full) kotlinx.coroutines.runInterruptible { Xtream.info(it) } else semX.withPermit { kotlinx.coroutines.runInterruptible { Xtream.info(it) } } }?.let { x -> take(x.img, x.ov); r = x.r; if (x.y.isNotEmpty()) yr = x.y } } catch (e: Exception) { }
         if (ov.isEmpty() || img.isEmpty()) try {
             if (it.kind == 's') {

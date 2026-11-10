@@ -119,6 +119,36 @@ class Store(ctx: Context) {
     var liteMode: Int
         get() = sp.getInt("lite_mode", 0)
         set(v) { sp.edit().putInt("lite_mode", v).apply() }
+    // gêneros do TMDB por título (key -> "35,18" | "-" sem gêneros | "?<ms>" tentou e não achou)
+    private val genFile = File(ctx.filesDir, "genres.txt")
+    private var genMap: HashMap<String, String>? = null
+    @Volatile private var genSaving = false
+    @Synchronized private fun gm(): HashMap<String, String> {
+        genMap?.let { return it }
+        val m = HashMap<String, String>()
+        try { if (genFile.exists()) genFile.forEachLine { l -> val i = l.indexOf('\t'); if (i > 0) m[l.substring(0, i)] = l.substring(i + 1) } } catch (e: Throwable) { }
+        genMap = m; return m
+    }
+    @Synchronized fun genres(key: String): Set<Int>? {
+        val v = gm()[key] ?: return null
+        if (v.startsWith("?")) return null
+        return if (v == "-") emptySet() else v.split(',').mapNotNull { it.toIntOrNull() }.toSet()
+    }
+    @Synchronized fun genreTriedRecently(key: String): Boolean {
+        val v = gm()[key] ?: return false
+        return v.startsWith("?") && System.currentTimeMillis() - (v.drop(1).toLongOrNull() ?: 0L) < 3 * 86_400_000L
+    }
+    @Synchronized fun putGenres(key: String, ids: List<Int>?) {
+        gm()[key] = if (ids == null) "?" + System.currentTimeMillis() else if (ids.isEmpty()) "-" else ids.joinToString(",")
+        if (!genSaving) {
+            genSaving = true
+            Thread {
+                try { Thread.sleep(5000) } catch (e: InterruptedException) { }
+                try { val snap = synchronized(this) { HashMap(gm()) }; val t = File(genFile.parentFile, "genres.tmp"); t.bufferedWriter().use { w -> for ((k, v) in snap) { w.write(k); w.write("\t"); w.write(v); w.write("\n") } }; genFile.delete(); t.renameTo(genFile) } catch (e: Throwable) { }
+                genSaving = false
+            }.start()
+        }
+    }
     /** categorias que o usuário ocultou (nomes já limpos, um por linha) */
     var hiddenGroups: Set<String>
         get() = (sp.getString("hidden_groups", "") ?: "").split('\n').filter { it.isNotBlank() }.toSet()

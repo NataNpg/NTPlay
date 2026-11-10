@@ -372,3 +372,7 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - **Capas**: o card de filme/série mostra primeiro a capa oficial (cache local ou TMDB); a imagem da lista (print de cena) só aparece se não existir capa oficial. Até a capa chegar, aparece o fundo colorido com o título. Capas oficiais buscadas 6 em paralelo (antes 3).
 - **Categorias misturadas**: segurar OK (ou o botão Menu) numa categoria da lateral a **oculta** (some da aba, de "Todas" e dos animes). Para voltar: Listas → "Categorias ocultas… mostrar todas". Guardado em `hidden_groups` e entra na assinatura do cache.
 - Os gêneros vêm das categorias do provedor; o app não reclassifica sozinho.
+
+## 1.19.0 — canais fora das séries e gêneros pelo TMDB
+- Categorias "N | FILMES & SERIES" (Warner Channel, USA, Universal TV… que o provedor empacota como série) **não entram mais** em Filmes/Séries (`Library.TV_PACK`). Só vale para itens que não são ao vivo.
+- **Gênero pelo TMDB**: o TMDB devolve `genre_ids` na busca; ficam em `genres.txt` (por título). Ao abrir uma categoria de gênero (Comédia, Ação, Drama, Terror, Romance, Ficção, Documentário, Crime, Fantasia, Guerra, Faroeste, Mistério, Aventura), o app busca em segundo plano o gênero de até 200 títulos ainda sem dado e **tira da categoria** o que o TMDB classifica em outro gênero. Título sem gênero conhecido continua onde está. "Todas" não é filtrada.

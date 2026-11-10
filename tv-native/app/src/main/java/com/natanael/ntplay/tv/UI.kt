@@ -528,7 +528,10 @@ fun Browse(st: AppState) {
                         val all = remember(lib, tab, sm) { when (tab) { "TV AO VIVO" -> lib.live; "FILMES" -> lib.sorted("m", lib.movies, sm); else -> lib.sorted("s", lib.series, sm) } }
                         GridOf(st, all, tab, "$sm|$tab")
                     } else {
-                        val l = remember(groups, st.group, sm) { val x = groups.firstOrNull { it.first == st.group }?.second ?: emptyList(); if (sortable) lib.sorted(tab + "|" + st.group, x, sm) else x }
+                        val raw = remember(groups, st.group) { groups.firstOrNull { it.first == st.group }?.second ?: emptyList() }
+                        LaunchedEffect(st.group, tab) { if (tab != "TV AO VIVO") st.enrichGenres(st.group, raw) }
+                        val gv = st.genresVer
+                        val l = remember(raw, sm, gv) { val x = if (tab == "TV AO VIVO") raw else st.genreFilter(st.group, raw); if (sortable) lib.sorted(tab + "|" + st.group + "|" + gv, x, sm) else x }
                         GridOf(st, l, st.group, "$sm|" + st.group)
                     }
                 } else when (tab) {
