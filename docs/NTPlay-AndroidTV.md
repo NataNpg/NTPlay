@@ -376,3 +376,7 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 ## 1.19.0 — canais fora das séries e gêneros pelo TMDB
 - Categorias "N | FILMES & SERIES" (Warner Channel, USA, Universal TV… que o provedor empacota como série) **não entram mais** em Filmes/Séries (`Library.TV_PACK`). Só vale para itens que não são ao vivo.
 - **Gênero pelo TMDB**: o TMDB devolve `genre_ids` na busca; ficam em `genres.txt` (por título). Ao abrir uma categoria de gênero (Comédia, Ação, Drama, Terror, Romance, Ficção, Documentário, Crime, Fantasia, Guerra, Faroeste, Mistério, Aventura), o app busca em segundo plano o gênero de até 200 títulos ainda sem dado e **tira da categoria** o que o TMDB classifica em outro gênero. Título sem gênero conhecido continua onde está. "Todas" não é filtrada.
+
+## 1.20.0 — destaque no topo da tela inicial
+- Recomendações volta a abrir com um destaque grande: os 6 primeiros títulos da primeira prateleira "em alta" (sem canais), com fundo, título fino, ano/nota/categoria, sinopse e botões Assistir / Detalhes / favorito. Capa oficial no cartão da direita.
+- Troca sozinho a cada 9 s (parado enquanto o foco está nele; no modo leve não troca sozinho). Todas as abas e prateleiras anteriores continuam.

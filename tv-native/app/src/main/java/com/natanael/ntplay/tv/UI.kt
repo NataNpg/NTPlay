@@ -638,7 +638,9 @@ fun Recom(st: AppState, lib: Library) {
     val favL = favs.filter { it.kind == 'l' }; val favM = favs.filter { it.kind == 'm' }; val favS = favs.filter { it.kind == 's' }
     val trend = remember(st.trend) { st.trend.map { Trending.Row(it.title, it.items.filter { x -> x.kind != 'l' }) }.filter { it.items.isNotEmpty() } }
     val ls = rememberLazyListState()
+    val hero = remember(trend) { trend.firstOrNull()?.items?.filter { it.kind != 'l' }?.take(6) ?: emptyList() }
     LazyColumn(Modifier.fillMaxSize().mouseScroll(ls), state = ls, contentPadding = PaddingValues(bottom = 20.dp)) {
+        if (hero.isNotEmpty()) item(key = "hero") { HeroCarousel(st, hero) }
         if (cw.isNotEmpty()) item {
             ShelfRow("Continuar assistindo", cw.size, null) {
                 items(cw, key = { it.first.key }) { (it2, ep) ->
@@ -664,7 +666,7 @@ fun Recom(st: AppState, lib: Library) {
 fun HeroCarousel(st: AppState, list: List<Item>) {
     var idx by remember(list) { mutableStateOf(0) }
     var hold by remember { mutableStateOf(false) }
-    LaunchedEffect(list, hold, idx) { if (!hold) { delay(9000); idx = (idx + 1) % list.size } }
+    LaunchedEffect(list, hold, idx) { if (!hold && !st.lite && list.size > 1) { delay(9000); idx = (idx + 1) % list.size } }
     Box(Modifier.onFocusChanged { hold = it.hasFocus }) {
         Hero(st, list[idx.coerceIn(0, list.size - 1)], idx, list.size, { idx = (idx - 1 + list.size) % list.size }, { idx = (idx + 1) % list.size })
     }
@@ -675,13 +677,15 @@ fun Hero(st: AppState, item: Item, idx: Int = 0, total: Int = 1, onPrev: () -> U
     var info by remember(item.key) { mutableStateOf(Meta.cached(st.store, item)) }
     LaunchedEffect(item.key) { val i = Meta.get(st.store, item); if (i != null) info = i }
     val img = item.logo.ifEmpty { info?.img ?: "" }
-    Box(Modifier.fillMaxWidth().height(230.dp).padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(18.dp)).background(tint(item.title))) {
+    // capa oficial no cartão da direita; a imagem da lista (cena) fica como fundo
+    val poster = Meta.cachedPoster(st.store, item).ifEmpty { info?.img ?: "" }.ifEmpty { img }
+    Box(Modifier.fillMaxWidth().height(230.dp).padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(12.dp)).background(tint(item.title))) {
         if (img.isNotEmpty()) AsyncImage(img, null, Modifier.fillMaxSize().graphicsLayer { alpha = 0.55f }, contentScale = ContentScale.Crop)
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Bg, Color(0xCC070B1A), Color.Transparent))))
         Row(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                Text(if (item.kind == 's') "SÉRIE EM DESTAQUE" else "FILME EM DESTAQUE", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
-                Text(showTitle(item), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (item.kind == 's') "SÉRIE EM ALTA" else "FILME EM ALTA", color = Color(0xFF5B8CFF), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
+                Text(showTitle(item), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val meta = listOfNotNull(info?.y?.ifEmpty { null } ?: Util.yearOf(item.title).ifEmpty { null }, info?.r?.takeIf { it > 0 }?.let { "★ %.1f".format(it) }, item.group).joinToString("  •  ")
                 Text(meta, color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(vertical = 3.dp))
                 Text(info?.ov ?: "", color = Color(0xDDFFFFFF), fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 15.sp, modifier = Modifier.fillMaxWidth(0.8f))
@@ -701,7 +705,7 @@ fun Hero(st: AppState, item: Item, idx: Int = 0, total: Int = 1, onPrev: () -> U
                     }
                 }
             }
-            if (img.isNotEmpty()) AsyncImage(img, null, Modifier.height(190.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
+            if (poster.isNotEmpty()) AsyncImage(poster, null, Modifier.height(190.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
         }
     }
 }
