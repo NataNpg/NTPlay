@@ -438,7 +438,13 @@ fun LiveCard(st: AppState, item: Item, w: Dp, onClick: () -> Unit) {
         }
         Text(item.title, Modifier.padding(top = 6.dp, start = 2.dp), color = if (fi.on) Color.White else Color(0xDDFFFFFF), fontSize = 11.sp, fontWeight = if (fi.on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         @Suppress("UNUSED_VARIABLE") val ev = st.epgVer
-        Epg.nowTitle(item)?.let { Text("▶ " + it, Modifier.padding(start = 2.dp), color = Cyan, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        val nn = Epg.nowNext(item)
+        nn.first?.let { p ->
+            Text(p.title, Modifier.padding(start = 2.dp), color = Cyan, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val frac = ((System.currentTimeMillis() - p.start).toFloat() / (p.stop - p.start).coerceAtLeast(1L)).coerceIn(0f, 1f)
+            Box(Modifier.padding(start = 2.dp, top = 2.dp).fillMaxWidth().height(2.dp).background(Color(0x33FFFFFF), RoundedCornerShape(1.dp))) { Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFF5B8CFF), RoundedCornerShape(1.dp))) }
+        }
+        nn.second?.let { Text("Depois: " + it.title, Modifier.padding(start = 2.dp, top = 1.dp), color = Muted, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
 }
 
@@ -595,11 +601,28 @@ fun GridOf(st: AppState, l: List<Item>, title: String, skey: String = title) {
             Text("${l.size}", color = Muted, fontSize = 11.sp, letterSpacing = 1.sp)
         }
         val gs = savedGridState(st, "grid:" + skey)
+        // monta a grade por partes (mais rápido em lista grande) e já baixa as capas dos próximos itens
+        var shown by remember(l) { mutableStateOf(minOf(l.size, maxOf(240, (st.scroll["grid:" + skey]?.first ?: 0) + 120))) }
+        val gctx = androidx.compose.ui.platform.LocalContext.current
+        LaunchedEffect(gs, l) {
+            androidx.compose.runtime.snapshotFlow { gs.firstVisibleItemIndex }.collect { fv ->
+                if (fv > shown - 90 && shown < l.size) shown = minOf(l.size, shown + 240)
+                if (!live) {
+                    val loader = coil.Coil.imageLoader(gctx)
+                    for (i in fv + 18..fv + 40) {
+                        val x = l.getOrNull(i) ?: break
+                        if (x.adult) continue
+                        val u = Meta.cachedPoster(st.store, x).ifEmpty { Meta.cached(st.store, x)?.img ?: "" }
+                        if (u.isNotEmpty()) loader.enqueue(coil.request.ImageRequest.Builder(gctx).data(u).size(if (st.lite) 150 else 220, if (st.lite) 225 else 330).build())
+                    }
+                }
+            }
+        }
         LazyVerticalGrid(
             columns = GridCells.Adaptive(if (live) 140.dp else 112.dp), modifier = Modifier.fillMaxSize().mouseScroll(gs), state = gs,
             contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(l, key = { it.key }, contentType = { it.kind }) { it2 -> CardFor(st, it2, l) }
+            items(l.subList(0, shown), key = { it.key }, contentType = { it.kind }) { it2 -> CardFor(st, it2, l) }
         }
     }
 }

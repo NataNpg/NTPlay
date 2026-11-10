@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
                 .respectCacheHeaders(false)
                 .allowRgb565(true)
                 .memoryCache { coil.memory.MemoryCache.Builder(this).maxSizePercent(if (liteRam) 0.12 else 0.20).build() }
-                .diskCache { coil.disk.DiskCache.Builder().directory(cacheDir.resolve("img_cache")).maxSizeBytes(96L * 1024 * 1024).build() }
+                .diskCache { coil.disk.DiskCache.Builder().directory(cacheDir.resolve("img_cache")).maxSizeBytes(if (liteRam) 96L * 1024 * 1024 else 192L * 1024 * 1024).build() }
                 .build()
         )
         // se o app fechar sozinho, guarda o motivo e mostra na próxima abertura (para eu poder corrigir)

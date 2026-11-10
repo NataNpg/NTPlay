@@ -149,6 +149,8 @@ class Store(ctx: Context) {
             }.start()
         }
     }
+    fun groupFor(tab: String): String = sp.getString("grp|$tab", "") ?: ""
+    fun setGroupFor(tab: String, g: String) { if (groupFor(tab) != g) sp.edit().putString("grp|$tab", g).apply() }
     /** categorias que o usuário ocultou (nomes já limpos, um por linha) */
     var hiddenGroups: Set<String>
         get() = (sp.getString("hidden_groups", "") ?: "").split('\n').filter { it.isNotBlank() }.toSet()

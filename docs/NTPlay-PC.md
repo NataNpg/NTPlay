@@ -142,3 +142,6 @@ Em listas Xtream (link `get.php`/`player_api.php` com usuário e senha), a M3U d
 - **Login igual ao da TV** (`www/js/login.js`): usuário e senha da conta do painel, validados no `ntsync` (PBKDF2-SHA1 40.000 iterações, salt `ntplay-auth:<usuário>`; só a chave de login vai ao servidor, a senha não é guardada). O app (`app.js` etc.) só é carregado depois da confirmação. Revalida a cada 5 min e ao voltar à janela; conta vencida/apagada/senha trocada volta à tela de login; sem internet vale a última validade confirmada. O aparelho aparece na coluna "Aparelhos" do painel. Botão "Sair da conta" em ☰ Listas M3U.
 - Vale também para o app de celular (mesma pasta `www/`).
 - **Site web encerrado:** `pages.yml` agora publica só `contas.html`, `admin.html`, `enviar.html` e um aviso em `index.html`. O player deixou de existir na web. Os painéis continuam no ar.
+
+## 3.5.2
+- Servidor local (proxy) do app recusa pedidos com `Origin` de site (só aceita o próprio app: file://, null ou sem Origin). `rejectUnauthorized:false` continua, porque muitos provedores têm certificado inválido.

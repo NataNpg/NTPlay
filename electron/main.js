@@ -245,6 +245,8 @@ function openExt(id, url, live) {
   return { ok: true, name: PLAYERS[id].n };
 }
 const proxyServer = http.createServer((q, r) => {
+  // só o próprio app (origem file:// / null / sem Origin) usa este servidor local; páginas de sites do navegador são recusadas
+  { const o = q.headers.origin; if (o && o !== 'null' && !/^file:/i.test(o)) { r.writeHead(403); return r.end(); } }
   if (q.method === 'OPTIONS') { r.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }); return r.end(); }
   const p = new URL(q.url, 'http://x');
   if (p.pathname === '/log') { r.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*' }); return r.end(plog.slice(-40).join('\n')); }

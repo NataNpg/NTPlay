@@ -68,6 +68,21 @@ object Util {
     }
 
     /** 'l' = ao vivo, 'm' = filme, 's' = série */
+    /** mensagem de erro de rede em português simples, com o que fazer */
+    fun friendlyErr(e: Throwable): String {
+        val m = (e.message ?: "").lowercase()
+        return when {
+            e is java.net.UnknownHostException || "unable to resolve" in m -> "Sem internet, ou o endereço da lista não existe. Confira a conexão e o link."
+            e is java.net.SocketTimeoutException || "timeout" in m || "timed out" in m -> "O servidor demorou demais para responder. Tente de novo em instantes."
+            e is javax.net.ssl.SSLException -> "Falha na conexão segura (HTTPS). Confira a data/hora da TV ou tente o link com http."
+            "401" in m || "403" in m || "recusados" in m -> "O servidor recusou o acesso (usuário/senha ou conta bloqueada)."
+            "404" in m -> "Link não encontrado (404). Confira o endereço da lista."
+            "429" in m -> "O servidor limitou os acessos (muitos pedidos). Aguarde alguns minutos."
+            "connection reset" in m || "unexpected end" in m || "broken pipe" in m -> "A conexão caiu no meio. Tente de novo."
+            else -> (e.message ?: e.javaClass.simpleName)
+        }
+    }
+
     fun guess(u: String, g: String, n: String): Char {
         val x = u.lowercase().substringBefore('?')
         if (x.contains("/live/")) return 'l'

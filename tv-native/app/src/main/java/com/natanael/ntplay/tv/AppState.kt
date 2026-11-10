@@ -29,7 +29,11 @@ class AppState(val ctx: Context) {
     var status by mutableStateOf("Nenhuma lista carregada")
     var busy by mutableStateOf(false)
     var tab by mutableStateOf(store.tab.let { if (it in TABS) it else TABS[0] })
-    var group by mutableStateOf("")
+    private var groupState by mutableStateOf("")
+    /** categoria aberta; lembrada por aba (volta nela ao reabrir o app) */
+    var group: String
+        get() = groupState
+        set(v) { groupState = v; store.setGroupFor(tab, v) }
     var detail by mutableStateOf<Item?>(null)
     var play by mutableStateOf<PlayReq?>(null)
     var lastErr by mutableStateOf("")
@@ -68,7 +72,7 @@ class AppState(val ctx: Context) {
     }
 
     fun selectTab(t: String) {
-        tab = t; group = ""; detail = null; store.tab = t; yearSel = ""
+        tab = t; groupState = store.groupFor(t); detail = null; store.tab = t; yearSel = ""
     }
 
     val canBack: Boolean get() = play != null || detail != null || group.isNotEmpty()
@@ -134,7 +138,8 @@ class AppState(val ctx: Context) {
                 b
             }
             lib = l
-            group = ""
+            // volta na categoria em que você estava, se ela ainda existe
+            groupState = store.groupFor(tab).takeIf { g -> g.isNotEmpty() && (l.liveGroups + l.movieGroups + l.serieGroups).any { it.first == g } } ?: ""
             status = "${l.live.size} canais • ${l.movies.size} filmes • ${l.series.size} séries"
             logosLater()
             scope.launch { try { Epg.load(store, l, true); epgVer++ } catch (e: Throwable) { } }
@@ -159,7 +164,7 @@ class AppState(val ctx: Context) {
             }
         } catch (e: Throwable) {
             status = "Erro ao ler a lista"
-            toast("Erro ao ler a lista: " + (e.message ?: e.javaClass.simpleName))
+            toast("Erro ao ler a lista: " + Util.friendlyErr(e))
         }
         busy = false
         listsVer++
@@ -276,7 +281,7 @@ class AppState(val ctx: Context) {
                 }
                 val l = store.lists(); l.firstOrNull { it.id == m.id }?.let { it.count = n; it.date = System.currentTimeMillis() }
                 store.saveLists(l); reload()
-            } catch (e: Throwable) { busy = false; toast("Falha ao atualizar: " + (e.message ?: "erro")) }
+            } catch (e: Throwable) { busy = false; toast("Falha ao atualizar: " + Util.friendlyErr(e)) }
         }
     }
 
@@ -509,7 +514,7 @@ class AppState(val ctx: Context) {
                     if (detail === it) season = startEp(it).s
                     epsVer++
                 } else epsErr = "Esta série não tem episódios no servidor."
-            } catch (e: Throwable) { epsErr = "Não consegui carregar os episódios (" + (e.message ?: "erro") + ")." }
+            } catch (e: Throwable) { epsErr = "Não consegui carregar os episódios. " + Util.friendlyErr(e) }
             epsLoading = false
         }
     }
@@ -759,7 +764,7 @@ class AppState(val ctx: Context) {
             val pr = withContext(Dispatchers.IO) { Sync.call("put", u, ak, enc, now) }
             if (accessFailed(pr)) return
             if (pr.ok) { store.syncTs = now; store.syncHash = hashOf(p); syncMsg = "☁ Salvo na nuvem." } else syncMsg = pr.msg
-        } catch (e: Throwable) { syncMsg = "Falha ao sincronizar: " + (e.message ?: e.javaClass.simpleName) }
+        } catch (e: Throwable) { syncMsg = "Falha ao sincronizar: " + Util.friendlyErr(e) }
         finally { syncBusy = false }
     }
 

@@ -386,3 +386,9 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Categorias "<prefixo> | FILMES & SERIES" (ex.: "EXCL | FILMES & SERIES", "1 | …", "5 | …") saem de Filmes/Séries (`TV_PACK` agora aceita qualquer prefixo curto).
 - Botões principais/selecionados (Assistir, Novidades, Temporada) usam azul mais escuro com texto branco (em TV de cor estourada o azul antigo virava azul-claro e o texto sumia); selecionado ganha contorno branco fino.
 - Abertura: o arquivo de capas (`info.json`) e o de gêneros são lidos na carga da lista, fora da tela (antes o primeiro card lido travava a primeira tela).
+
+## 1.22.0 — grades por partes, capas adiantadas, EPG nos canais, erros claros, categoria lembrada
+- **Grades por partes**: a grade monta 240 itens e vai liberando mais 240 conforme você rola (a posição salva continua valendo). Capas dos próximos ~40 itens já são baixadas antes de aparecer (mesmo tamanho do card, então o cache é aproveitado). Cache de imagens em disco 96 → 192 MB (96 MB em aparelho fraco / modo leve).
+- **TV ao vivo**: o card mostra o programa de agora, uma barra de progresso e "Depois: …" (quando há guia XMLTV). Grade completa por horário ainda não existe.
+- **Erros**: `Util.friendlyErr` traduz erros de rede (sem internet, tempo esgotado, HTTPS, 401/403, 404, 429, conexão caída) ao atualizar lista, ler lista, episódios e sincronizar.
+- **Categoria lembrada**: a última categoria aberta de cada aba (Filmes, Séries, TV ao vivo) volta ao reabrir o app, se ainda existir. A posição de rolagem não é guardada entre aberturas.
