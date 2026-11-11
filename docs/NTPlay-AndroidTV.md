@@ -415,3 +415,6 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Chips Novidades / Adicionados recentes / Lançamentos / A–Z: o escolhido ganha "✓" e um aviso; "Lançamentos" e "Novidades" passam a usar também o ano do TMDB quando o nome do título não traz o ano (antes listas sem ano ficavam iguais).
 - Player ao vivo: quando o servidor devolve algo que não é vídeo (PARSING_CONTAINER_UNSUPPORTED) alterna o formato (HLS forçado → .ts/.m3u8) com espera maior; em HLS com várias resoluções fixa a melhor que o aparelho aceita (HD não começa mais em SD).
 - Entrada: o cache da lista não é mais apagado a cada atualização do app (constante ENGINE em LibCache); a tela abre sem esperar os pré-cálculos (rodam em segundo plano); EPG só carrega 8 s depois; regex e limpeza de grupo em cache. A primeira abertura depois desta versão ainda refaz o cache uma vez.
+
+## 1.24.1
+- Categorias com "lançamento", "estreia" ou "novidade" no nome vão para o topo da lista lateral de Filmes/Séries/TV.

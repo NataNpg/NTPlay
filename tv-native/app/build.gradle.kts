@@ -12,7 +12,7 @@ android {
         targetSdk = 34
         // versionCode sobe sozinho a cada compilação no GitHub (NT_VERSION_CODE = 1000 + nº da execução); local usa 14
         versionCode = (System.getenv("NT_VERSION_CODE") ?: "14").toInt()
-        versionName = "1.24.0"
+        versionName = "1.24.1"
         // chave do TMDB vem do GitHub Secret TMDB_KEY (fica fora do repositório); sem ela o app usa só as outras fontes
         buildConfigField("String", "TMDB_KEY", "\"" + (System.getenv("TMDB_KEY") ?: "") + "\"")
     }

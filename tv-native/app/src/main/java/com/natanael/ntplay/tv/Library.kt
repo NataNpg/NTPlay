@@ -48,9 +48,11 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
     val kids: List<Item> by lazy { (movies + series + live).filter { Util.theme(it) == "INFANTIL" } }
     val anime: List<Item> by lazy { (series + movies + live).filter { Util.theme(it) == "ANIMES" } }
 
+    /** categorias de lançamento/estreia/novidade ficam no topo da lista lateral */
+    private fun isNewGroup(g: String): Boolean { val k = java.text.Normalizer.normalize(g.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), ""); return k.contains("lancamento") || k.contains("estreia") || k.contains("novidade") || k.contains("recem") }
     private fun grp(l: List<Item>): List<Pair<String, List<Item>>> =
         l.groupBy { it.group }.entries
-            .sortedWith(compareBy<Map.Entry<String, List<Item>>>({ it.value.firstOrNull()?.adult == true }).thenBy { it.key.lowercase() })
+            .sortedWith(compareBy<Map.Entry<String, List<Item>>>({ it.value.firstOrNull()?.adult == true }, { !isNewGroup(it.key) }).thenBy { it.key.lowercase() })
             .map { it.key to it.value }
 
     // ---- cache de ordenações/anos/animes: a troca de aba só escolhe o que já está pronto
