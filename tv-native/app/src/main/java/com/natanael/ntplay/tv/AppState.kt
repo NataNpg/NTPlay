@@ -65,6 +65,8 @@ class AppState(val ctx: Context) {
     var queue: List<Item> = emptyList()
     /** título que estava em foco ao abrir o detalhe: recebe o foco de volta ao fechar */
     var focusBack by mutableStateOf<String?>(null)
+    /** plano B do foco: a primeira seta/OK depois de voltar do detalhe leva a este título */
+    @Volatile var backFocus: (() -> Unit)? = null
     val scroll = HashMap<String, Pair<Int, Int>>() // posição de rolagem por tela (volta onde parou)
     private val progMap: HashMap<String, Prog> = store.progress()
 
@@ -74,7 +76,7 @@ class AppState(val ctx: Context) {
     }
 
     fun selectTab(t: String) {
-        tab = t; groupState = store.groupFor(t); detail = null; focusBack = null; store.tab = t; yearSel = ""
+        tab = t; groupState = store.groupFor(t); detail = null; focusBack = null; backFocus = null; store.tab = t; yearSel = ""
     }
 
     val canBack: Boolean get() = play != null || detail != null || group.isNotEmpty()

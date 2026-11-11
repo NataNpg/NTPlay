@@ -151,6 +151,7 @@ class FocusInfo {
 @Composable
 fun rememberFocus() = remember { FocusInfo() }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun Modifier.tvClick(
     fi: FocusInfo = rememberFocus(),
@@ -162,6 +163,10 @@ fun Modifier.tvClick(
 ): Modifier {
     val src = remember { MutableInteractionSource() }
     val longFired = remember { booleanArrayOf(false) }
+    // com ponteiro (air mouse) o Android fica em "modo toque" e aí nenhum cartão aceita foco:
+    // a primeira seta do controle ia parar no menu de cima. Ao clicar, volta ao modo controle e foca o item.
+    val imm = androidx.compose.ui.platform.LocalInputModeManager.current
+    val clickFr = remember { androidx.compose.ui.focus.FocusRequester() }
     val hov by src.collectIsHoveredAsState()
     SideEffect { fi.hovered = hov }
     val s = if (fi.on) scale else 1f
@@ -182,7 +187,13 @@ fun Modifier.tvClick(
         })
         .graphicsLayer { scaleX = s; scaleY = s }
         .then(if (border && fi.focused) Modifier.border(2.dp, Color.White, shape) else if (border && hov) Modifier.border(2.dp, Color(0xAAFFFFFF), shape) else Modifier)
-        .clickable(interactionSource = src, indication = null, onClick = onClick)
+        .focusRequester(clickFr)
+        .clickable(interactionSource = src, indication = null) {
+            if (imm.inputMode == androidx.compose.ui.input.InputMode.Touch) {
+                try { imm.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard); clickFr.requestFocus() } catch (e: Throwable) { }
+            }
+            onClick()
+        }
 }
 
 private val ICONS = Ic.values()
@@ -219,6 +230,9 @@ fun TvButton(label: String, bg: Color, fontSize: TextUnit = 13.sp, selected: Boo
 
 /** rolagem com mouse: roda do mouse e arrastar com o botão pressionado */
 fun Modifier.mouseScroll(state: ScrollableState, horizontal: Boolean = false): Modifier = this.pointerInput(state, horizontal) {
+  kotlinx.coroutines.coroutineScope {
+    var edge = 0f
+    launch { while (true) { if (edge != 0f) state.dispatchRawDelta(edge); delay(16) } }
     awaitPointerEventScope {
         var last: Offset? = null
         var moved = 0f
@@ -236,18 +250,30 @@ fun Modifier.mouseScroll(state: ScrollableState, horizontal: Boolean = false): M
                 PointerEventType.Move -> {
                     val l = last
                     if (l != null && ev.buttons.isPrimaryPressed) {
+                        edge = 0f
                         val dd = ch.position - l
                         val v = if (horizontal) dd.x else dd.y
                         moved += kotlin.math.abs(v)
                         if (moved > 12f) { state.dispatchRawDelta(-v); ch.consume() }
                         last = ch.position
+                    } else if (!horizontal) {
+                        // ponteiro parado perto da borda de baixo/cima: rola sozinho, mais rápido quanto mais perto
+                        val len = size.height.toFloat(); val pos = ch.position.y; val zone = len * 0.09f
+                        edge = when {
+                            zone <= 0f -> 0f
+                            pos > len - zone && pos <= len -> 14f * ((pos - (len - zone)) / zone).coerceIn(0.25f, 1f)
+                            pos < zone && pos >= 0f -> -14f * ((zone - pos) / zone).coerceIn(0.25f, 1f)
+                            else -> 0f
+                        }
                     }
                 }
+                PointerEventType.Exit -> { edge = 0f; last = null }
                 PointerEventType.Release -> last = null
                 else -> {}
             }
         }
     }
+  }
 }
 
 private fun tint(s: String): Color = Color.hsv(Math.floorMod(s.hashCode().toLong(), 360L).toFloat(), 0.35f, 0.28f)
@@ -349,6 +375,7 @@ fun Header(st: AppState) {
 }
 
 // ---------------------------------------------------------------- cartões
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() -> Unit)? = null, badge: String = "", onClick: () -> Unit) {
     if (item.kind == 'l') { LiveCard(st, item, w, onClick); return }
@@ -382,14 +409,24 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     val fi = rememberFocus()
     // ao voltar do detalhe, o foco volta para o mesmo título (antes caía no menu de cima)
     val fr = remember { androidx.compose.ui.focus.FocusRequester() }
-    if (st.focusBack == item.key) LaunchedEffect(item.key) {
-        var n = 0
-        while (n < 22 && !fi.focused) {
-            delay(70)
-            try { fr.requestFocus() } catch (e: Throwable) { }
-            n++
+    val imm = androidx.compose.ui.platform.LocalInputModeManager.current
+    if (st.focusBack == item.key) {
+        // plano B: se ainda não pegou o foco, a primeira seta/OK do controle vem para este título
+        DisposableEffect(item.key) {
+            val f: () -> Unit = { try { imm.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard); fr.requestFocus() } catch (e: Throwable) { } }
+            st.backFocus = f
+            onDispose { if (st.backFocus === f) st.backFocus = null }
         }
-        if (st.focusBack == item.key) st.focusBack = null
+        LaunchedEffect(item.key) {
+            var n = 0
+            while (n < 22 && !fi.focused) {
+                delay(70)
+                try { imm.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard); fr.requestFocus() } catch (e: Throwable) { }
+                n++
+            }
+            if (fi.focused) st.backFocus = null
+            if (st.focusBack == item.key) st.focusBack = null
+        }
     }
     Column(Modifier.width(w)) {
         Box(Modifier.focusRequester(fr).tvClick(fi, RoundedCornerShape(8.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(8.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {

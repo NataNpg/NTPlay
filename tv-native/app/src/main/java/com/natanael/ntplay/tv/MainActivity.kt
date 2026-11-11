@@ -74,8 +74,19 @@ class MainActivity : ComponentActivity() {
     // O Compose às vezes tenta mover o foco para um item da lista que acabou de sair da tela e lança
     // "LayoutCoordinate operations are only valid when isAttached is true" (derrubava o app ao escolher
     // canal/filme/série). Engolimos só esse erro: o botão apertado é ignorado e o app continua.
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
-        try { super.dispatchKeyEvent(event) } catch (e: RuntimeException) { true }
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // voltou do detalhe e o título ainda não está com o foco: a primeira seta/OK leva o foco a ele
+        // (sem isto, o Android manda o foco para o primeiro item da tela = menu de cima)
+        val st = state
+        val bf = st?.backFocus
+        if (st != null && bf != null && st.detail == null && st.play == null && event.action == KeyEvent.ACTION_DOWN && event.keyCode in DPAD_KEYS) {
+            st.backFocus = null
+            try { bf() } catch (e: Throwable) { }
+            return true
+        }
+        return try { super.dispatchKeyEvent(event) } catch (e: RuntimeException) { true }
+    }
+    private val DPAD_KEYS = setOf(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER)
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val st = state
