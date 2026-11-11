@@ -432,3 +432,7 @@ Correções do que a 1.24.0 quebrou:
 - **Listas da nuvem que não baixam** (ex.: link 404): deixam de ser tentadas a cada 90 s — nova tentativa só depois de 30 min ou em "Sincronizar agora". O download que falha não deixa mais arquivo pela metade no aparelho.
 - Cache de ordenações com limite (memória da TV).
 - **Diagnóstico** ganhou o botão "Testar capas": diz se a chave do TMDB está no app e se o site responde.
+
+## 1.24.4 — fim da lista e foco ao voltar
+- **A grade não ia até o fim**: a grade usava `fillMaxSize()` dentro da coluna que já tem o título, então recebia a altura da coluna inteira e o fim dela ficava fora da tela — faltava a última fileira e o rodapé com o nome do app. Agora usa `weight(1f)`.
+- **Foco ao voltar do detalhe**: as 4 tentativas em 320 ms não davam tempo nesta TV (a grade ainda estava sendo montada), então o foco acabava no menu de cima. Agora insiste por ~1,5 s até o cartão realmente pegar o foco, e para assim que pegar. A grade também rola para o título e o carrega na página certa antes, se ele estiver fora do trecho montado.

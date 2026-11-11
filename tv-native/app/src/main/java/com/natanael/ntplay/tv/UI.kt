@@ -383,8 +383,13 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     // ao voltar do detalhe, o foco volta para o mesmo título (antes caía no menu de cima)
     val fr = remember { androidx.compose.ui.focus.FocusRequester() }
     if (st.focusBack == item.key) LaunchedEffect(item.key) {
-        st.focusBack = null
-        repeat(4) { delay(80); try { fr.requestFocus(); return@LaunchedEffect } catch (e: Throwable) { } }
+        var n = 0
+        while (n < 22 && !fi.focused) {
+            delay(70)
+            try { fr.requestFocus() } catch (e: Throwable) { }
+            n++
+        }
+        if (st.focusBack == item.key) st.focusBack = null
     }
     Column(Modifier.width(w)) {
         Box(Modifier.focusRequester(fr).tvClick(fi, RoundedCornerShape(8.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(8.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
@@ -567,7 +572,16 @@ fun YearDialog(st: AppState, years: List<Pair<String, Int>>) {
                 Text("Filtrar por ano de lançamento", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                 Text(if (years.isEmpty()) "Nenhum título desta seção traz o ano no nome." else "Só aparecem anos que existem na sua lista.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
                 val gs = rememberLazyGridState()
-                LazyVerticalGrid(columns = GridCells.Adaptive(110.dp), state = gs, modifier = Modifier.weight(1f).mouseScroll(gs), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val back = st.focusBack
+        LaunchedEffect(l, back) {
+            if (back == null) return@LaunchedEffect
+            val idx = l.indexOfFirst { it.key == back }
+            if (idx < 0) return@LaunchedEffect
+            if (idx >= shown) shown = minOf(l.size, idx + 120)
+            delay(32)
+            if (gs.layoutInfo.visibleItemsInfo.none { v -> v.index == idx }) try { gs.scrollToItem(maxOf(0, idx - 4)) } catch (e: Throwable) { }
+        }
+        LazyVerticalGrid(columns = GridCells.Adaptive(110.dp), state = gs, modifier = Modifier.weight(1f).mouseScroll(gs), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (st.tab == "FILMES" || st.tab == "SÉRIES" || st.tab == "ANIMES") {
                         item(span = { GridItemSpan(maxLineSpan) }) { Text("Ordem", color = Muted, fontSize = 11.sp) }
                         for (m in listOf("novos", "recentes", "lanc", "az")) item(key = "sort$m") { TvButton(sortLabel(m), Btn, 11.sp, selected = st.sortMode == m) { st.sortMode = m; st.yearDialog = false } }
@@ -621,8 +635,17 @@ fun GridOf(st: AppState, l: List<Item>, title: String, skey: String = title) {
                 }
             }
         }
+        val back = st.focusBack
+        LaunchedEffect(l, back) {
+            if (back == null) return@LaunchedEffect
+            val idx = l.indexOfFirst { it.key == back }
+            if (idx < 0) return@LaunchedEffect
+            if (idx >= shown) shown = minOf(l.size, idx + 120)
+            delay(32)
+            if (gs.layoutInfo.visibleItemsInfo.none { v -> v.index == idx }) try { gs.scrollToItem(maxOf(0, idx - 4)) } catch (e: Throwable) { }
+        }
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(if (live) 140.dp else 112.dp), modifier = Modifier.fillMaxSize().mouseScroll(gs), state = gs,
+            columns = GridCells.Adaptive(if (live) 140.dp else 112.dp), modifier = Modifier.weight(1f).fillMaxWidth().mouseScroll(gs), state = gs,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 56.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(l.subList(0, shown), key = { it.key }, contentType = { it.kind }) { it2 -> CardFor(st, it2, l) }
@@ -865,7 +888,16 @@ fun SearchDialog(st: AppState) {
                     }
                 }
                 val gs = rememberLazyGridState()
-                LazyVerticalGrid(columns = GridCells.Adaptive(112.dp), modifier = Modifier.mouseScroll(gs), state = gs, contentPadding = PaddingValues(6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                val back = st.focusBack
+        LaunchedEffect(l, back) {
+            if (back == null) return@LaunchedEffect
+            val idx = l.indexOfFirst { it.key == back }
+            if (idx < 0) return@LaunchedEffect
+            if (idx >= shown) shown = minOf(l.size, idx + 120)
+            delay(32)
+            if (gs.layoutInfo.visibleItemsInfo.none { v -> v.index == idx }) try { gs.scrollToItem(maxOf(0, idx - 4)) } catch (e: Throwable) { }
+        }
+        LazyVerticalGrid(columns = GridCells.Adaptive(112.dp), modifier = Modifier.mouseScroll(gs), state = gs, contentPadding = PaddingValues(6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(res, key = { it.key }) { it2 ->
                         PosterCard(st, it2, if (it2.kind == 'l') 140.dp else 112.dp) {
                             st.rememberSearch(q)

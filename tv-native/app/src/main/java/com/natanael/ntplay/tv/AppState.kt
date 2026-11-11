@@ -64,7 +64,7 @@ class AppState(val ctx: Context) {
     var epsErr by mutableStateOf("")
     var queue: List<Item> = emptyList()
     /** título que estava em foco ao abrir o detalhe: recebe o foco de volta ao fechar */
-    var focusBack: String? = null
+    var focusBack by mutableStateOf<String?>(null)
     val scroll = HashMap<String, Pair<Int, Int>>() // posição de rolagem por tela (volta onde parou)
     private val progMap: HashMap<String, Prog> = store.progress()
 
