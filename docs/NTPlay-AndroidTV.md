@@ -418,3 +418,7 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 
 ## 1.24.1
 - Categorias com "lançamento", "estreia" ou "novidade" no nome vão para o topo da lista lateral de Filmes/Séries/TV.
+
+## 1.24.2 — sincronização
+- Se uma lista da nuvem não baixa nesta TV, a mensagem agora diz qual lista e o motivo; o que você mudou na TV continua indo para a nuvem (a lista que falhou fica guardada, não é apagada) e o app tenta baixar de novo a cada ~90 s.
+- Espera até ~5 min por lista grande baixar (antes 90 s, e estourar esse tempo travava todo o envio para a nuvem/site).

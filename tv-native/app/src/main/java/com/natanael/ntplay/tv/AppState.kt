@@ -737,6 +737,8 @@ class AppState(val ctx: Context) {
     var accountDialog by mutableStateOf(false)
     private var syncJob: kotlinx.coroutines.Job? = null
     @Volatile private var blockPush = false
+    /** listas que estão na nuvem mas não baixaram nesta TV (ficam guardadas na nuvem; nunca são apagadas por isso) */
+    private val failedRemote = ArrayList<Pair<JSONObject, String>>()
 
     fun syncSoon() {
         if (store.syncUser.isEmpty()) return
@@ -749,6 +751,7 @@ class AppState(val ctx: Context) {
         val o = JSONObject()
         val la = JSONArray()
         for (m in store.lists().filter { it.url.isNotEmpty() }.sortedBy { it.url }) la.put(JSONObject().put("name", m.name).put("url", m.url).put("active", m.active))
+        for ((fx, _) in failedRemote) if (store.lists().none { it.url == fx.optString("url") }) la.put(JSONObject().put("name", fx.optString("name")).put("url", fx.optString("url")).put("active", fx.optBoolean("active", true)))
         o.put("lists", la)
         o.put("favs", JSONArray(store.favs.sorted()))
         o.put("groups", JSONObject(store.groupsRaw.ifEmpty { "{}" }))
@@ -795,8 +798,9 @@ class AppState(val ctx: Context) {
                 if (have == null) {
                     addUrl(url, x.optString("name"))
                     var w = 0
-                    while (w < 450 && store.lists().none { it.url == url }) { delay(200); w++ ; if (!busy && w > 15) break }
-                    if (store.lists().none { it.url == url }) blockPush = true
+                    // espera o download terminar (lista grande em TV fraca demora): até ~5 min enquanto estiver baixando
+                    while (w < 1500 && store.lists().none { it.url == url }) { delay(200); w++; if (!busy && w > 15) break }
+                    if (store.lists().none { it.url == url }) { blockPush = true; failedRemote.add(x to lastErr.removePrefix("Falha ao baixar a lista: ").ifEmpty { "sem resposta" }) }
                 } else if (have.active != x.optBoolean("active", true)) {
                     val l = store.lists(); l.firstOrNull { it.id == have.id }?.active = x.optBoolean("active", true); store.saveLists(l)
                     reload()
@@ -812,7 +816,7 @@ class AppState(val ctx: Context) {
 
     suspend fun syncNow(manual: Boolean) {
         val u = store.syncUser; if (u.isEmpty() || syncBusy || store.profile != 0) return
-        syncBusy = true; blockPush = false
+        syncBusy = true; blockPush = false; failedRemote.clear()
         try {
             val ak = store.syncAuth; val ek = store.syncEnc
             val g = withContext(Dispatchers.IO) { Sync.call("get", u, ak) }
@@ -824,15 +828,20 @@ class AppState(val ctx: Context) {
             val changed = hashOf(local) != store.syncHash
             if (remote != null && g.ts > store.syncTs) {
                 applyRemote(remote, merge = changed)
-                if (blockPush) { syncMsg = "Algumas listas da nuvem não baixaram; vou tentar de novo."; return }
-                if (!changed) { store.syncTs = g.ts; store.syncHash = hashOf(payload(0)); syncMsg = "☁ Atualizado da nuvem."; return }
+                if (blockPush) {
+                    val why = failedRemote.joinToString("; ") { (fx, e) -> "\"" + fx.optString("name").ifEmpty { fx.optString("url").substringAfter("://").substringBefore('/') } + "\": " + e.take(110) }
+                    syncMsg = "Lista(s) da nuvem não baixaram — $why. Vou tentar de novo."
+                    // o que você mudou aqui na TV continua indo para a nuvem (sem apagar a lista que falhou)
+                    if (!changed) return
+                }
+                else if (!changed) { store.syncTs = g.ts; store.syncHash = hashOf(payload(0)); syncMsg = "☁ Atualizado da nuvem."; return }
             } else if (!changed && remote != null) { if (manual) syncMsg = "☁ Tudo em dia."; return }
             val now = System.currentTimeMillis()
             val p = payload(now)
             val enc = withContext(Dispatchers.Default) { Sync.encrypt(p.toString(), ek) }
             val pr = withContext(Dispatchers.IO) { Sync.call("put", u, ak, enc, now) }
             if (accessFailed(pr)) return
-            if (pr.ok) { store.syncTs = now; store.syncHash = hashOf(p); syncMsg = "☁ Salvo na nuvem." } else syncMsg = pr.msg
+            if (pr.ok) { store.syncHash = hashOf(p); if (blockPush) store.syncTs = 0 else { store.syncTs = now; syncMsg = "☁ Salvo na nuvem." } } else syncMsg = pr.msg
         } catch (e: Throwable) { syncMsg = "Falha ao sincronizar: " + Util.friendlyErr(e) }
         finally { syncBusy = false }
     }
