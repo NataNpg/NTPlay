@@ -440,3 +440,10 @@ Correções do que a 1.24.0 quebrou:
 ## 1.24.5 — ponteiro (air mouse)
 - **Causa real do foco indo para o menu**: com o ponteiro do controle, o Android entra em "modo toque" e, nesse modo, cartões e botões (`clickable`) não aceitam foco. A restauração do foco era recusada em silêncio e a primeira seta caía no primeiro item da tela (aba Recomendações). Agora: clicar com o ponteiro volta ao modo controle e foca o item clicado; ao voltar do detalhe o título pede o modo controle antes de focar; e, se ainda assim não pegar, a primeira seta/OK do controle é usada para levar o foco ao título (MainActivity.dispatchKeyEvent → `backFocus`).
 - **Rolagem com ponteiro**: air mouse não tem rodinha. Parar o ponteiro na faixa de baixo (ou de cima) da grade/lista faz ela rolar sozinha, mais rápido quanto mais perto da borda.
+
+## 1.24.6 — foco com as setas do controle e fim da grade
+- **Detalhe sem foco inicial (causa do "vai para a aba de cima")**: ao abrir um filme/série com o OK, a tela de detalhe não colocava o foco em nenhum botão; a 1ª seta ia para o primeiro item da tela (aba Recomendações). Agora o foco começa no botão principal (Assistir/Continuar) — e volta para ele ao fechar o player.
+- Ao fechar um **canal** (ou filme aberto direto da grade), o foco volta para o cartão dele.
+- Helper `TakeFocus`: modo controle + tentativas por ~1,7 s + plano B na 1ª tecla (MainActivity → backFocus).
+- **Fim da grade**: o "trazer para a tela" do Compose só mostrava o quadro do cartão; o nome embaixo e a folga final ficavam escondidos. Ao focar um dos últimos itens, a grade rola até o fim de verdade.
+- Rodapé mostra a versão instalada (ex.: "NTPlay 1.24.6"), para conferir se a TV atualizou.

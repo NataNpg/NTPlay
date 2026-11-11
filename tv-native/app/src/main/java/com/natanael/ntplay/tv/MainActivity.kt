@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
         // (sem isto, o Android manda o foco para o primeiro item da tela = menu de cima)
         val st = state
         val bf = st?.backFocus
-        if (st != null && bf != null && st.detail == null && st.play == null && event.action == KeyEvent.ACTION_DOWN && event.keyCode in DPAD_KEYS) {
+        if (st != null && bf != null && st.play == null && event.action == KeyEvent.ACTION_DOWN && event.keyCode in DPAD_KEYS) {
             st.backFocus = null
             try { bf() } catch (e: Throwable) { }
             return true

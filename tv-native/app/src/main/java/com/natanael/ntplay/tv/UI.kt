@@ -37,6 +37,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.LazyListState
@@ -228,6 +230,32 @@ fun TvButton(label: String, bg: Color, fontSize: TextUnit = 13.sp, selected: Boo
     }
 }
 
+/**
+ * Leva o foco para [fr] assim que a tela aparece. Pede o "modo controle" (com ponteiro o Android
+ * fica em modo toque e recusa foco), tenta por ~1,7 s e, se não der, a primeira seta/OK do
+ * controle vai para este item (MainActivity → backFocus) em vez de cair no menu de cima.
+ */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@Composable
+fun TakeFocus(st: AppState, key: Any, fr: androidx.compose.ui.focus.FocusRequester, focused: () -> Boolean, onDone: () -> Unit = {}) {
+    val imm = androidx.compose.ui.platform.LocalInputModeManager.current
+    DisposableEffect(key) {
+        val f: () -> Unit = { try { imm.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard); fr.requestFocus() } catch (e: Throwable) { } }
+        st.backFocus = f
+        onDispose { if (st.backFocus === f) st.backFocus = null }
+    }
+    LaunchedEffect(key) {
+        var n = 0
+        while (n < 25 && !focused()) {
+            delay(70)
+            try { imm.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard); fr.requestFocus() } catch (e: Throwable) { }
+            n++
+        }
+        if (focused()) st.backFocus = null
+        onDone()
+    }
+}
+
 /** rolagem com mouse: roda do mouse e arrastar com o botão pressionado */
 fun Modifier.mouseScroll(state: ScrollableState, horizontal: Boolean = false): Modifier = this.pointerInput(state, horizontal) {
   kotlinx.coroutines.coroutineScope {
@@ -327,7 +355,7 @@ fun App(st: AppState) {
 @Composable
 fun Footer() {
     Row(Modifier.fillMaxWidth().padding(top = 4.dp).height(18.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-        Text("NTPlay", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Text("NTPlay " + BuildConfig.VERSION_NAME, color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         Text("  ·  © Natanael G Silva  ·  djnatan0@live.com", color = Color(0x99FFFFFF), fontSize = 9.sp)
     }
 }
@@ -409,25 +437,8 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     val fi = rememberFocus()
     // ao voltar do detalhe, o foco volta para o mesmo título (antes caía no menu de cima)
     val fr = remember { androidx.compose.ui.focus.FocusRequester() }
-    val imm = androidx.compose.ui.platform.LocalInputModeManager.current
-    if (st.focusBack == item.key) {
-        // plano B: se ainda não pegou o foco, a primeira seta/OK do controle vem para este título
-        DisposableEffect(item.key) {
-            val f: () -> Unit = { try { imm.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard); fr.requestFocus() } catch (e: Throwable) { } }
-            st.backFocus = f
-            onDispose { if (st.backFocus === f) st.backFocus = null }
-        }
-        LaunchedEffect(item.key) {
-            var n = 0
-            while (n < 22 && !fi.focused) {
-                delay(70)
-                try { imm.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard); fr.requestFocus() } catch (e: Throwable) { }
-                n++
-            }
-            if (fi.focused) st.backFocus = null
-            if (st.focusBack == item.key) st.focusBack = null
-        }
-    }
+    if (st.focusBack == item.key && st.play == null && st.detail == null)
+        TakeFocus(st, "back:" + item.key, fr, { fi.focused }) { if (st.focusBack == item.key) st.focusBack = null }
     Column(Modifier.width(w)) {
         Box(Modifier.focusRequester(fr).tvClick(fi, RoundedCornerShape(8.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(8.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
             if (img.isNotEmpty()) {
@@ -471,9 +482,13 @@ fun LiveCard(st: AppState, item: Item, w: Dp, onClick: () -> Unit) {
     @Suppress("UNUSED_VARIABLE") val lv = st.logoVer
     var img by remember(item.key, item.logo) { mutableStateOf(item.logo) }
     val fi = rememberFocus()
+    val fr = remember { androidx.compose.ui.focus.FocusRequester() }
+    // ao fechar o canal, o foco volta para ele (antes caía no menu de cima)
+    if (st.focusBack == item.key && st.play == null && st.detail == null)
+        TakeFocus(st, "back:" + item.key, fr, { fi.focused }) { if (st.focusBack == item.key) st.focusBack = null }
     Column(Modifier.width(w)) {
         Box(
-            Modifier.tvClick(fi, RoundedCornerShape(12.dp), onLong = { st.toggleFav(item.key) }, onClick = onClick).clip(RoundedCornerShape(12.dp))
+            Modifier.focusRequester(fr).tvClick(fi, RoundedCornerShape(12.dp), onLong = { st.toggleFav(item.key) }, onClick = onClick).clip(RoundedCornerShape(12.dp))
                 .background(Brush.linearGradient(listOf(CardC, Color(0xFF243064)))).aspectRatio(16f / 10f).fillMaxWidth()
         ) {
             if (img.isNotEmpty()) {
@@ -663,6 +678,7 @@ fun GridOf(st: AppState, l: List<Item>, title: String, skey: String = title) {
                 }
             }
         }
+        val endScope = androidx.compose.runtime.rememberCoroutineScope()
         val back = st.focusBack
         LaunchedEffect(l, back) {
             if (back == null) return@LaunchedEffect
@@ -676,7 +692,9 @@ fun GridOf(st: AppState, l: List<Item>, title: String, skey: String = title) {
             columns = GridCells.Adaptive(if (live) 140.dp else 112.dp), modifier = Modifier.weight(1f).fillMaxWidth().mouseScroll(gs), state = gs,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 56.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(l.subList(0, shown), key = { it.key }, contentType = { it.kind }) { it2 -> CardFor(st, it2, l) }
+            itemsIndexed(l.subList(0, shown), key = { _, x -> x.key }, contentType = { _, x -> x.kind }) { idx, it2 ->
+                Box(Modifier.onFocusChanged { f -> if (f.hasFocus && idx >= l.size - 12) endScope.launch { try { gs.animateScrollBy(3000f) } catch (e: Throwable) { } } }) { CardFor(st, it2, l) }
+            }
         }
     }
 }
@@ -824,8 +842,11 @@ fun DetailScreen(st: AppState, item: Item) {
                 Text(meta, color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.2.sp, modifier = Modifier.padding(vertical = 6.dp))
                 Text(ovText, color = Color(0xCCB8C4F0), fontSize = 12.sp, maxLines = 4, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
                 Spacer(Modifier.height(12.dp))
+                val detFr = remember { androidx.compose.ui.focus.FocusRequester() }
+                var detOn by remember { mutableStateOf(false) }
+                if (st.play == null) TakeFocus(st, "det:" + item.key, detFr, { detOn })
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TvButton(label, Pink, 13.sp, shape = RoundedCornerShape(10.dp)) { if (needEps) { if (!st.epsLoading) st.loadEps(item) } else st.playItem(item, cont) }
+                    TvButton(label, Pink, 13.sp, shape = RoundedCornerShape(10.dp), modifier = Modifier.focusRequester(detFr).onFocusChanged { detOn = it.hasFocus }) { if (needEps) { if (!st.epsLoading) st.loadEps(item) } else st.playItem(item, cont) }
                     TvButton(if (st.favs.contains(item.key)) "★ Favorito" else "☆ Favorito", Color(0xFF1B2450), 13.sp, shape = RoundedCornerShape(10.dp)) { st.toggleFav(item.key) }
                     TvButton("＋ Grupo", Color(0xFF1B2450), 13.sp, shape = RoundedCornerShape(10.dp)) { st.openGroups(item) }
                     TvButton("‹ Voltar", Color(0xFF1B2450), 13.sp, shape = RoundedCornerShape(10.dp)) { st.detail = null }

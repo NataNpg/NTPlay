@@ -607,6 +607,7 @@ class AppState(val ctx: Context) {
 
     fun playItem(it: Item, ep: Ep? = null, q: List<Item>? = null) {
         if (needsEps(it)) { openDetail(it); return }
+        if (detail == null) focusBack = it.key // ao fechar o player, o foco volta para este item
         val e = ep ?: startEp(it)
         if (it.kind == 's' && !needsEps(it)) store.setEpSeen(it.key, it.eps.size)
         if (it.kind == 'l') { store.recentLive = listOf(it.key) + store.recentLive.filter { x -> x != it.key }; recentVer++ }
