@@ -572,15 +572,6 @@ fun YearDialog(st: AppState, years: List<Pair<String, Int>>) {
                 Text("Filtrar por ano de lançamento", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                 Text(if (years.isEmpty()) "Nenhum título desta seção traz o ano no nome." else "Só aparecem anos que existem na sua lista.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
                 val gs = rememberLazyGridState()
-                val back = st.focusBack
-        LaunchedEffect(l, back) {
-            if (back == null) return@LaunchedEffect
-            val idx = l.indexOfFirst { it.key == back }
-            if (idx < 0) return@LaunchedEffect
-            if (idx >= shown) shown = minOf(l.size, idx + 120)
-            delay(32)
-            if (gs.layoutInfo.visibleItemsInfo.none { v -> v.index == idx }) try { gs.scrollToItem(maxOf(0, idx - 4)) } catch (e: Throwable) { }
-        }
         LazyVerticalGrid(columns = GridCells.Adaptive(110.dp), state = gs, modifier = Modifier.weight(1f).mouseScroll(gs), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (st.tab == "FILMES" || st.tab == "SÉRIES" || st.tab == "ANIMES") {
                         item(span = { GridItemSpan(maxLineSpan) }) { Text("Ordem", color = Muted, fontSize = 11.sp) }
@@ -888,15 +879,6 @@ fun SearchDialog(st: AppState) {
                     }
                 }
                 val gs = rememberLazyGridState()
-                val back = st.focusBack
-        LaunchedEffect(l, back) {
-            if (back == null) return@LaunchedEffect
-            val idx = l.indexOfFirst { it.key == back }
-            if (idx < 0) return@LaunchedEffect
-            if (idx >= shown) shown = minOf(l.size, idx + 120)
-            delay(32)
-            if (gs.layoutInfo.visibleItemsInfo.none { v -> v.index == idx }) try { gs.scrollToItem(maxOf(0, idx - 4)) } catch (e: Throwable) { }
-        }
         LazyVerticalGrid(columns = GridCells.Adaptive(112.dp), modifier = Modifier.mouseScroll(gs), state = gs, contentPadding = PaddingValues(6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(res, key = { it.key }) { it2 ->
                         PosterCard(st, it2, if (it2.kind == 'l') 140.dp else 112.dp) {
