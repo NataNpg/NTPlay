@@ -57,7 +57,10 @@ class Library(val live: List<Item>, val movies: List<Item>, val series: List<Ite
 
     // ---- cache de ordenações/anos/animes: a troca de aba só escolhe o que já está pronto
     private val sortCache = java.util.concurrent.ConcurrentHashMap<String, List<Item>>()
-    fun sorted(name: String, l: List<Item>, mode: String, yf: (Item) -> Int = { it.yr }): List<Item> = sortCache.getOrPut("$name|$mode") { sortItems(l, mode, yf) }
+    fun sorted(name: String, l: List<Item>, mode: String, yf: (Item) -> Int = { it.yr }): List<Item> {
+        if (sortCache.size > 40) sortCache.clear() // não deixa o cache crescer sem fim (memória da TV é pouca)
+        return sortCache.getOrPut("$name|$mode") { sortItems(l, mode, yf) }
+    }
     private val yearCache = java.util.concurrent.ConcurrentHashMap<String, List<Pair<String, Int>>>()
     fun years(name: String, l: List<Item>, of: (Item) -> String): List<Pair<String, Int>> =
         yearCache.getOrPut(name) { l.groupingBy(of).eachCount().filterKeys { it.isNotEmpty() }.toList().sortedByDescending { it.first } }

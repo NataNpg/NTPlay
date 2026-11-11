@@ -135,6 +135,11 @@ class AppState(val ctx: Context) {
                 Util.Diag.span(if (cached != null) "Lista lida do cache" else "Lista analisada do zero (sem cache)", System.currentTimeMillis() - tL)
                 if (cached == null) Thread { LibCache.save(ctx.filesDir, sig, b) }.also { it.priority = Thread.MIN_PRIORITY }.start()
                 store.info("warm"); store.genres("warm") // lê os arquivos de capas/gêneros aqui, fora da tela
+                // o que a tela usa assim que abre: precisa ficar pronto ANTES, senão o Compose trava
+                // esperando o "lazy" (tela congelada, capas sem carregar). O resto vai em segundo plano.
+                val tP = System.currentTimeMillis()
+                b.every; b.byKey; b.liveGroups; b.movieGroups; b.serieGroups
+                Util.Diag.span("Categorias prontas", System.currentTimeMillis() - tP)
                 b
             }
             lib = l
@@ -146,10 +151,10 @@ class AppState(val ctx: Context) {
             // pré-cálculos pesados em segundo plano e com prioridade baixa: a tela já abre sem esperar por eles
             scope.launch(Dispatchers.Default) {
                 try {
-                    l.movieGroups; l.serieGroups; l.liveGroups; l.every; l.byKey
+                    val tB = System.currentTimeMillis()
                     l.sorted("m", l.movies, "novos"); l.sorted("s", l.series, "novos")
                     l.kids; l.anime; l.sorted("a", l.anime, "novos"); l.animeCR; l.animeFN
-                    l.years("FILMES|", l.movies) { yearOfItem(this@AppState, it) }; l.years("SÉRIES|", l.series) { yearOfItem(this@AppState, it) }; l.years("ANIMES|", l.anime) { yearOfItem(this@AppState, it) }
+                    Util.Diag.span("Ordenações (2º plano)", System.currentTimeMillis() - tB)
                 } catch (e: Throwable) { }
             }
             scope.launch { delay(8000); try { Epg.load(store, l, true); epgVer++ } catch (e: Throwable) { } }
@@ -195,8 +200,8 @@ class AppState(val ctx: Context) {
         scope.launch {
             busy = true
             status = "Baixando lista…"
+            val id = java.lang.Long.toString(System.currentTimeMillis(), 36)
             try {
-                val id = java.lang.Long.toString(System.currentTimeMillis(), 36)
                 val n = withContext(Dispatchers.IO) {
                     val f = store.file(id)
                     val cr = Xtream.creds(u)
@@ -227,6 +232,7 @@ class AppState(val ctx: Context) {
                 reload()
             } catch (e: Throwable) {
                 busy = false
+                try { store.file(id).delete() } catch (x: Throwable) { } // não deixa arquivo pela metade a cada tentativa
                 status = "Falha ao baixar a lista"
                 val why = when (e) {
                     is java.net.UnknownHostException -> "não achei o servidor (sem internet/DNS?): " + e.message
@@ -328,13 +334,14 @@ class AppState(val ctx: Context) {
         genreJob?.cancel()
         if (group.isEmpty() || genreIdsFor(group).isEmpty()) return
         genreJob = scope.launch(Dispatchers.IO) {
-            var n = 0; var done = 0
+            var n = 0
             for (chunk in l.filter { it.kind != 'l' && store.genres(it.key) == null && !store.genreTriedRecently(it.key) }.take(200).chunked(8)) {
                 val r = chunk.map { x -> async { Meta.genreIds(store, x) } }.map { it.await() }
-                n += r.count { it }; done += chunk.size
-                if (n >= 8) { genresVer++; n = 0 }
+                n += r.count { it }
             }
-            if (n > 0) genresVer++
+            // avisa a tela UMA vez, no fim: antes avisava a cada 8 títulos e a grade era refeita
+            // dezenas de vezes seguidas (capas recomeçavam do zero e a rolagem voltava)
+            if (n > 0 && group == this@AppState.group) genresVer++
         }
     }
     var hiddenCount by mutableIntStateOf(store.hiddenGroups.size)
@@ -382,6 +389,15 @@ class AppState(val ctx: Context) {
             } catch (e: Throwable) { toast("Backup inválido ou ilegível.") }
         }
     }
+    var tmdbTest by mutableStateOf("")
+    /** testa a chave do TMDB (capas): diz se a busca de capa está funcionando */
+    fun testTmdb() {
+        tmdbTest = "testando…"
+        scope.launch {
+            tmdbTest = withContext(Dispatchers.IO) { Meta.selfTest() }
+        }
+    }
+
     fun diagText(): String {
         val sb = StringBuilder()
         try {
@@ -739,6 +755,8 @@ class AppState(val ctx: Context) {
     @Volatile private var blockPush = false
     /** listas que estão na nuvem mas não baixaram nesta TV (ficam guardadas na nuvem; nunca são apagadas por isso) */
     private val failedRemote = ArrayList<Pair<JSONObject, String>>()
+    /** link da nuvem -> quando tentamos baixar pela última vez (evita tentar de novo a cada 90 s) */
+    private val remoteTry = HashMap<String, Long>()
 
     fun syncSoon() {
         if (store.syncUser.isEmpty()) return
@@ -769,6 +787,7 @@ class AppState(val ctx: Context) {
         return Sync.sha(sb.toString())
     }
 
+    @Volatile private var manualSync = false
     private suspend fun applyRemote(r: JSONObject, merge: Boolean) {
         // favoritos
         val rf = HashSet<String>(); r.optJSONArray("favs")?.let { for (i in 0 until it.length()) rf.add(it.getString(i)) }
@@ -796,6 +815,10 @@ class AppState(val ctx: Context) {
                 val x = rl.getJSONObject(i); val url = x.getString("url"); remoteUrls.add(url)
                 val have = store.lists().firstOrNull { it.url == url }
                 if (have == null) {
+                    // já falhou há pouco: não tenta de novo agora (baixar a cada 90 s deixava o app todo lento)
+                    val last = remoteTry[url] ?: 0L
+                    if (!manualSync && System.currentTimeMillis() - last < 30 * 60_000L) { blockPush = true; failedRemote.add(x to "não baixou; tentarei mais tarde"); continue }
+                    remoteTry[url] = System.currentTimeMillis()
                     addUrl(url, x.optString("name"))
                     var w = 0
                     // espera o download terminar (lista grande em TV fraca demora): até ~5 min enquanto estiver baixando
@@ -816,7 +839,8 @@ class AppState(val ctx: Context) {
 
     suspend fun syncNow(manual: Boolean) {
         val u = store.syncUser; if (u.isEmpty() || syncBusy || store.profile != 0) return
-        syncBusy = true; blockPush = false; failedRemote.clear()
+        syncBusy = true; blockPush = false; failedRemote.clear(); manualSync = manual
+        if (manual) remoteTry.clear()
         try {
             val ak = store.syncAuth; val ek = store.syncEnc
             val g = withContext(Dispatchers.IO) { Sync.call("get", u, ak) }
@@ -841,7 +865,7 @@ class AppState(val ctx: Context) {
             val enc = withContext(Dispatchers.Default) { Sync.encrypt(p.toString(), ek) }
             val pr = withContext(Dispatchers.IO) { Sync.call("put", u, ak, enc, now) }
             if (accessFailed(pr)) return
-            if (pr.ok) { store.syncHash = hashOf(p); if (blockPush) store.syncTs = 0 else { store.syncTs = now; syncMsg = "☁ Salvo na nuvem." } } else syncMsg = pr.msg
+            if (pr.ok) { store.syncHash = hashOf(p); store.syncTs = now; if (!blockPush) syncMsg = "☁ Salvo na nuvem." } else syncMsg = pr.msg
         } catch (e: Throwable) { syncMsg = "Falha ao sincronizar: " + Util.friendlyErr(e) }
         finally { syncBusy = false }
     }

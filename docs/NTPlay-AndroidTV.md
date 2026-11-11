@@ -422,3 +422,13 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 ## 1.24.2 — sincronização
 - Se uma lista da nuvem não baixa nesta TV, a mensagem agora diz qual lista e o motivo; o que você mudou na TV continua indo para a nuvem (a lista que falhou fica guardada, não é apagada) e o app tenta baixar de novo a cada ~90 s.
 - Espera até ~5 min por lista grande baixar (antes 90 s, e estourar esse tempo travava todo o envio para a nuvem/site).
+
+## 1.24.3 — varredura: travamentos, capas e filmes
+Correções do que a 1.24.0 quebrou:
+- **Tela travada / capas em branco**: na 1.24.0 os agrupamentos passaram a ser calculados em segundo plano, mas o Compose precisa deles para desenhar e ficava parado esperando (tela congelada; como as capas são buscadas pelo mesmo thread, não apareciam). As categorias voltam a ficar prontas antes de a lista aparecer; só as ordenações e animes ficam em segundo plano.
+- **Lista de anos** só é calculada ao abrir a janela "Ano" (antes era refeita ao abrir cada aba, travando a tela).
+- **Filmes não rodavam**: a trava "melhor qualidade" passou a valer só para canal ao vivo. Em filme/série ela impedia o player de baixar a qualidade quando a internet não acompanha — o vídeo ficava carregando e parava. Em canal ao vivo, se o aparelho não decodifica a melhor, solta a trava e tenta de novo.
+- **Gêneros do TMDB**: a grade era refeita a cada 8 títulos enriquecidos (dezenas de vezes seguidas, reiniciando as capas e a rolagem). Agora avisa uma vez só, no fim.
+- **Listas da nuvem que não baixam** (ex.: link 404): deixam de ser tentadas a cada 90 s — nova tentativa só depois de 30 min ou em "Sincronizar agora". O download que falha não deixa mais arquivo pela metade no aparelho.
+- Cache de ordenações com limite (memória da TV).
+- **Diagnóstico** ganhou o botão "Testar capas": diz se a chave do TMDB está no app e se o site responde.

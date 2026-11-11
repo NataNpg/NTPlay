@@ -60,8 +60,11 @@ fun DiagDialog(st: AppState) {
             Column(Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Diagnóstico", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Light, modifier = Modifier.weight(1f))
+                    TvButton("Testar capas", Btn) { st.testTmdb() }
+                    Spacer(Modifier.width(8.dp))
                     TvButton("Fechar", Btn) { st.showDiag = false }
                 }
+                if (st.tmdbTest.isNotEmpty()) Text(st.tmdbTest, color = Color(0xFF8BE9C8), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
                 Spacer(Modifier.height(8.dp))
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { Text(st.diagText(), color = Color(0xDDFFFFFF), fontSize = 12.sp, lineHeight = 17.sp) }
             }

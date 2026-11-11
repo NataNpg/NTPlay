@@ -382,11 +382,9 @@ fun PosterCard(st: AppState, item: Item, w: Dp, prog: Float = 0f, onRemove: (() 
     val fi = rememberFocus()
     // ao voltar do detalhe, o foco volta para o mesmo título (antes caía no menu de cima)
     val fr = remember { androidx.compose.ui.focus.FocusRequester() }
-    LaunchedEffect(item.key) {
-        if (st.focusBack == item.key) {
-            st.focusBack = null
-            repeat(4) { delay(80); try { fr.requestFocus(); return@LaunchedEffect } catch (e: Throwable) { } }
-        }
+    if (st.focusBack == item.key) LaunchedEffect(item.key) {
+        st.focusBack = null
+        repeat(4) { delay(80); try { fr.requestFocus(); return@LaunchedEffect } catch (e: Throwable) { } }
     }
     Column(Modifier.width(w)) {
         Box(Modifier.focusRequester(fr).tvClick(fi, RoundedCornerShape(8.dp), onLong = onLong, onClick = onClick).clip(RoundedCornerShape(8.dp)).background(tint(item.title)).height(h).fillMaxWidth()) {
@@ -519,8 +517,8 @@ fun Browse(st: AppState) {
     }
     val sortable = tab == "FILMES" || tab == "SÉRIES" || tab == "ANIMES"
     val sm = st.sortMode
-    val years = remember(lib, tab, st.group, yearBase) {
-        if (yearBase == null) emptyList() else lib.years(tab + "|" + st.group, yearBase) { yearOfItem(st, it) }
+    val years = remember(lib, tab, st.group, yearBase, st.yearDialog) {
+        if (yearBase == null || !st.yearDialog) emptyList() else lib.years(tab + "|" + st.group, yearBase) { yearOfItem(st, it) }
     }
     Row(Modifier.fillMaxSize().padding(top = 6.dp)) {
         if (groups != null) Sidebar(st, groups, when (tab) { "TV AO VIVO" -> lib.live.size; "FILMES" -> lib.movies.size; else -> lib.series.size }, tab)

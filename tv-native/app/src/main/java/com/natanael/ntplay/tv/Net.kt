@@ -132,6 +132,22 @@ object Meta {
         return if (cover == 1.0 && minOf(x.size, y.size) >= 2) maxOf(j, 0.8) else j
     }
 
+    /** teste das capas: diz se a chave do TMDB está no app e se o site responde */
+    fun selfTest(): String {
+        val k = BuildConfig.TMDB_KEY
+        if (k.isEmpty()) return "TMDB: SEM CHAVE no aplicativo — só capas da própria lista."
+        return try {
+            val r = json("https://api.themoviedb.org/3/search/movie?api_key=$k&language=pt-BR&query=matrix")
+            val n = r?.optJSONArray("results")?.length() ?: -1
+            when {
+                r == null -> "TMDB: o site não respondeu (internet/DNS da TV?)."
+                r.has("status_message") -> "TMDB: chave recusada — " + r.optString("status_message")
+                n > 0 -> "TMDB: OK (chave válida, $n resultados)."
+                else -> "TMDB: respondeu, mas sem resultados."
+            }
+        } catch (e: Throwable) { "TMDB: falhou — " + (e.message ?: e.javaClass.simpleName) }
+    }
+
     private fun json(url: String): JSONObject? {
         val t = Net.getQuick(url) ?: return null
         return try { JSONObject(t) } catch (e: Exception) { null }

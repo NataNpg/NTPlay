@@ -291,7 +291,7 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
             }
 
             override fun onTracksChanged(tracks: Tracks) {
-                pinBestVideo(player)
+                if (live) pinBestVideo(player)
                 quality = qualityOf(player)
                 nSubs = groups(C.TRACK_TYPE_TEXT).size
                 val a = groups(C.TRACK_TYPE_AUDIO); nAudio = a.size
@@ -311,6 +311,12 @@ fun PlayerScreen(st: AppState, req: PlayReq) {
                 val limited = http?.responseCode == 429 || http?.responseCode == 509
                 val max = if (live) 8 else if (limited) 7 else 4
                 lastErr = ((e.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.let { "HTTP " + it.responseCode } ?: e.errorCodeName.removePrefix("ERROR_CODE_"))
+                if (dec && live && player.trackSelectionParameters.overrides.keys.any { it.type == C.TRACK_TYPE_VIDEO } && retries < 2) {
+                    retries++
+                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_VIDEO).build()
+                    scope.launch { delay(400); load(url, 0L) }
+                    return
+                }
                 if (!dec && retries < max) {
                     retries++
                     val at = if (live) 0L else player.currentPosition
