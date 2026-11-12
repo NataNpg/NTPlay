@@ -1,0 +1,298 @@
+package com.natanael.ntplay.tv
+
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.security.SecureRandom
+import android.util.Base64
+
+class ListMeta(val id: String, var name: String, val url: String, var count: Int, var date: Long, var active: Boolean)
+class Prog(var t: Long, var d: Long, var ts: Long, var done: Boolean, var k: String, var title: String)
+class Info(val img: String, val ov: String, val r: Double, val y: String, val none: Boolean, val ts: Long)
+
+class Store(ctx: Context) {
+    private val sp = ctx.getSharedPreferences("ntplay", Context.MODE_PRIVATE)
+    private val dir = File(ctx.filesDir, "lists").also { it.mkdirs() }
+    private val infoFile = File(ctx.filesDir, "info.json")
+    private var infoMap: HashMap<String, Info>? = null
+
+    /** perfil ativo (0 = principal; os dados do perfil 0 mantêm os nomes antigos) */
+    var profile: Int
+        get() = sp.getInt("profile", 0)
+        set(v) { sp.edit().putInt("profile", v).apply() }
+    private fun pk(n: String) = if (profile == 0) n else "p$profile:$n"
+    val profileNames = listOf("Perfil 1", "Perfil 2", "Perfil 3", "Perfil 4")
+
+    /** controle dos pais: PIN de 4 dígitos (vazio = sem PIN) */
+    var pin: String
+        get() = sp.getString("pin", "") ?: ""
+        set(v) { sp.edit().putString("pin", v).apply() }
+
+    /** últimos canais assistidos (mais recente primeiro) */
+    var recentLive: List<String>
+        get() = (sp.getString(pk("recent_live"), "") ?: "").split('\n').filter { it.isNotBlank() }
+        set(v) { sp.edit().putString(pk("recent_live"), v.take(12).joinToString("\n")).apply() }
+
+    /** atualização automática de madrugada (WorkManager não é usado: alarme simples) */
+    var nightUpdate: Boolean
+        get() = sp.getBoolean("night_update", false)
+        set(v) { sp.edit().putBoolean("night_update", v).apply() }
+
+    fun file(id: String) = File(dir, "$id.m3u")
+
+    fun lists(): MutableList<ListMeta> {
+        val out = ArrayList<ListMeta>()
+        try {
+            val a = JSONArray(sp.getString("lists", "[]"))
+            for (i in 0 until a.length()) {
+                val o = a.getJSONObject(i)
+                out.add(ListMeta(o.getString("id"), o.getString("name"), o.optString("url"), o.optInt("count"), o.optLong("date"), o.optBoolean("active", true)))
+            }
+        } catch (e: Exception) { }
+        return out
+    }
+
+    fun saveLists(l: List<ListMeta>) {
+        val a = JSONArray()
+        for (m in l) a.put(JSONObject().put("id", m.id).put("name", m.name).put("url", m.url).put("count", m.count).put("date", m.date).put("active", m.active))
+        sp.edit().putString("lists", a.toString()).apply()
+    }
+
+    fun deleteList(id: String) { file(id).delete() }
+
+    var favs: Set<String>
+        get() = HashSet(sp.getStringSet(pk("favs"), emptySet()) ?: emptySet())
+        set(v) { sp.edit().putStringSet(pk("favs"), HashSet(v)).apply() }
+
+    var adult: Boolean
+        get() = sp.getBoolean("adult", false)
+        set(v) { sp.edit().putBoolean("adult", v).apply() }
+
+    var tab: String
+        get() = sp.getString("tab", "RECOMENDAÇÕES") ?: "RECOMENDAÇÕES"
+        set(v) { sp.edit().putString("tab", v).apply() }
+
+    var subs: Boolean
+        get() = sp.getBoolean("subs", false)
+        set(v) { sp.edit().putBoolean("subs", v).apply() }
+
+    var skipIntro: Int
+        get() = sp.getInt("skipintro", 85)
+        set(v) { sp.edit().putInt("skipintro", v).apply() }
+
+    /** vencimento da lista: "exp|status|max|ativos|quando" */
+    fun account(id: String): String = sp.getString("acc_$id", "") ?: ""
+    fun setAccount(id: String, v: String) { sp.edit().putString("acc_$id", v).apply() }
+
+    var autoNext: Boolean
+        get() = sp.getBoolean("autonext", true)
+        set(v) { sp.edit().putBoolean("autonext", v).apply() }
+
+    // 0 = padrão, 1 = grande (~25 s), 2 = muito grande (~45 s) — buffer de filmes/séries
+    var bufferMode: Int
+        get() = sp.getInt("buffermode", 0)
+        set(v) { sp.edit().putInt("buffermode", v).apply() }
+
+    // decodifica nomes/categorias Xtream em Base64 (só quando o provedor os guarda assim)
+    var base64: Boolean
+        get() = sp.getBoolean("b64names", false)
+        set(v) { sp.edit().putBoolean("b64names", v).apply() }
+
+    // detectar conteúdo adulto pelo nome da categoria (quando o provedor não marca a flag)
+    var adultByName: Boolean
+        get() = sp.getBoolean("adultbyname", true)
+        set(v) { sp.edit().putBoolean("adultbyname", v).apply() }
+
+    // grupos personalizados do usuário: JSON { "nome": ["key1","key2"], ... }
+    var groupsRaw: String
+        get() = sp.getString(pk("groups"), "{}") ?: "{}"
+        set(v) { sp.edit().putString(pk("groups"), v).apply() }
+
+    // atualização automática das listas
+    var updateHours: Int
+        get() = sp.getInt("updhours", 0) // 0 = desligado; senão 6/12/24
+        set(v) { sp.edit().putInt("updhours", v).apply() }
+    var updateOnStart: Boolean
+        get() = sp.getBoolean("updstart", false)
+        set(v) { sp.edit().putBoolean("updstart", v).apply() }
+
+    // conta de sincronização (a senha NÃO é guardada; só as duas chaves derivadas)
+    var syncUser: String
+        get() = sp.getString("sync_user", "") ?: ""
+        set(v) { sp.edit().putString("sync_user", v).apply() }
+    var syncAuth: String
+        get() = sp.getString("sync_auth", "") ?: ""
+        set(v) { sp.edit().putString("sync_auth", v).apply() }
+    var syncEnc: String
+        get() = sp.getString("sync_enc", "") ?: ""
+        set(v) { sp.edit().putString("sync_enc", v).apply() }
+    var syncTs: Long
+        get() = sp.getLong("sync_ts", 0L)
+        set(v) { sp.edit().putLong("sync_ts", v).apply() }
+    var syncHash: String
+        get() = sp.getString("sync_hash", "") ?: ""
+        set(v) { sp.edit().putString("sync_hash", v).apply() }
+
+    /** quantos episódios a série tinha na última vez que você assistiu (para marcar "NOVO EP") */
+    fun epSeen(key: String): Int = sp.getInt(pk("es|" + key), 0)
+    fun setEpSeen(key: String, n: Int) { if (n > 0 && epSeen(key) != n) sp.edit().putInt(pk("es|" + key), n).apply() }
+    /** modo leve: 0 = automático (pela memória do aparelho), 1 = ligado, 2 = desligado */
+    var liteMode: Int
+        get() = sp.getInt("lite_mode", 0)
+        set(v) { sp.edit().putInt("lite_mode", v).apply() }
+    // gêneros do TMDB por título (key -> "35,18" | "-" sem gêneros | "?<ms>" tentou e não achou)
+    private val genFile = File(ctx.filesDir, "genres.txt")
+    private var genMap: HashMap<String, String>? = null
+    @Volatile private var genSaving = false
+    @Synchronized private fun gm(): HashMap<String, String> {
+        genMap?.let { return it }
+        val m = HashMap<String, String>()
+        try { if (genFile.exists()) genFile.forEachLine { l -> val i = l.indexOf('\t'); if (i > 0) m[l.substring(0, i)] = l.substring(i + 1) } } catch (e: Throwable) { }
+        genMap = m; return m
+    }
+    @Synchronized fun genres(key: String): Set<Int>? {
+        val v = gm()[key] ?: return null
+        if (v.startsWith("?")) return null
+        return if (v == "-") emptySet() else v.split(',').mapNotNull { it.toIntOrNull() }.toSet()
+    }
+    @Synchronized fun genreTriedRecently(key: String): Boolean {
+        val v = gm()[key] ?: return false
+        return v.startsWith("?") && System.currentTimeMillis() - (v.drop(1).toLongOrNull() ?: 0L) < 3 * 86_400_000L
+    }
+    @Synchronized fun putGenres(key: String, ids: List<Int>?) {
+        gm()[key] = if (ids == null) "?" + System.currentTimeMillis() else if (ids.isEmpty()) "-" else ids.joinToString(",")
+        if (!genSaving) {
+            genSaving = true
+            Thread {
+                try { Thread.sleep(5000) } catch (e: InterruptedException) { }
+                try { val snap = synchronized(this) { HashMap(gm()) }; val t = File(genFile.parentFile, "genres.tmp"); t.bufferedWriter().use { w -> for ((k, v) in snap) { w.write(k); w.write("\t"); w.write(v); w.write("\n") } }; genFile.delete(); t.renameTo(genFile) } catch (e: Throwable) { }
+                genSaving = false
+            }.start()
+        }
+    }
+    fun groupFor(tab: String): String = sp.getString(pk("grp|$tab"), "") ?: ""
+    fun setGroupFor(tab: String, g: String) { if (groupFor(tab) != g) sp.edit().putString(pk("grp|$tab"), g).apply() }
+    /** categorias que o usuário ocultou (nomes já limpos, um por linha) */
+    var hiddenGroups: Set<String>
+        get() = (sp.getString(pk("hidden_groups"), "") ?: "").split('\n').filter { it.isNotBlank() }.toSet()
+        set(v) { sp.edit().putString(pk("hidden_groups"), v.joinToString("\n")).apply() }
+    var warnDay: Long   // último dia (dias desde 1970) em que avisamos que o acesso está perto de vencer
+        get() = sp.getLong("warn_day", 0L)
+        set(v) { sp.edit().putLong("warn_day", v).apply() }
+    var searchHist: List<String>   // últimas buscas (mais recente primeiro)
+        get() = (sp.getString(pk("search_hist"), "") ?: "").split('\n').filter { it.isNotBlank() }
+        set(v) { sp.edit().putString(pk("search_hist"), v.take(8).joinToString("\n")).apply() }
+    var accessExp: Long   // validade do acesso (ms), última confirmada pelo servidor
+        get() = sp.getLong("access_exp", 0L)
+        set(v) { sp.edit().putLong("access_exp", v).apply() }
+    val deviceId: String  // identifica este aparelho no painel (quantas TVs usam a conta)
+        get() = sp.getString("device_id", null) ?: java.util.UUID.randomUUID().toString().replace("-", "").take(16).also { sp.edit().putString("device_id", it).apply() }
+    var lastUser: String  // último usuário que entrou (para limpar dados se outro usuário entrar)
+        get() = sp.getString("last_user", "") ?: ""
+        set(v) { sp.edit().putString("last_user", v).apply() }
+
+    // abertura por série: memoriza onde o usuário pulou ("início|fim" em ms)
+    fun introMem(key: String): Pair<Long, Long>? {
+        val v = try { JSONObject(sp.getString("intro", "{}") ?: "{}").optString(key) } catch (e: Exception) { "" }
+        val p = v.split('|'); if (p.size != 2) return null
+        val a = p[0].toLongOrNull() ?: return null; val b = p[1].toLongOrNull() ?: return null
+        return if (b > a) a to b else null
+    }
+    fun setIntroMem(key: String, start: Long, end: Long) {
+        try {
+            val o = JSONObject(sp.getString("intro", "{}") ?: "{}")
+            if (o.length() > 300) { val k = o.keys().asSequence().take(100).toList(); for (x in k) o.remove(x) }
+            o.put(key, "$start|$end"); sp.edit().putString("intro", o.toString()).apply()
+        } catch (e: Exception) { }
+    }
+
+    fun relay(): Pair<String, String> {
+        var t = sp.getString("rt", null)
+        var k = sp.getString("rk", null)
+        if (t == null || k == null) {
+            val r = SecureRandom()
+            val a = ByteArray(12); r.nextBytes(a)
+            val b = ByteArray(16); r.nextBytes(b)
+            t = "ntplay-" + a.joinToString("") { "%02x".format(it) }
+            k = Base64.encodeToString(b, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+            sp.edit().putString("rt", t).putString("rk", k).apply()
+        }
+        return t!! to k!!
+    }
+
+    // progresso por URL do episódio/filme
+    fun progress(): HashMap<String, Prog> {
+        val m = HashMap<String, Prog>()
+        try {
+            val o = JSONObject(sp.getString(pk("prog"), "{}"))
+            for (u in o.keys()) {
+                val p = o.getJSONObject(u)
+                m[u] = Prog(p.optLong("t"), p.optLong("d"), p.optLong("ts"), p.optBoolean("done"), p.optString("k"), p.optString("n"))
+            }
+        } catch (e: Exception) { }
+        return m
+    }
+
+    fun saveProgress(m: Map<String, Prog>) {
+        var e = m.entries.toList()
+        if (e.size > 600) e = e.sortedByDescending { it.value.ts }.take(500)
+        val o = JSONObject()
+        for ((u, p) in e) o.put(u, JSONObject().put("t", p.t).put("d", p.d).put("ts", p.ts).put("done", p.done).put("k", p.k).put("n", p.title))
+        sp.edit().putString(pk("prog"), o.toString()).apply()
+    }
+
+    @Synchronized
+    fun info(key: String): Info? {
+        if (infoMap == null) {
+            val m = HashMap<String, Info>()
+            try {
+                if (infoFile.exists()) {
+                    val o = JSONObject(infoFile.readText())
+                    for (k in o.keys()) {
+                        val p = o.getJSONObject(k)
+                        m[k] = Info(p.optString("img"), p.optString("ov"), p.optDouble("r", 0.0), p.optString("y"), p.optBoolean("none"), p.optLong("ts"))
+                    }
+                }
+            } catch (e: Exception) { }
+            infoMap = m
+        }
+        return infoMap!![key]
+    }
+
+    @Volatile private var saveScheduled = false
+
+    @Synchronized
+    fun putInfo(key: String, i: Info) {
+        info(key)
+        infoMap!![key] = i
+        if (!saveScheduled) {
+            saveScheduled = true
+            Thread {
+                try { Thread.sleep(4000) } catch (e: InterruptedException) { }
+                saveInfo()
+            }.start()
+        }
+    }
+
+    private fun saveInfo() {
+        val e: List<Map.Entry<String, Info>>
+        synchronized(this) {
+            saveScheduled = false
+            var l = infoMap!!.entries.toList()
+            if (l.size > 4000) {
+                l = l.sortedByDescending { it.value.ts }.take(3500)
+                val keep = l.map { it.key }.toHashSet()
+                infoMap!!.keys.retainAll(keep)
+            }
+            e = l.map { java.util.AbstractMap.SimpleEntry(it.key, it.value) }
+        }
+        try {
+            val o = JSONObject()
+            for ((k, v) in e) o.put(k, JSONObject().put("img", v.img).put("ov", v.ov).put("r", v.r).put("y", v.y).put("none", v.none).put("ts", v.ts))
+            val tmp = File(infoFile.parentFile, "info.json.tmp")
+            tmp.writeText(o.toString())
+            tmp.renameTo(infoFile)
+        } catch (x: Exception) { }
+    }
+}

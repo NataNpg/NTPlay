@@ -1,0 +1,73 @@
+name: APK Android TV (NTPlay-one)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tv-one/**'
+      - '.github/workflows/android-tv-one.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Compilar APK (Kotlin + Compose + libVLC)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+      - name: Número da versão (sobe sozinho a cada compilação)
+        run: echo "NT_VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+      - name: Chave do TMDB (Secret opcional — capas/sinopses oficiais)
+        env:
+          TK: ${{ secrets.TMDB_KEY }}
+        run: echo "TMDB_KEY=$TK" >> "$GITHUB_ENV"
+      - name: Assinatura (opcional — sem Secret, usa a chave debug)
+        env:
+          KS_B64: ${{ secrets.NT_ONE_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.NT_ONE_KS_PASS }}
+        run: |
+          if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/ntone-release.jks"
+            echo "NT_KS_FILE=$RUNNER_TEMP/ntone-release.jks" >> "$GITHUB_ENV"
+            echo "NT_KS_PASS=$KS_PASS" >> "$GITHUB_ENV"
+            echo "Assinando com a chave fixa dos Secrets."
+          else
+            echo "Sem NT_ONE_KEYSTORE_B64/NT_ONE_KS_PASS: compilando com a chave debug (instala e roda; para atualizar por cima no futuro, crie uma chave fixa)."
+          fi
+      - name: Compilar APK
+        shell: bash
+        working-directory: tv-one
+        run: |
+          set +e
+          gradle assembleRelease --no-daemon --stacktrace > ../gradle-one.log 2>&1
+          code=$?
+          tail -n 40 ../gradle-one.log
+          if [ $code -ne 0 ]; then
+            echo "::error title=gradle falhou::$(grep -E '^e: |error:|What went wrong|Caused by|FAILED|Dependency |minSdk|minCompileSdk|requires|Could not' -A2 ../gradle-one.log | head -c 3500 | tr '\n' '|')"
+            exit $code
+          fi
+      - run: cp tv-one/app/build/outputs/apk/release/app-release.apk NTPlay-one.apk
+      - name: Arquivo de versão (usado pela atualização automática do app)
+        run: |
+          code=$NT_VERSION_CODE
+          name=$(grep -oP 'versionName = "\K[^"]+' tv-one/app/build.gradle.kts)
+          min=$(tr -d '[:space:]' < tv-one/min_version)
+          echo "{\"code\":$code,\"name\":\"$name\",\"min\":${min:-0}}" > tv-version.json
+          cat tv-version.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NTPlay-one
+          path: NTPlay-one.apk
+      - name: Publicar na Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete tv-one-latest --yes --cleanup-tag || true
+          gh release create tv-one-latest NTPlay-one.apk tv-version.json --title "NTPlay-one (Android TV)" --notes "APK para Android TV (motor libVLC). Baixe NTPlay-one.apk abaixo." --target ${{ github.sha }}
