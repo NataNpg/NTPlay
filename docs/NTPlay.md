@@ -22,7 +22,7 @@ Detalhes técnicos: `docs/NTPlay-AndroidTV.md` (changelog completo da TV) e `doc
 - PC: release `pc-latest` (instalador e portátil)
 - Painel de contas: https://natanpg.github.io/NTPlay/contas.html
 - Enviar lista pelo celular (QR antigo): https://natanpg.github.io/NTPlay/enviar.html
-- Contato exibido na entrada e em ☰ Listas: WhatsApp (42) 92002-8569
+- Contato exibido na entrada e em ☰ Listas: WhatsApp (42) 99804-0495
 
 ## 2. Android TV — o que o app faz hoje
 

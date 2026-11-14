@@ -1248,13 +1248,13 @@ fun LoginGate(st: AppState) {
 /** QR code + telefone para pedir teste do aplicativo ou da lista. Usado na entrada e em ☰ Listas. */
 @Composable
 fun ContatoTeste(compact: Boolean = false) {
-    val wa = remember { Qr.bitmap("https://wa.me/5542920028569", 240).asImageBitmap() }
+    val wa = remember { Qr.bitmap("https://wa.me/5542998040495", 240).asImageBitmap() }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Image(wa, "QR code do WhatsApp", Modifier.size(if (compact) 62.dp else 78.dp).background(Color.White, RoundedCornerShape(8.dp)).padding(4.dp))
         Column {
             Text("Peça seu teste", color = Color.White, fontSize = if (compact) 11.sp else 12.sp, fontWeight = FontWeight.Bold)
             Text("do aplicativo ou da lista", color = Muted, fontSize = if (compact) 9.sp else 10.sp)
-            Text("(42) 92002-8569", color = Cyan, fontSize = if (compact) 12.sp else 13.sp, fontWeight = FontWeight.ExtraBold)
+            Text("(42) 99804-0495", color = Cyan, fontSize = if (compact) 12.sp else 13.sp, fontWeight = FontWeight.ExtraBold)
             Text("Aponte a câmera do celular", color = Muted, fontSize = 9.sp)
         }
     }

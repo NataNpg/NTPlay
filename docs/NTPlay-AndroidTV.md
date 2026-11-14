@@ -205,7 +205,7 @@ Se o filme 4K não inicia e dá erro de decodificador (`ERROR_CODE_DECODING_FORM
 - Nova chave (secreta) em GitHub Secrets; build usa `NT_KS_FILE`/`NT_KS_PASS`. Quem instalou a 1.9.0 (chave antiga, pública) precisa reinstalar uma vez. `versionName 1.9.1` / `versionCode 13`.
 
 ## Versão 1.9.2 (Android TV) — contato por WhatsApp na entrada, nuvem junto da lista; novo painel de contas
-- **Tela de entrada** (`UI.LoginGate`): QR code pequeno + número do WhatsApp (42) 92002-8569 (`https://wa.me/5542920028569`) para pedir acesso/renovação.
+- **Tela de entrada** (`UI.LoginGate`): QR code pequeno + número do WhatsApp (42) 99804-0495 (`https://wa.me/5542998040495`) para pedir acesso/renovação.
 - **Nuvem junto da lista**: o botão "☁ Conta" saiu do cabeçalho; a conta/nuvem (usuário, validade, "Sincronizar agora", "Sair da conta") agora fica dentro de **☰ Listas**, acima das listas.
 - **Painel de contas** (`www/contas.html`) refeito no novo design (cartões, gráficos, status, busca, filtros), nas cores/logo do NTPlay, ligado ao servidor real: criar (7/30/90/365 dias ou data), editar validade/anotação, renovar +30 dias, bloquear agora, nova senha, excluir, exportar CSV, último acesso. Não mostra nem guarda senhas (só na hora de criar/trocar, para copiar a mensagem de acesso). A chave de administrador é verificada no servidor (não está mais no código).
 - Servidor `ntsync` v4: novas operações `setexp` (data exata), `note`, e `create` aceita `date`.
@@ -447,3 +447,6 @@ Correções do que a 1.24.0 quebrou:
 - Helper `TakeFocus`: modo controle + tentativas por ~1,7 s + plano B na 1ª tecla (MainActivity → backFocus).
 - **Fim da grade**: o "trazer para a tela" do Compose só mostrava o quadro do cartão; o nome embaixo e a folga final ficavam escondidos. Ao focar um dos últimos itens, a grade rola até o fim de verdade.
 - Rodapé mostra a versão instalada (ex.: "NTPlay 1.24.6"), para conferir se a TV atualizou.
+
+## 1.24.7
+- Contato de "Peça seu teste" / tela de entrada trocado para WhatsApp (42) 99804-0495 (`https://wa.me/5542998040495`); o QR é gerado a partir desse link. Mesmo número no celular e no PC 3.5.3.

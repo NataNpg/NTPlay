@@ -44,8 +44,8 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.natanael.ntplay.core.AppState
 
-const val WHATS_NUM = "(42) 92002-8569"
-const val WHATS_URL = "https://wa.me/5542920028569"
+const val WHATS_NUM = "(42) 99804-0495"
+const val WHATS_URL = "https://wa.me/5542998040495"
 
 /** QR code como imagem. Devolve null se o ZXing falhar — a tela continua utilizável sem ele. */
 fun qrBitmap(text: String, size: Int = 360): ImageBitmap? = try {

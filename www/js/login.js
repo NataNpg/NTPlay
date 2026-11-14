@@ -47,7 +47,7 @@
   function show(msg) {
     const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
     const d = document.createElement('div'); d.id = 'ntlg';
-    d.innerHTML = '<form class="c" autocomplete="off"><img src="img/icon.png" alt=""><h1>NTPlay</h1><p>Entre com o usuário e a senha da sua conta.</p><input id="ntu" placeholder="Usuário" autocapitalize="off" spellcheck="false"><input id="ntp" type="password" placeholder="Senha"><button type="submit">Entrar</button><div class="e" id="nte"></div><div class="w">Não tem conta? Peça pelo <a href="https://wa.me/5542920028569" target="_blank" rel="noopener">WhatsApp (42) 92002-8569</a></div></form>';
+    d.innerHTML = '<form class="c" autocomplete="off"><img src="img/icon.png" alt=""><h1>NTPlay</h1><p>Entre com o usuário e a senha da sua conta.</p><input id="ntu" placeholder="Usuário" autocapitalize="off" spellcheck="false"><input id="ntp" type="password" placeholder="Senha"><button type="submit">Entrar</button><div class="e" id="nte"></div><div class="w">Não tem conta? Peça pelo <a href="https://wa.me/5542998040495" target="_blank" rel="noopener">WhatsApp (42) 99804-0495</a></div></form>';
     document.body.appendChild(d);
     const u = d.querySelector('#ntu'), p = d.querySelector('#ntp'), e = d.querySelector('#nte'), b = d.querySelector('button');
     if (msg) e.textContent = msg;
