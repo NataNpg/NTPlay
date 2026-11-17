@@ -17,6 +17,22 @@ const fmt = (ms: number) => new Date(ms).toLocaleDateString("pt-BR", { timeZone:
 // "AAAA-MM-DD" -> fim desse dia no horário de Brasília (23:59:59 -03:00)
 const endOfDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + "T23:59:59-03:00").getTime() : NaN;
 
+// ---------- limite de tentativas (tabela ntplay_attempts, contagem atômica pela função ntplay_hit) ----------
+// O endereço vem do Cloudflare (cf-connecting-ip), que o visitante não consegue falsificar.
+const ipOf = (req: Request) => (req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || "").trim().slice(0, 64) || "sem-ip";
+const MIN = 60_000;
+// [chave, limite]: bloqueia se alguma das chaves já atingiu o limite dentro da janela
+async function blocked(keys: [string, number][]) {
+  const { data } = await db.from("ntplay_attempts").select("k,n,until").in("k", keys.map((x) => x[0]));
+  const now = Date.now();
+  return (data ?? []).some((r: any) => Number(r.until) > now && Number(r.n) >= (keys.find((x) => x[0] === r.k)?.[1] ?? 1e9));
+}
+async function hit(k: string, win: number) {
+  await db.rpc("ntplay_hit", { p_k: k, p_win: win, p_now: Date.now() });
+  if (Math.random() < 0.05) await db.from("ntplay_attempts").delete().lt("until", Date.now() - DAY); // limpeza
+}
+const clearHit = (k: string) => db.from("ntplay_attempts").delete().eq("k", k);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return out({});
   if (req.method !== "POST") return out({ err: "metodo" }, 405);
@@ -26,7 +42,16 @@ Deno.serve(async (req) => {
 
   // ---------------- painel do administrador ----------------
   if (a === "adm") {
-    if (ADMIN.length < 16 || !same(String(b.adm ?? ""), ADMIN)) return out({ err: "admin", msg: "Chave de administrador incorreta." }, 401);
+    // chave de administrador: 5 erros do mesmo endereço → bloqueado por 30 min.
+    // Teto geral: 100 erros seguidos de qualquer lugar (sem pausa de 30 min) → painel fechado por 30 min.
+    const ip = ipOf(req);
+    const kIp = "adm:" + ip, kAll = "adm:*";
+    if (await blocked([[kIp, 5], [kAll, 100]])) return out({ err: "bloqueado", msg: "Muitas tentativas erradas. Tente de novo em 30 minutos." }, 429);
+    if (ADMIN.length < 16 || !same(String(b.adm ?? ""), ADMIN)) {
+      await hit(kIp, 30 * MIN); await hit(kAll, 30 * MIN);
+      return out({ err: "admin", msg: "Chave de administrador incorreta." }, 401);
+    }
+    await clearHit(kIp);
     const op = String(b.op ?? "");
     const u = String(b.u ?? "").trim().toLowerCase();
     const days = Math.max(1, Math.min(3650, Math.floor(Number(b.days) || 0)));
@@ -98,15 +123,19 @@ Deno.serve(async (req) => {
   if (k.length < 20 || k.length > 128) return out({ err: "chave", msg: "Usuário ou senha incorretos." }, 401);
   if (a === "reg") return out({ err: "fechado", msg: "Contas são criadas pelo administrador. Peça seu acesso." }, 403);
 
+  // trava por endereço + usuário (8 erros → 15 min): quem erra de outro lugar não tranca o cliente de verdade.
+  // A conta inteira só trava com 50 erros seguidos vindos de qualquer lugar (ataque espalhado).
+  const kLog = "log:" + ipOf(req) + ":" + u, kAcc = "acc:" + u;
+  if (await blocked([[kLog, 8], [kAcc, 50]])) return out({ err: "bloqueado", msg: "Muitas tentativas. Tente de novo em alguns minutos." }, 429);
   const { data: row } = await db.from("ntplay_accounts").select("*").eq("username", u).maybeSingle();
-  if (!row) return out({ err: "login", msg: "Usuário ou senha incorretos." }, 401);
+  if (!row) { await hit(kLog, 15 * MIN); return out({ err: "login", msg: "Usuário ou senha incorretos." }, 401); }
   if (row.locked_until && new Date(row.locked_until).getTime() > Date.now()) return out({ err: "bloqueado", msg: "Muitas tentativas. Tente de novo em alguns minutos." }, 429);
   const ok = same(await sha(row.salt + k), row.hash);
   if (!ok) {
-    const f = (row.fails ?? 0) + 1;
-    await db.from("ntplay_accounts").update(f >= 8 ? { fails: 0, locked_until: new Date(Date.now() + 15 * 60_000).toISOString() } : { fails: f }).eq("username", u);
+    await hit(kLog, 15 * MIN); await hit(kAcc, 60 * MIN);
     return out({ err: "login", msg: "Usuário ou senha incorretos." }, 401);
   }
+  await clearHit(kLog);
   const exp = row.expires_at ? new Date(row.expires_at).getTime() : 0;
   if (!exp || exp < Date.now()) return out({ err: "expirado", msg: exp ? "Seu acesso expirou em " + fmt(exp) + ". Fale com quem forneceu o acesso para renovar." : "Acesso sem validade definida. Fale com quem forneceu o acesso." }, 403);
 
