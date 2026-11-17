@@ -1,6 +1,6 @@
 {
   "name": "ntplay",
-  "version": "3.5.3",
+  "version": "3.6.0",
   "description": "NTPlay - player IPTV (M3U) para Windows, Android, Android TV e iOS",
   "main": "electron/main.js",
   "author": "Natanael G Silva <djnatan0@live.com>",
@@ -26,8 +26,8 @@
     "ffmpeg-static": "5.3.0"
   },
   "devDependencies": {
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
+    "electron": "^45.3.3",
+    "electron-builder": "^26.18.1"
   },
   "build": {
     "appId": "com.natanael.ntplay",
