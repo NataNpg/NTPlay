@@ -179,3 +179,12 @@ Saídas:
 - O site `natanpg.github.io/NTPlay/` foi encerrado: só mostra um aviso; continuam no ar `contas.html`, `admin.html` e `enviar.html`.
 - Pendências de segurança anotadas: repasse local do PC aceita CORS aberto (porta aleatória; ideal exigir token) e não valida certificado dos servidores IPTV.
 - Próximo ganho de velocidade na abertura da TV: guardar a lista já processada em cache (hoje a lista é lida do arquivo a cada abertura).
+
+## Segurança (análise de 16/11/2026)
+- **Servidor `ntsync` v9** (Supabase): limite de tentativas na tabela `ntplay_attempts` (RLS ligado, sem políticas; só a função acessa) com contagem atômica pela função SQL `ntplay_hit` (migração em `supabase/migrations/20261116_ntplay_attempts.sql`). O endereço vem de `cf-connecting-ip` (Cloudflare).
+  - Chave de administrador: 5 erros do mesmo endereço → 30 min bloqueado; teto geral de 100 erros seguidos → painel fechado por 30 min.
+  - Login de cliente: 8 erros do mesmo endereço+usuário → 15 min; a conta inteira só trava com 50 erros seguidos (antes 8 erros de qualquer lugar travavam o cliente de verdade).
+- **Painel** (`admin.html`): CSP sem `'unsafe-inline'` em scripts (o código foi para `www/js/admin.js`); só fala com o Supabase e o ntfy. A chave de administrador fica em `sessionStorage` (fechou a aba, pede de novo).
+- **`contas.html`**: CSP com `connect-src` só do Supabase; Chart.js servido do próprio site (`www/js/chart.umd.js`, v4.4.1) em vez de CDN. Ainda usa `onclick` no HTML, por isso o script permite `'unsafe-inline'`.
+- **PC 3.6.0 (teste)**: Electron 31 → 45.3.3 e electron-builder 26, na branch `electron-45`. Build de outra branch publica o pré-lançamento `pc-teste` (não mexe no `pc-latest`).
+- Pacotes com alerta que sobram são só de compilação (`@capacitor/cli`/`tar`, `electron-builder`): não vão para o aparelho do usuário.
