@@ -246,6 +246,29 @@ button.bdg{cursor:pointer}
 a.wab{background:#1f7a4d;border-color:#1f7a4d;color:#fff}
 a.wab:hover{background:#25915b}
 a.ia.wai{color:#5fc48f;text-decoration:none}
+/* banner do servidores.html */
+.hero{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px 28px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin-bottom:22px;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--pk)}
+.hero .eb{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--mut);font-weight:500;letter-spacing:.02em}
+.hero .eb img{width:22px;height:22px;border-radius:5px}
+.hero .eb .pill{margin-left:4px;font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line2);color:var(--mut)}
+.hero .eb .pill.on{border-color:#3daa7866;color:#7fd1a8}
+.hero h2{font-size:26px;font-weight:650;letter-spacing:-.01em;line-height:1.2;margin:10px 0 4px}
+.hero .ds{color:var(--mut);font-size:14px}
+.hero .ha{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.hero .hm{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:8px;background:#0f1214}
+.hero .hm div{padding:12px 16px;border-bottom:1px solid var(--line)}
+.hero .hm div:nth-child(odd){border-right:1px solid var(--line)}
+.hero .hm div:nth-last-child(-n+2){border-bottom:0}
+.hero .hm b{display:block;font-size:22px;font-weight:600;line-height:1.2;white-space:nowrap;font-variant-numeric:tabular-nums}
+.hero .hm small{color:var(--mut);font-size:12px}
+.hero .hm .yl b{color:var(--yl)} .hero .hm .rd b{color:var(--rd)} .hero .hm .gr b{color:#7fd1a8}
+.hero a.bt.wab,.hero button.bt.wab{background:#1f7a4d;border-color:#1f7a4d;color:#fff}
+@media (max-width:820px){.hero{grid-template-columns:1fr;padding:18px 16px}.hero h2{font-size:21px}.hero .ha .bt{flex:1 1 auto;justify-content:center}}
+#sStats .stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+#sStats .st{border-bottom:1px solid var(--line)}
+#sStats .st:nth-child(4n){border-right:0}
+#sStats .st:nth-last-child(-n+4):nth-child(4n+1),#sStats .st:nth-last-child(-n+4):nth-child(4n+1)~.st{border-bottom:0}
 /* gráficos e comentários */
 .gch2{width:100%;height:auto;display:block}
 .lgd{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:6px}
@@ -350,6 +373,8 @@ a.ia.wai{color:#5fc48f;text-decoration:none}
   </aside>
 
   <main>
+    <!-- BANNER (só no servidores.html) -->
+    <div id="hero" class="hero hide"></div>
     <!-- VISÃO GERAL -->
     <section id="t-geral">
       <div class="top"><div><h1>Visão geral</h1><div class="sub" id="gSub">Carregando…</div></div><span class="sp"></span>

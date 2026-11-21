@@ -95,7 +95,7 @@ function cloudBox() {
     $('[data-ok]', m).onclick = go; $('[data-f="p"]', m).onkeydown = e => { if (e.key == 'Enter') go() }; $('[data-f="p"]', m).focus();
   });
 }
-function renderCloudBtn() { const b = $('#bkC'); if (!b) return; const c = cloud(); b.querySelector('span').textContent = c ? 'Nuvem: ' + c.u : 'Abrir em outros aparelhos'; b.classList.toggle('on2', !!c) }
+function renderCloudBtn() { renderHero(); const b = $('#bkC'); if (!b) return; const c = cloud(); b.querySelector('span').textContent = c ? 'Nuvem: ' + c.u : 'Abrir em outros aparelhos'; b.classList.toggle('on2', !!c) }
 const adm = (op, extra = {}) => LOCAL ? localAdm(op, extra) : call({ a: 'adm', adm: ADM, op, ...extra });
 
 /* ================= criptografia (igual ao app: core/Sync) =================
@@ -251,7 +251,46 @@ function memberInfo(m) {
 }
 const inAlert = i => !i.none && i.d <= ALERT_DAYS && i.d > -ALERT_PAST;
 
-function renderGrp() { renderGroups(); renderSrv(); renderInd(); renderFin(); renderCom() }
+function renderGrp() { renderGroups(); renderSrv(); renderInd(); renderFin(); renderCom(); renderHero() }
+/* banner do topo (só no servidores.html): saudação, data, resumo do dia e atalhos */
+function renderHero() {
+  const el = $('#hero'); if (!el || !ONLY.length || !GLOADED) return;
+  const rows = allRows(), now = new Date(), hr = +now.toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: SP });
+  const hi = hr < 12 ? 'Bom dia' : hr < 18 ? 'Boa tarde' : 'Boa noite';
+  const dia = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: SP });
+  let rcv = 0, venc = 0, soon = 0; rows.forEach(({ p }) => { const k = rowInfo(p).k; if (!p.paid) rcv += netOf(p); if (k == 'exp') venc++; if (k == 'soon') soon++ });
+  const t = todayISO(), avisar = waDue().filter(x => x.p.warned != t).length, nSv = srvList().filter(s => (s.plans || []).length).length;
+  const c = LOCAL && cloud();
+  el.innerHTML = `<div>
+      <div class="eb"><img src="img/icon.png" alt="">NTPlay Servidores<span class="pill ${c ? 'on' : ''}">${LOCAL ? (c ? 'Salvo na nuvem' : 'Salvo só neste aparelho') : 'Painel'}</span></div>
+      <h2>${hi}!</h2>
+      <div class="ds">${esc(dia.charAt(0).toUpperCase() + dia.slice(1))} · ${rows.length} cliente${rows.length == 1 ? '' : 's'} em ${nSv} servidor${nSv == 1 ? '' : 'es'}</div>
+      <div class="ha"><button class="bt pk" data-h="add"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Novo cliente</button>
+        <button class="bt ${avisar ? 'wab' : ''}" data-h="wa">${SVG_WA}${avisar ? 'Avisar ' + avisar + ' no WhatsApp' : 'Avisos em dia'}</button>
+        ${LOCAL ? '<button class="bt" data-h="bk"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Salvar cópia</button>' : ''}</div>
+    </div>
+    <div class="hm">
+      <div class="yl"><b>${brl(rcv)}</b><small>a receber</small></div>
+      <div class="${venc ? 'rd' : ''}"><b>${venc}</b><small>vencido${venc == 1 ? '' : 's'}</small></div>
+      <div class="${soon ? 'yl' : ''}"><b>${soon}</b><small>vencem em 7 dias</small></div>
+      <div class="${avisar ? 'gr' : ''}"><b>${avisar}</b><small>para avisar hoje</small></div>
+    </div>`;
+  el.classList.remove('hide');
+}
+function heroAdd() {
+  const SV = srvList(); if (!SV.length) return toast('Cadastre um servidor primeiro.', 1);
+  modal(`<h3>Novo cliente</h3><label class="f">Em qual servidor?<select class="in" data-f="s">${SV.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select></label>
+    <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Continuar</button></div>`, m => {
+    $('[data-no]', m).onclick = closeModal;
+    $('[data-ok]', m).onclick = () => { const id = $('[data-f="s"]', m).value; closeModal(); go('srv'); setTimeout(() => { const b = $$('#t-srv [data-sa="padd"]').find(x => x.dataset.s == id); if (b) b.click() }, 50) };
+  });
+}
+$('#hero').onclick = e => {
+  const b = e.target.closest('[data-h]'); if (!b) return;
+  if (b.dataset.h == 'add') heroAdd();
+  if (b.dataset.h == 'bk') backupSave();
+  if (b.dataset.h == 'wa') { go('srv'); setTimeout(() => $('#sWa').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }
+};
 function renderGroups() {
   if (!GLOADED) return;
   const GR = realGroups(GROUPS);
