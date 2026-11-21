@@ -31,6 +31,10 @@ jobs:
           # com o painel (os dados ficam no navegador de quem usa; tem Salvar cópia / Abrir cópia)
           sed -e 's|<body>|<body data-only="srv,ind,fin,com" data-local="1">|' -e 's|<title>NTPlay Painel</title>|<title>NTPlay Servidores</title>|' www/admin.html > _site/servidores.html
           grep -q 'data-only=' _site/servidores.html
+          # versão no endereço do script: cada publicação obriga o navegador (principalmente o do celular) a baixar o admin.js novo
+          V=$(echo "$GITHUB_SHA" | cut -c1-8)
+          sed -i "s|src=\"js/admin.js\"|src=\"js/admin.js?v=$V\"|" _site/admin.html _site/servidores.html
+          grep -q "admin.js?v=$V" _site/servidores.html
           cp -r www/img _site/img
           mkdir -p _site/js && cp www/js/admin.js www/js/chart.umd.js _site/js/
           cat > _site/index.html <<'EOF'
