@@ -34,29 +34,86 @@ function localPut(groups, ts) { try { LS[LKEY] = JSON.stringify({ groups, ts }) 
 const CLKEY = 'ntSrvCloud';
 const cloud = () => { try { return JSON.parse(LS[CLKEY] || 'null') } catch (e) { return null } };
 const devId = () => { let d = LS.ntSrvDev; if (!d) { d = gid() + gid(); try { LS.ntSrvDev = d } catch (e) { } } return d };
+/* Formato v2 dos dados na nuvem (com código de recuperação):
+   "v2." + JSON { wp, wr, d }
+     d  = dados trancados com uma chave aleatória (DK)
+     wp = DK trancada com a senha            → abre no dia a dia
+     wr = DK trancada com o código de recuperação → abre se perder a senha
+   Formato antigo (sem "v2."): dados trancados direto com a senha; é convertido sozinho na primeira abertura.
+   O aparelho guarda auth + enc (da senha) + dk; nunca a senha nem o código. */
 const cKeys = c => ({ auth: c.auth, enc: unb64(c.enc) });
+const recKey = (u, code) => pbkdf(String(code).toUpperCase().replace(/[^A-Z0-9]/g, ''), 'ntplay-rec:' + normU(u));
+function newRecCode() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = crypto.getRandomValues(new Uint8Array(20)); return [...r].map(x => A[x % A.length]).join('').match(/.{4}/g).join('-') }
+const parseEnv = s => { if (typeof s != 'string' || !s.startsWith('v2.')) return null; try { return JSON.parse(s.slice(3)) } catch (e) { return null } };
+const packEnv = e => 'v2.' + JSON.stringify(e);
+async function unwrapDK(w, key) { const o = await decBlob(w, key); return o && o.dk ? unb64(o.dk) : null }
+// lê a nuvem; devolve { groups, ts, env (v2) | old (formato antigo), dk }
 async function cloudGet(c) {
   const j = await call({ a: 'get', u: c.u, k: c.auth, dev: devId(), dn: 'Site servidores' });
   if (!j.data) return { groups: null, ts: 0 };
+  const env = parseEnv(j.data), ts = Number(j.ts) || 0;
+  if (env) {
+    const dk = c.dk ? unb64(c.dk) : await unwrapDK(env.wp, cKeys(c).enc);
+    let d = dk && await decBlob(env.d, dk);
+    if (!d && c.dk) { const dk2 = await unwrapDK(env.wp, cKeys(c).enc); d = dk2 && await decBlob(env.d, dk2); if (d) return { groups: d.srvGroups, ts, env, dk: dk2 } }
+    if (!d || !Array.isArray(d.srvGroups)) throw new Error('Os dados da nuvem não abriram com esta senha.');
+    return { groups: d.srvGroups, ts, env, dk };
+  }
   const d = await decBlob(j.data, cKeys(c).enc); if (!d || !Array.isArray(d.srvGroups)) throw new Error('Os dados da nuvem não abriram com esta senha.');
-  return { groups: d.srvGroups, ts: Number(j.ts) || 0 };
+  return { groups: d.srvGroups, ts, old: true };
 }
+const saveCloudCfg = c => { try { LS[CLKEY] = JSON.stringify(c) } catch (e) { } };
+async function cloudPut(c, env, groups, ts) {
+  const dk = unb64(c.dk);
+  env = { wp: env.wp, wr: env.wr, d: await encBlob({ srvGroups: groups, lists: [], favs: [], groups: {}, prog: {}, ts }, dk) };
+  await call({ a: 'put', u: c.u, k: c.auth, dev: devId(), dn: 'Site servidores', ts, data: packEnv(env) });
+  return env;
+}
+// cria DK + código novos (primeira vez ou conversão do formato antigo) e grava; mostra o código
+async function cloudInit(c, groups) {
+  const dk = crypto.getRandomValues(new Uint8Array(32)), code = newRecCode();
+  const env = { wp: await encBlob({ dk: b64(dk) }, cKeys(c).enc), wr: await encBlob({ dk: b64(dk) }, await recKey(c.u, code)) };
+  c.dk = b64(dk); const ts = Date.now(); await cloudPut(c, env, groups || [], ts); saveCloudCfg(c);
+  showRecCode(code, c.u); return ts;
+}
+function showRecCode(code, u) {
+  modal(`<h3>Seu código de recuperação</h3>
+    <p class="muted">Se um dia perder a senha da conta <b>${esc(u)}</b>, só este código destrava os dados. Ele aparece <b>uma vez só</b>. Anote no papel ou guarde fora deste aparelho.</p>
+    <div class="cred" style="font-size:20px;text-align:center;letter-spacing:.06em">${esc(code)}</div>
+    <p class="muted">Quem tiver o código e a conta consegue abrir os seus dados. Não mande para ninguém.</p>
+    <label class="f" style="display:flex;align-items:center;gap:8px;color:var(--tx)"><input type="checkbox" data-f="ok">Anotei o código em lugar seguro</label>
+    <div class="acts"><button class="bt" data-cp>Copiar</button><button class="bt" data-dl>Baixar .txt</button><button class="bt pk" data-ok disabled>Pronto</button></div>`, m => {
+    $('[data-f="ok"]', m).onchange = e => $('[data-ok]', m).disabled = !e.target.checked;
+    $('[data-cp]', m).onclick = async () => { try { await navigator.clipboard.writeText(code); toast('Código copiado.') } catch (e) { toast('Não deu para copiar; anote à mão.', 1) } };
+    $('[data-dl]', m).onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['NTPlay Servidores — código de recuperação\nConta: ' + u + '\nCódigo: ' + code + '\nCriado em: ' + new Date().toLocaleString('pt-BR') + '\n'], { type: 'text/plain' })); a.download = 'codigo-recuperacao-ntplay.txt'; document.body.appendChild(a); a.click(); a.remove() };
+    $('[data-ok]', m).onclick = closeModal;
+  });
+  $('#modal').dataset.lock = 1;
+}
+let CMIG = false;
 async function localAdm(op, x) {
   if (op == 'list') return { ok: true, users: [] };
   const c = cloud();
   if (op == 'gget') {
     if (c) {
-      try { const r = await cloudGet(c); if (r.groups) { localPut(r.groups, r.ts); return { ok: true, groups: r.groups, ts: r.ts } } }
-      catch (e) { if (/incorretos|expirou|validade/i.test(e.message)) toast('Nuvem: ' + e.message, 1); else if (!localAdm.off) { localAdm.off = 1; toast('Sem internet: mostrando a última cópia deste aparelho.', 1) } }
+      try {
+        const r = await cloudGet(c);
+        if (r.groups) {
+          if (r.old && !CMIG) { CMIG = true; const ts = await cloudInit(c, r.groups); localPut(r.groups, ts); return { ok: true, groups: r.groups, ts } } // converte para o formato com código
+          if (r.dk && b64(r.dk) != c.dk) { c.dk = b64(r.dk); saveCloudCfg(c) }
+          localPut(r.groups, r.ts); return { ok: true, groups: r.groups, ts: r.ts };
+        }
+      } catch (e) { if (/incorretos|expirou|validade|abriram/i.test(e.message)) toast('Nuvem: ' + e.message, 1); else if (!localAdm.off) { localAdm.off = 1; toast('Sem internet: mostrando a última cópia deste aparelho.', 1) } }
     }
     const o = localGet(); return { ok: true, groups: o.groups, ts: o.ts };
   }
   if (op == 'gset') {
-    const ts = Date.now();
+    let ts = Date.now();
     if (c) {
       const cur = await cloudGet(c); // confere se outro aparelho salvou antes
       if (cur.groups && cur.ts && cur.ts != x.prev) throw new Error('Outro aparelho alterou os dados. Clique em Atualizar e refaça a mudança.');
-      await call({ a: 'put', u: c.u, k: c.auth, dev: devId(), dn: 'Site servidores', ts, data: await encBlob({ srvGroups: x.groups, lists: [], favs: [], groups: {}, prog: {}, ts }, cKeys(c).enc) });
+      if (cur.env && c.dk) await cloudPut(c, cur.env, x.groups, ts);
+      else { CMIG = true; ts = await cloudInit(c, x.groups) }
       localAdm.off = 0;
     }
     localPut(x.groups, ts); return { ok: true, ts };
@@ -66,33 +123,71 @@ async function localAdm(op, x) {
 function cloudBox() {
   const c = cloud();
   if (c) return modal(`<h3>Nuvem ligada</h3><p class="muted">Este aparelho está salvando na conta <b>${esc(c.u)}</b>. Os mesmos dados aparecem em qualquer aparelho ligado à mesma conta e senha.</p>
+    <div class="acts" style="justify-content:space-between"><button class="bt" data-rc>Gerar novo código de recuperação</button></div>
     <div class="acts"><button class="bt rd" data-off>Desligar neste aparelho</button><button class="bt pk" data-no>Fechar</button></div>`, m => {
     $('[data-no]', m).onclick = closeModal;
+    $('[data-rc]', m).onclick = async () => {
+      closeModal(); if (!await confirmBox('Novo código de recuperação', 'O código antigo deixa de funcionar e um novo aparece uma vez só.', 'Gerar', 0)) return;
+      try { const cur = await cloudGet(c); if (!cur.env) return toast('Abra o site de novo e tente mais uma vez.', 1); const code = newRecCode(), dk = unb64(c.dk);
+        const ts = Date.now(); const env = { wp: cur.env.wp, wr: await encBlob({ dk: c.dk }, await recKey(c.u, code)) };
+        await cloudPut(c, env, GROUPS, ts); GTS = ts; localPut(GROUPS, ts); showRecCode(code, c.u) } catch (e) { toast(e.message, 1) }
+    };
     $('[data-off]', m).onclick = async () => { closeModal(); if (!await confirmBox('Desligar a nuvem', 'Este aparelho para de salvar na nuvem e fica com a cópia que já tem. Os dados na nuvem continuam lá.', 'Desligar', 1)) return; try { delete LS[CLKEY] } catch (e) { } toast('Nuvem desligada neste aparelho.'); renderCloudBtn() };
   });
   modal(`<h3>Abrir de outros aparelhos</h3><p class="muted">Digite a conta e a senha do cofre (a conta criada no painel para este site). Este aparelho lembra e não pede de novo.</p>
     <label class="f">Conta<input class="in" data-f="u" value="servidores" autocomplete="username"></label>
     <label class="f">Senha<input class="in" data-f="p" type="password" autocomplete="current-password"></label>
     <p class="err" id="clE"></p>
-    <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Ligar</button></div>`, m => {
+    <div class="acts" style="justify-content:space-between"><button class="bt" data-fg style="border:0;background:none;color:var(--mut);text-decoration:underline;padding-left:0">Esqueci a senha</button><span style="flex:1"></span><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Ligar</button></div>`, m => {
     $('[data-no]', m).onclick = closeModal;
+    $('[data-fg]', m).onclick = recoverBox;
     const go = async () => {
       const u = normU($('[data-f="u"]', m).value), p = $('[data-f="p"]', m).value, b = $('[data-ok]', m); $('#clE', m).textContent = '';
       if (!u || !p) return $('#clE', m).textContent = 'Preencha a conta e a senha.';
       b.disabled = true; b.innerHTML = '<span class="spin"></span> Ligando…';
       try {
         const k = await derive(u, p), c2 = { u, auth: k.auth, enc: b64(k.enc) }, r = await cloudGet(c2), here = localGet();
-        const nHere = here.groups.length ? (here.groups.find(g => g.id == SRV_ID) || {}).servers?.reduce((a, s) => a + (s.plans || []).length, 0) || 0 : 0;
-        LS[CLKEY] = JSON.stringify(c2); closeModal();
-        if (r.groups) {
-          if (nHere && JSON.stringify(here.groups) != JSON.stringify(r.groups)) toast('Nuvem ligada. Os dados da nuvem substituíram os deste aparelho.');
-          else toast('Nuvem ligada.');
+        const nHere = (here.groups.find(g => g.id == SRV_ID) || {}).servers?.reduce((a, s) => a + (s.plans || []).length, 0) || 0;
+        if (r.dk) c2.dk = b64(r.dk);
+        saveCloudCfg(c2); closeModal();
+        if (r.groups && !r.old) {
+          toast(nHere && JSON.stringify(here.groups) != JSON.stringify(r.groups) ? 'Nuvem ligada. Os dados da nuvem substituíram os deste aparelho.' : 'Nuvem ligada.');
           localPut(r.groups, r.ts); GLOADED = false; await loadGroups();
-        } else { await saveGroups(clone(GROUPS.length ? GROUPS : here.groups), 'Nuvem ligada. Os dados deste aparelho foram enviados.') }
+        } else { CMIG = true; const g = r.groups || (GROUPS.length ? GROUPS : here.groups), ts = await cloudInit(c2, g); localPut(g, ts); GLOADED = false; await loadGroups(); toast('Nuvem ligada.') }
         renderCloudBtn();
       } catch (e) { b.disabled = false; b.textContent = 'Ligar'; $('#clE', m).textContent = /incorretos/.test(e.message) ? 'Conta ou senha incorretas.' : e.message }
     };
     $('[data-ok]', m).onclick = go; $('[data-f="p"]', m).onkeydown = e => { if (e.key == 'Enter') go() }; $('[data-f="p"]', m).focus();
+  });
+}
+// Esqueci a senha: o administrador define uma senha nova no painel (Contas → Redefinir senha) e aqui
+// o código de recuperação destrava os dados, que passam a abrir com a senha nova.
+function recoverBox() {
+  modal(`<h3>Recuperar com o código</h3>
+    <p class="muted"><b>1.</b> No painel principal (admin.html), aba <b>Contas</b>, conta <b>servidores</b>: use <b>Redefinir senha</b> e anote a senha nova.<br><b>2.</b> Aqui, digite a conta, a senha nova e o código de recuperação.</p>
+    <label class="f">Conta<input class="in" data-f="u" value="servidores"></label>
+    <label class="f">Senha nova<input class="in" data-f="p" type="password" autocomplete="new-password"></label>
+    <label class="f">Código de recuperação<input class="in" data-f="c" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" style="font-family:ui-monospace,Consolas,monospace;text-transform:uppercase"></label>
+    <p class="err" id="rcE"></p>
+    <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Recuperar</button></div>`, m => {
+    $('[data-no]', m).onclick = closeModal;
+    $('[data-ok]', m).onclick = async () => {
+      const u = normU($('[data-f="u"]', m).value), p = $('[data-f="p"]', m).value, code = $('[data-f="c"]', m).value, b = $('[data-ok]', m), E = $('#rcE', m); E.textContent = '';
+      if (!u || !p || code.replace(/[^A-Za-z0-9]/g, '').length < 20) return E.textContent = 'Preencha a conta, a senha nova e o código completo.';
+      b.disabled = true; b.innerHTML = '<span class="spin"></span> Recuperando…';
+      try {
+        const k = await derive(u, p), c2 = { u, auth: k.auth, enc: b64(k.enc) };
+        const j = await call({ a: 'get', u, k: k.auth, dev: devId(), dn: 'Site servidores' }), env = parseEnv(j.data);
+        if (!j.data) throw new Error('A conta não tem dados salvos.');
+        if (!env) throw new Error('Estes dados são do formato antigo, sem código de recuperação.');
+        const dk = await unwrapDK(env.wr, await recKey(u, code)); if (!dk) throw new Error('Código de recuperação incorreto.');
+        const d = await decBlob(env.d, dk); if (!d || !Array.isArray(d.srvGroups)) throw new Error('Os dados não abriram.');
+        c2.dk = b64(dk); const ts = Date.now();
+        await cloudPut(c2, { wp: await encBlob({ dk: c2.dk }, k.enc), wr: env.wr }, d.srvGroups, ts);
+        saveCloudCfg(c2); localPut(d.srvGroups, ts); closeModal(); GLOADED = false; await loadGroups(); renderCloudBtn();
+        toast('Recuperado. Os dados agora abrem com a senha nova; o código continua o mesmo.');
+      } catch (e) { b.disabled = false; b.textContent = 'Recuperar'; E.textContent = /incorretos/.test(e.message) ? 'Conta ou senha nova incorretas. Confira se a senha foi redefinida no painel.' : e.message }
+    };
   });
 }
 function renderCloudBtn() { renderHero(); const b = $('#bkC'); if (!b) return; const c = cloud(); b.querySelector('span').textContent = c ? 'Nuvem: ' + c.u : 'Abrir em outros aparelhos'; b.classList.toggle('on2', !!c) }
@@ -153,8 +248,8 @@ function listEditor(listEl, addEl, lists, onChange) {
 
 /* ================= modal ================= */
 function modal(html, bind) { $('#mdBody').innerHTML = html; $('#modal').classList.remove('hide'); bind && bind($('#mdBody')) }
-function closeModal() { $('#modal').classList.add('hide') }
-$('#modal').onclick = e => { if (e.target.id == 'modal') closeModal() };
+function closeModal() { $('#modal').classList.add('hide'); delete $('#modal').dataset.lock }
+$('#modal').onclick = e => { if (e.target.id == 'modal' && !$('#modal').dataset.lock) closeModal() };
 function confirmBox(title, text, okLabel, danger) { return new Promise(res => modal(`<h3>${esc(title)}</h3><p class="muted">${esc(text)}</p><div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt ${danger ? 'rd' : 'pk'}" data-ok>${esc(okLabel)}</button></div>`, m => { $('[data-no]', m).onclick = () => { closeModal(); res(false) }; $('[data-ok]', m).onclick = () => { closeModal(); res(true) } })) }
 function askBox(title, text, fields, okLabel) {
   return new Promise(res => modal(`<h3>${esc(title)}</h3>${text ? `<p class="muted">${esc(text)}</p>` : ''}${fields.map(f => `<label class="f">${esc(f.label)}<input class="in" data-f="${f.k}" type="${f.type || 'text'}" value="${esc(f.v || '')}" ${f.max ? `maxlength="${f.max}"` : ''}></label>`).join('')}<div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>${esc(okLabel)}</button></div>`, m => {
