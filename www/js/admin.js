@@ -26,13 +26,14 @@ async function call(body) {
 // Modo local (servidores.html, <body data-local="1">): sem login e sem servidor. Os dados ficam só neste navegador
 // (localStorage). Nada é enviado para o Supabase; o site não fica ligado ao painel principal.
 const LOCAL = document.body.dataset.local == '1', LKEY = 'ntSrvLocal';
-function localGet() { try { const o = JSON.parse(LS[LKEY] || 'null'); if (o && Array.isArray(o.groups)) return o } catch (e) { } return { groups: [], ts: 0 } }
-function localPut(groups, ts) { try { LS[LKEY] = JSON.stringify({ groups, ts }) } catch (e) { throw new Error('Não deu para salvar neste navegador (memória cheia ou modo anônimo).') } }
+const cstore = () => { try { return SS[CLKEY] ? SS : LS } catch (e) { return LS } };
+function localGet() { try { const o = JSON.parse(cstore()[LKEY] || 'null'); if (o && Array.isArray(o.groups)) return o } catch (e) { } return { groups: [], ts: 0 } }
+function localPut(groups, ts) { try { cstore()[LKEY] = JSON.stringify({ groups, ts }) } catch (e) { throw new Error('Não deu para salvar neste navegador (memória cheia ou modo anônimo).') } }
 /* Nuvem com senha (opcional): os dados vão trancados (AES-GCM com a senha) para uma conta NTPlay própria
    (ex.: "servidores"), criada no painel. O servidor só guarda o bloco trancado. A senha não fica salva:
    o aparelho guarda só as chaves derivadas dela (CLKEY), para não pedir de novo. */
 const CLKEY = 'ntSrvCloud';
-const cloud = () => { try { return JSON.parse(LS[CLKEY] || 'null') } catch (e) { return null } };
+const cloud = () => { try { return JSON.parse(SS[CLKEY] || LS[CLKEY] || 'null') } catch (e) { return null } };
 const devId = () => { let d = LS.ntSrvDev; if (!d) { d = gid() + gid(); try { LS.ntSrvDev = d } catch (e) { } } return d };
 /* Formato v2 dos dados na nuvem (com código de recuperação):
    "v2." + JSON { wp, wr, d }
@@ -62,7 +63,7 @@ async function cloudGet(c) {
   const d = await decBlob(j.data, cKeys(c).enc); if (!d || !Array.isArray(d.srvGroups)) throw new Error('Os dados da nuvem não abriram com esta senha.');
   return { groups: d.srvGroups, ts, old: true };
 }
-const saveCloudCfg = c => { try { LS[CLKEY] = JSON.stringify(c) } catch (e) { } };
+const saveCloudCfg = c => { try { const st = c.rem === false ? SS : LS; (st == SS ? LS : SS).removeItem(CLKEY); st[CLKEY] = JSON.stringify(c) } catch (e) { } };
 async function cloudPut(c, env, groups, ts) {
   const dk = unb64(c.dk);
   env = { wp: env.wp, wr: env.wr, d: await encBlob({ srvGroups: groups, lists: [], favs: [], groups: {}, prog: {}, ts }, dk) };
@@ -122,9 +123,9 @@ async function localAdm(op, x) {
 }
 function cloudBox() {
   const c = cloud();
-  if (c) return modal(`<h3>Nuvem ligada</h3><p class="muted">Este aparelho está salvando na conta <b>${esc(c.u)}</b>. Os mesmos dados aparecem em qualquer aparelho ligado à mesma conta e senha.</p>
+  if (c) return modal(`<h3>Conta ${esc(c.u)}</h3><p class="muted">Os dados ficam salvos na nuvem, trancados com a sua senha. ${c.rem === false ? 'Este aparelho esquece o login quando o navegador fechar.' : 'Este aparelho lembra o login.'}</p>
     <div class="acts" style="justify-content:space-between"><button class="bt" data-rc>Gerar novo código de recuperação</button></div>
-    <div class="acts"><button class="bt rd" data-off>Desligar neste aparelho</button><button class="bt pk" data-no>Fechar</button></div>`, m => {
+    <div class="acts"><button class="bt rd" data-off>Sair</button><button class="bt pk" data-no>Fechar</button></div>`, m => {
     $('[data-no]', m).onclick = closeModal;
     $('[data-rc]', m).onclick = async () => {
       closeModal(); if (!await confirmBox('Novo código de recuperação', 'O código antigo deixa de funcionar e um novo aparece uma vez só.', 'Gerar', 0)) return;
@@ -132,7 +133,7 @@ function cloudBox() {
         const ts = Date.now(); const env = { wp: cur.env.wp, wr: await encBlob({ dk: c.dk }, await recKey(c.u, code)) };
         await cloudPut(c, env, GROUPS, ts); GTS = ts; localPut(GROUPS, ts); showRecCode(code, c.u) } catch (e) { toast(e.message, 1) }
     };
-    $('[data-off]', m).onclick = async () => { closeModal(); if (!await confirmBox('Desligar a nuvem', 'Este aparelho para de salvar na nuvem e fica com a cópia que já tem. Os dados na nuvem continuam lá.', 'Desligar', 1)) return; try { delete LS[CLKEY] } catch (e) { } toast('Nuvem desligada neste aparelho.'); renderCloudBtn() };
+    $('[data-off]', m).onclick = () => { closeModal(); gateLogout() };
   });
   modal(`<h3>Abrir de outros aparelhos</h3><p class="muted">Digite a conta e a senha do cofre (a conta criada no painel para este site). Este aparelho lembra e não pede de novo.</p>
     <label class="f">Conta<input class="in" data-f="u" value="servidores" autocomplete="username"></label>
@@ -184,13 +185,13 @@ function recoverBox() {
         const d = await decBlob(env.d, dk); if (!d || !Array.isArray(d.srvGroups)) throw new Error('Os dados não abriram.');
         c2.dk = b64(dk); const ts = Date.now();
         await cloudPut(c2, { wp: await encBlob({ dk: c2.dk }, k.enc), wr: env.wr }, d.srvGroups, ts);
-        saveCloudCfg(c2); localPut(d.srvGroups, ts); closeModal(); GLOADED = false; await loadGroups(); renderCloudBtn();
+        saveCloudCfg(c2); localPut(d.srvGroups, ts); closeModal(); if (!$('#vGate').classList.contains('hide')) { $('#vGate').classList.add('hide'); start() } else { GLOADED = false; await loadGroups() } renderCloudBtn();
         toast('Recuperado. Os dados agora abrem com a senha nova; o código continua o mesmo.');
       } catch (e) { b.disabled = false; b.textContent = 'Recuperar'; E.textContent = /incorretos/.test(e.message) ? 'Conta ou senha nova incorretas. Confira se a senha foi redefinida no painel.' : e.message }
     };
   });
 }
-function renderCloudBtn() { renderHero(); const b = $('#bkC'); if (!b) return; const c = cloud(); b.querySelector('span').textContent = c ? 'Nuvem: ' + c.u : 'Abrir em outros aparelhos'; b.classList.toggle('on2', !!c) }
+function renderCloudBtn() { renderHero(); const b = $('#bkC'); if (!b) return; const c = cloud(); b.querySelector('span').textContent = c ? 'Conta: ' + c.u : 'Conta'; b.classList.toggle('on2', !!c) }
 const adm = (op, extra = {}) => LOCAL ? localAdm(op, extra) : call({ a: 'adm', adm: ADM, op, ...extra });
 
 /* ================= criptografia (igual ao app: core/Sync) =================
@@ -1281,9 +1282,41 @@ function backupOpen() {
 if (LOCAL) {
   $('#bOut').classList.add('hide');
   const sp = $('.side .sp');
-  sp.insertAdjacentHTML('beforebegin', `<button class="nav" id="bkC"><svg class="i" viewBox="0 0 24 24"><path d="M7 18a5 5 0 0 1-.5-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg><span>Abrir em outros aparelhos</span></button><button class="nav" id="bkS"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Salvar cópia</button><button class="nav" id="bkO"><svg class="i" viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>Abrir cópia</button>`);
+  sp.insertAdjacentHTML('beforebegin', `<button class="nav" id="bkC"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg><span>Conta</span></button><button class="nav" id="bkS"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Salvar cópia</button><button class="nav" id="bkO"><svg class="i" viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>Abrir cópia</button>`);
   $('#bkS').onclick = backupSave; $('#bkO').onclick = backupOpen; $('#bkC').onclick = cloudBox; renderCloudBtn();
+  $('.side .sp').insertAdjacentHTML('afterend', `<button class="nav" id="gtOut"><svg class="i" viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg>Sair</button>`); $('#gtOut').onclick = gateLogout;
   // lembrete: sem cópia há mais de 7 dias
-  setTimeout(() => { const b = +(LS.ntSrvBackup || 0); if (allRows().length && Date.now() - b > 7 * DAY) { if (!cloud()) toast(b ? 'Faz mais de 7 dias da última cópia. Use "Salvar cópia".' : 'Os dados ficam só neste navegador. Use "Salvar cópia" ou ligue a nuvem.') } }, 4000);
+  setTimeout(() => { const b = +(LS.ntSrvBackup || 0); if (allRows().length && Date.now() - b > 7 * DAY) { if (!cloud()) toast('Faz mais de 7 dias da última cópia. Use "Salvar cópia".') } }, 4000);
 }
-(function boot() { if (LOCAL) { ADM = 'local'; return start() } const a = SS.ntAdmKey; if (a) { ADM = a; start() } else $('#vLogin').classList.remove('hide') })();
+/* ---- tela de entrada do servidores.html: usuário + senha da conta do cofre; sem isso o site não abre ----
+   "Lembrar" marcado: fica salvo neste aparelho (localStorage). Desmarcado: só até fechar o navegador (sessionStorage). */
+function gateShow() {
+  $('#vApp').classList.add('hide'); $('#vGate').classList.remove('hide');
+  const u = $('#gtU'); if (!u.value) u.value = LS.ntSrvUser || ''; (u.value ? $('#gtP') : u).focus();
+}
+async function gateLogin(e) {
+  e.preventDefault();
+  const u = normU($('#gtU').value), p = $('#gtP').value, rem = $('#gtR').checked, b = $('#gtGo'), E = $('#gtE'); E.textContent = '';
+  if (!u || !p) return E.textContent = 'Digite o usuário e a senha.';
+  b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+  try {
+    const k = await derive(u, p), c = { u, auth: k.auth, enc: b64(k.enc), rem }, r = await cloudGet(c);
+    if (r.dk) c.dk = b64(r.dk);
+    const here = localGet(); // dados antigos só deste aparelho, se houver
+    saveCloudCfg(c); if (!rem) { try { LS.removeItem(LKEY) } catch (e) { } }
+    try { LS.ntSrvUser = u } catch (e) { }
+    $('#gtP').value = ''; $('#vGate').classList.add('hide'); start();
+    if (!r.groups || r.old) { CMIG = true; const g = r.groups || here.groups, ts = await cloudInit(c, g); localPut(g, ts); GLOADED = false; await loadGroups() }
+    else localPut(r.groups, r.ts);
+  } catch (err) { E.textContent = /incorretos/.test(err.message) ? 'Usuário ou senha incorretos.' : /expirou|validade/i.test(err.message) ? 'Esta conta venceu. Renove no painel principal.' : err.message }
+  b.disabled = false; b.textContent = 'Continuar';
+}
+async function gateLogout() {
+  if (!await confirmBox('Sair', 'Este aparelho esquece o login e a cópia dos dados. Tudo continua salvo na nuvem; para voltar, entre com usuário e senha.', 'Sair', 1)) return;
+  [LS, SS].forEach(st => { try { st.removeItem(CLKEY); st.removeItem(LKEY) } catch (e) { } }); location.reload();
+}
+if (LOCAL) {
+  $('#gtF').onsubmit = gateLogin; $('#gtFg').onclick = recoverBox;
+  $('#gtEye').onclick = () => { const p = $('#gtP'); p.type = p.type == 'password' ? 'text' : 'password'; p.focus() };
+}
+(function boot() { if (LOCAL) { ADM = 'local'; return cloud() ? start() : gateShow() } const a = SS.ntAdmKey; if (a) { ADM = a; start() } else $('#vLogin').classList.remove('hide') })();

@@ -277,6 +277,31 @@ button.ia.wai{color:#5fc48f}
 .bt.wab.off{opacity:.5}
 .in.mono{font:12.5px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap}
 .md:has(.in.mono){width:min(640px,100%)}
+/* tela de entrada do servidores.html */
+.gate{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.gbox{width:min(420px,100%);display:grid;gap:14px}
+.glogo{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:22px}
+.glogo img{width:72px;height:72px;border-radius:16px}
+.glogo b{display:block;font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.glogo span{display:block;color:var(--mut);font-size:14px;margin-top:4px;letter-spacing:.04em;text-transform:uppercase}
+.gin{width:100%;height:48px;padding:0 16px;border-radius:8px;background:#1c1f24;border:1px solid #1c1f24;outline:0;font-size:15px}
+.gin:focus{border-color:#4a5158;background:#1f2328}
+.gin::placeholder{color:#7b828a}
+.gpw{position:relative}
+.gpw .gin{padding-right:48px}
+.gpw button{position:absolute;right:6px;top:6px;width:36px;height:36px;border-radius:6px;display:grid;place-items:center;color:var(--mut)}
+.gpw button:hover{color:var(--tx)}
+.gfg{display:flex;justify-content:flex-end;margin-top:-6px}
+.gfg button{color:var(--pk2);font-size:13px}
+.gfg button:hover{text-decoration:underline}
+.gchk{display:flex;align-items:center;gap:10px;color:var(--mut);font-size:14px;cursor:pointer;margin:6px 0 2px}
+.gchk input{width:18px;height:18px;accent-color:var(--pk)}
+.gbt{height:48px;border-radius:8px;background:var(--pk);color:#fff;font-weight:600;font-size:15px}
+.gbt:hover{background:#bb3d6d}
+.gbt:disabled{opacity:.7}
+.gft{text-align:center;color:#6b737b;font-size:12px;margin-top:10px}
+.gate .err{min-height:0;margin:-4px 0 0}
+.gate .err:empty{display:none}
 /* gráficos e comentários */
 .gch2{width:100%;height:auto;display:block}
 .lgd{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:6px}
@@ -364,6 +389,20 @@ button.ia.wai{color:#5fc48f}
 </div>
 
 <!-- APP -->
+<!-- tela de entrada do servidores.html (só aparece com data-local="1") -->
+<div id="vGate" class="gate hide">
+  <form class="gbox" id="gtF" autocomplete="on">
+    <div class="glogo"><img src="img/ntplay-logo.png" alt="NTPlay"><div><b>NTPlay</b><span>Servidores</span></div></div>
+    <input class="gin" id="gtU" name="username" autocomplete="username" placeholder="Usuário" autocapitalize="none" spellcheck="false">
+    <div class="gpw"><input class="gin" id="gtP" name="password" type="password" autocomplete="current-password" placeholder="Senha">
+      <button type="button" id="gtEye" aria-label="Mostrar ou esconder a senha"><svg class="i" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+    <div class="gfg"><button type="button" id="gtFg">Esqueceu a senha?</button></div>
+    <label class="gchk"><input type="checkbox" id="gtR" checked><span>Lembrar meu login neste dispositivo</span></label>
+    <p class="err" id="gtE" role="alert"></p>
+    <button class="gbt" id="gtGo" type="submit">Continuar</button>
+    <p class="gft">Seus dados ficam trancados com a sua senha</p>
+  </form>
+</div>
 <div id="vApp" class="app hide">
   <aside class="side">
     <div class="brand"><img src="img/icon.png" alt=""><b>NTPlay <span>Painel</span></b></div>
