@@ -657,8 +657,14 @@ function waBox() {
     $('[data-ok]', m).onclick = () => { closeModal(); res({ m: $('[data-f="m"]', m).value.trim() || WA_DEF, d: Math.max(0, Math.min(30, parseInt($('[data-f="d"]', m).value) || 0)) }) };
   }));
 }
+// servidores recolhidos: preferência só deste aparelho (não vai para a nuvem)
+const colGet = () => { try { return new Set(JSON.parse(LS.ntSrvCol || '[]')) } catch (e) { return new Set() } };
+const colSet = st => { try { LS.ntSrvCol = JSON.stringify([...st]) } catch (e) { } };
+const SVG_EXT = '<svg class="i" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
+const SVG_CHV = '<svg class="i" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
 function renderSrv() {
   if (!GLOADED) return;
+  const COL = colGet();
   const SV = srvList(), q = SQ.toLowerCase();
   $('#sWa').innerHTML = renderWa();
   let nCli = 0, tCob = 0, tPag = 0, nExp = 0, nSoon = 0, tDes = 0, tRec = 0;
@@ -669,6 +675,7 @@ function renderSrv() {
     if ((q || SF != 'all') && !rows.length) return '';
     const sum = f => all.reduce((n, x) => n + (f(x.p) || 0), 0), sc = sum(p => p.price), sp = sum(p => p.cost), sd = sum(discOf), sn = sum(netOf), sr = sum(p => p.paid ? 0 : netOf(p));
     const ex = all.filter(x => x.i.k == 'exp').length;
+    const cl = COL.has(sv.id) && !q && SF == 'all'; // busca ou filtro abrem tudo
     // com o valor dos painéis digitado (tudo junto), "Você paga" e "Sobra" por cliente somem da tabela
     const pc = panelCost() == null, C = (h) => pc ? h : '';
     const table = rows.length ? `<div class="twrap"><table class="ktab rt"><thead><tr><th>Cliente</th><th>Lançado</th><th>Vence</th><th>Situação</th>${C('<th class="r">Você paga</th>')}<th class="r">Cobra</th><th class="r">Desconto</th><th class="r">Recebe</th>${C('<th class="r">Sobra</th>')}<th>Pagamento</th><th>Comentário</th><th></th></tr></thead><tbody>${rows.map(({ p, i }) => {
@@ -678,19 +685,21 @@ function renderSrv() {
         ${C(`<td class="r" data-l="Você paga">${brl(p.cost)}</td>`)}<td class="r" data-l="Cobra">${brl(p.price)}</td><td class="r" data-l="Desconto" title="${ni ? 'inclui ' + brl(refDiscOf(p)) + ' por indicação' : ''}">${ds ? '−' + brl(ds) : '—'}</td><td class="r" data-l="Recebe"><b>${brl(nt)}</b></td>${C(`<td class="r ${mg < 0 ? 'neg' : ''}" data-l="Sobra">${brl(mg)}</td>`)}
         <td data-l="Pagamento"><button class="bdg ${p.paid ? 'g' : 'y'}" data-sa="ppay" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Clique para trocar">${p.paid ? 'Recebido' : 'A receber'}</button></td>
         <td class="cmt" data-l="Comentário" title="${esc(p.note || '')}">${p.note ? esc(p.note) : '<span class="muted">—</span>'}</td>
-        <td class="r ac" style="white-space:nowrap"><button class="ia ${p.wa ? 'wai' : ''}" data-sa="pwa" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="${p.wa ? 'WhatsApp ' + esc(p.wa) : 'WhatsApp (sem número)'}">${SVG_WA}</button><button class="ia ${p.info ? 'inf' : ''}" data-sa="pinfo" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="${p.info ? 'Informações de acesso' : 'Colar informações de acesso'}">${SVG_INFO}</button><button class="ia" data-sa="pren" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Renovar (+${p.months || 1} mês)">${svgI('renew')}</button><button class="ia" data-sa="pmove" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Mudar de servidor">${SVG_MV}</button><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar">${SVG_DEL}</button></td></tr>`;
+        <td class="r ac" style="white-space:nowrap">${sv.url ? `<a class="ia pnl" href="${esc(sv.url)}" target="_blank" rel="noopener" title="Abrir painel ${esc(sv.name)}">${SVG_EXT}<span>Painel</span></a>` : ''}<button class="ia ${p.wa ? 'wai' : ''}" data-sa="pwa" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="${p.wa ? 'WhatsApp ' + esc(p.wa) : 'WhatsApp (sem número)'}">${SVG_WA}</button><button class="ia ${p.info ? 'inf' : ''}" data-sa="pinfo" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="${p.info ? 'Informações de acesso' : 'Colar informações de acesso'}">${SVG_INFO}</button><button class="ia" data-sa="pren" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Renovar (+${p.months || 1} mês)">${svgI('renew')}</button><button class="ia" data-sa="pmove" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Mudar de servidor">${SVG_MV}</button><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar">${SVG_DEL}</button></td></tr>`;
     }).join('')}</tbody><tfoot><tr><td colspan="4" class="nm"><b>Total · ${all.length} cliente${all.length == 1 ? '' : 's'}</b>${ex ? ` <span class="bdg r">${ex} vencido${ex > 1 ? 's' : ''}</span>` : ''}</td>${C(`<td class="r" data-l="Você paga"><b>${brl(sp)}</b></td>`)}<td class="r" data-l="Cobra"><b>${brl(sc)}</b></td><td class="r" data-l="Desconto"><b>${sd ? '−' + brl(sd) : '—'}</b></td><td class="r" data-l="Recebe"><b>${brl(sn)}</b></td>${C(`<td class="r ${sn - sp < 0 ? 'neg' : ''}" data-l="Sobra"><b>${brl(sn - sp)}</b></td>`)}<td colspan="3" data-l="A receber">${sr ? `<span class="muted">a receber</span> <b>${brl(sr)}</b>` : ''}</td></tr></tfoot></table></div>`
       : '<p class="muted" style="padding:10px 0">Nenhum cliente neste servidor. Use <b>+ Cliente</b>.</p>';
-    return `<div class="sv"><div class="svh"><h3>${esc(sv.name)}</h3>${sv.url ? `<a class="u" href="${esc(sv.url)}" target="_blank" rel="noopener">${esc(hostOf(sv.url))}</a>` : ''}<span class="bdg n">${all.length} cliente${all.length == 1 ? '' : 's'}</span><span class="sp"></span>
+    const resumo = cl ? `<span class="svs">${all.length ? `Recebe <b>${brl(sn)}</b>${sr ? ` · a receber <b class="yl">${brl(sr)}</b>` : ''}${ex ? ` · <b class="rd">${ex} vencido${ex > 1 ? 's' : ''}</b>` : ''}` : ''}</span>` : '';
+    return `<div class="sv ${cl ? 'svcol' : ''}"><div class="svh"><button class="svt" data-sa="tog" data-s="${esc(sv.id)}" aria-expanded="${!cl}" title="${cl ? 'Expandir' : 'Recolher'}">${SVG_CHV}</button><h3 data-sa="tog" data-s="${esc(sv.id)}">${esc(sv.name)}</h3>${sv.url ? `<a class="u" href="${esc(sv.url)}" target="_blank" rel="noopener">${esc(hostOf(sv.url))}</a>` : ''}<span class="bdg n">${all.length} cliente${all.length == 1 ? '' : 's'}</span>${resumo}<span class="sp"></span>
         ${sv.url ? `<a class="bt sm" href="${esc(sv.url)}" target="_blank" rel="noopener">Abrir painel</a>` : ''}<button class="bt sm pk" data-sa="padd" data-s="${esc(sv.id)}">+ Cliente</button><button class="bt sm" data-sa="edit" data-s="${esc(sv.id)}">${SVG_ED}Editar</button><button class="bt sm rd" data-sa="del" data-s="${esc(sv.id)}" title="Apagar servidor">${SVG_DEL}</button></div>
       ${sv.note ? `<div class="svc">${esc(sv.note)}</div>` : ''}
       <div class="svb">${table}</div></div>`;
   }).join('');
   $('#sStats').innerHTML = `<div class="stats">${[['', nCli, 'clientes em ' + SV.length + (SV.length == 1 ? ' servidor' : ' servidores')], ['gr', brl(tCob), 'total a cobrar (já com descontos)'], ['', brl(tDes), 'descontos'], ['pc', brl(panelCost() ?? tPag), panelCost() != null ? 'pago nos painéis por mês (digitado)' : 'pago nos painéis (clique para digitar)'], [tCob - (panelCost() ?? tPag) < 0 ? 'rd' : 'pk', brl(tCob - (panelCost() ?? tPag)), 'sobra'], [tRec ? 'yl' : '', brl(tRec), 'a receber'], [nExp ? 'rd' : '', nExp, 'vencidos'], [nSoon ? 'yl' : '', nSoon, 'vencem em ' + ALERT_DAYS + ' dias']].map(x => x[0] == 'pc' ? `<button class="st stb" data-sa="pcost" title="Digitar o valor pago nos painéis"><b>${x[1]}</b><small>${x[2]} ${SVG_ED}</small></button>` : `<div class="st ${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>
-    <div class="bar"><input class="in" id="sQ" placeholder="Buscar cliente ou comentário…" value="${esc(SQ)}">${[['all', 'Todos'], ['exp', 'Vencidos'], ['soon', 'Vencendo'], ['ok', 'Em dia'], ['none', 'Sem data'], ['rcv', 'A receber']].map(([k, l]) => `<button class="ch ${SF == k ? 'on' : ''}" data-sf="${k}">${l}</button>`).join('')}<button class="bt" id="sCsv">Exportar CSV</button><button class="bt" id="sBk" title="Baixa um arquivo com os servidores e clientes (backup ou para abrir no outro site)">Salvar cópia</button></div>`;
+    <div class="bar"><input class="in" id="sQ" placeholder="Buscar cliente ou comentário…" value="${esc(SQ)}">${[['all', 'Todos'], ['exp', 'Vencidos'], ['soon', 'Vencendo'], ['ok', 'Em dia'], ['none', 'Sem data'], ['rcv', 'A receber']].map(([k, l]) => `<button class="ch ${SF == k ? 'on' : ''}" data-sf="${k}">${l}</button>`).join('')}<button class="bt" id="sCol" title="Expandir ou recolher todos os servidores">${SV.every(x => COL.has(x.id)) ? 'Expandir tudo' : 'Recolher tudo'}</button><button class="bt" id="sCsv">Exportar CSV</button><button class="bt" id="sBk" title="Baixa um arquivo com os servidores e clientes (backup ou para abrir no outro site)">Salvar cópia</button></div>`;
   $('#sBody').innerHTML = cards || `<div class="empty card">${q || SF != 'all' ? 'Nenhum cliente encontrado.' : 'Nenhum servidor. Cadastre em <b>Novo servidor</b>.'}</div>`;
   const qi = $('#sQ'); qi.oninput = () => { SQ = qi.value; const pos = qi.selectionStart; renderSrv(); const n = $('#sQ'); n.focus(); n.setSelectionRange(pos, pos) };
   $$('[data-sf]').forEach(b => b.onclick = () => { SF = b.dataset.sf; renderSrv() });
+  $('#sCol').onclick = () => { colSet(SV.every(x => COL.has(x.id)) ? new Set() : new Set(SV.map(x => x.id))); renderSrv() };
   $('#sCsv').onclick = srvCsv; $('#sBk').onclick = backupSave;
 }
 function srvCsv() {
@@ -763,6 +772,7 @@ $('#t-srv').onclick = async e => {
   if (w) { const [sid, pid] = w.dataset.wa.split('|'), t = todayISO(); // deixa o link abrir o WhatsApp e marca como avisado
     const r = rowById(pid); if (r && r.p.warned != t) setTimeout(() => saveRec(rc => { const sv = rc.servers.find(x => x.id == sid), p = sv && (sv.plans || []).find(x => x.id == pid); if (p) p.warned = t }, 'Marcado como avisado hoje.'), 300); return }
   const b = e.target.closest('[data-sa]'); if (!b) return;
+  if (b.dataset.sa == 'tog') { const st = colGet(), id = b.dataset.s; st.has(id) ? st.delete(id) : st.add(id); colSet(st); return renderSrv() }
   if (b.dataset.sa == 'wacfg') { const o = await waBox(); if (!o) return; return saveRec(r => { r.cfg.waMsg = o.m == WA_DEF ? '' : o.m; r.cfg.waDays = o.d }, 'Mensagem salva.') }
   if (b.dataset.sa == 'pcost') {
     const cur = panelCost(), o = await askBox('Pago nos painéis', 'Quanto você paga por mês nos painéis, somando todos. Deixe vazio para voltar a somar o "Você paga" de cada cliente.', [{ k: 'v', label: 'Valor por mês (R$)', v: cur != null ? String(cur).replace('.', ',') : '' }], 'Salvar');
