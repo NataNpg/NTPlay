@@ -322,6 +322,7 @@ const refsOf = id => allRows().filter(x => x.p.ref == id && rowOn(x.p));
 const refDiscOf = p => refsOf(p.id).length * refDisc();
 const discOf = p => Math.min(Number(p.price) || 0, (Number(p.disc) || 0) + refDiscOf(p));
 const netOf = p => Math.max(0, (Number(p.price) || 0) - discOf(p));
+const SVG_WA = '<svg class="i" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 9.5c.5 2 2 3.6 4.5 4.5"/></svg>';
 const perMonth = (v, months) => v == null ? 0 : v / Math.max(1, Number(months) || 1);
 
 function srvStart() { if (!GLOADED) { $('#sBody').innerHTML = '<p class="muted"><span class="spin"></span> Carregando…</p>'; loadGroups() } else renderGrp() }
@@ -330,15 +331,54 @@ function srvStart() { if (!GLOADED) { $('#sBody').innerHTML = '<p class="muted">
 let SQ = '', SF = 'all';
 const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: SP });
 function addMonths(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setMonth(d.getMonth() + Number(n || 1)); return d.toISOString().slice(0, 10) }
+const fmtS = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(2, 4) : '—';
 const fmtISO = iso => iso ? iso.split('-').reverse().join('/') : '—';
 function rowInfo(p) {
   if (!p.exp) return { lab: 'Sem data', cls: 'n', d: 1e9, k: 'none' };
   const d = (new Date(p.exp + 'T23:59:59-03:00') - Date.now()) / DAY;
   return { lab: remText(d), cls: remCls(d), d, k: d <= 0 ? 'exp' : d <= ALERT_DAYS ? 'soon' : 'ok' };
 }
+/* ---- aviso de vencimento por WhatsApp ----
+   O site não envia sozinho (é uma página estática, sem servidor de envio): monta a mensagem e abre o WhatsApp
+   com tudo preenchido, você só aperta enviar. A linha guarda wa (telefone) e warned (data do último aviso). */
+const WA_DEF = 'Olá {nome}! Seu plano vence {quando} ({vence}). Valor da renovação: {valor}. Para renovar é só responder esta mensagem.';
+const waMsgT = () => (REC().cfg || {}).waMsg || WA_DEF;
+const waDays = () => Number((REC().cfg || {}).waDays) || 3;
+function waNum(t) { let d = String(t || '').replace(/\D/g, ''); if (!d) return ''; if (d.length <= 11) d = '55' + d.replace(/^0+/, ''); return d }
+function waText(p, sv) {
+  const i = rowInfo(p), dd = Math.floor(i.d);
+  const quando = !p.exp ? 'em breve' : dd < 0 ? 'venceu há ' + (-dd) + (dd == -1 ? ' dia' : ' dias') : dd == 0 ? 'hoje' : dd == 1 ? 'amanhã' : 'em ' + dd + ' dias';
+  return waMsgT().replace(/\{nome\}/g, p.name.split(' ')[0]).replace(/\{nomecompleto\}/g, p.name).replace(/\{vence\}/g, fmtISO(p.exp)).replace(/\{quando\}/g, quando)
+    .replace(/\{dias\}/g, String(Math.max(0, dd))).replace(/\{valor\}/g, brl(netOf(p))).replace(/\{servidor\}/g, sv ? sv.name : '');
+}
+const waLink = (p, sv) => 'https://wa.me/' + waNum(p.wa) + '?text=' + encodeURIComponent(waText(p, sv));
+// quem avisar: vence em até waDays() dias ou venceu há até 15 dias
+const waDue = () => allRows().filter(({ p }) => p.exp && (() => { const d = Math.floor(rowInfo(p).d); return d <= waDays() && d > -15 })()).sort((a, b) => rowInfo(a.p).d - rowInfo(b.p).d);
+function renderWa() {
+  const due = waDue(), t = todayISO(), pend = due.filter(x => x.p.warned != t);
+  const nb = $('.nav[data-tab="srv"]'); let bd = nb && nb.querySelector('.bdg'); if (nb && !bd) { bd = document.createElement('span'); nb.appendChild(bd) }
+  if (bd) { bd.className = 'bdg y'; bd.textContent = pend.length || '' }
+  if (pend.length && !renderWa.shown) { renderWa.shown = 1; toast(pend.length + ' cliente(s) para avisar no WhatsApp.') }
+  return `<div class="card wa ${due.length ? '' : 'ok'}"><div class="gah"><svg class="i" viewBox="0 0 24 24" style="color:var(--gr)"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 9.5c.5 2 2 3.6 4.5 4.5"/></svg>
+    <h3>Avisos de vencimento</h3><span class="muted">${due.length ? `${pend.length} para avisar hoje · vence em até ${waDays()} dias ou já venceu` : 'Ninguém vencendo nos próximos ' + waDays() + ' dias.'}</span><span class="sp"></span><button class="bt sm" data-sa="wacfg">${SVG_ED}Mensagem</button></div>
+    ${due.length ? `<div class="gai">${due.map(({ sv, p }) => { const i = rowInfo(p), done = p.warned == t;
+      return `<div class="gm ${done ? '' : i.cls}"><div class="n"><b>${esc(p.name)}</b><small>${esc(sv.name)} · ${esc(i.lab)} · ${brl(netOf(p))}${p.warned ? ' · avisado ' + (done ? 'hoje' : fmtISO(p.warned)) : ''}</small></div>
+        ${p.wa ? `<a class="bt sm ${done ? '' : 'wab'}" href="${esc(waLink(p, sv))}" target="_blank" rel="noopener" data-wa="${esc(sv.id)}|${esc(p.id)}">${done ? 'Enviar de novo' : 'Enviar WhatsApp'}</a>` : `<button class="bt sm" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}">+ WhatsApp</button>`}</div>` }).join('')}</div>` : ''}</div>`;
+}
+function waBox() {
+  return new Promise(res => modal(`<h3>Mensagem de aviso</h3><p class="muted">Use: {nome} (primeiro nome), {nomecompleto}, {quando} (ex.: "em 3 dias"), {vence} (data), {dias}, {valor} (já com desconto), {servidor}.</p>
+    <label class="f">Mensagem<textarea class="in" data-f="m" rows="5" maxlength="600">${esc(waMsgT())}</textarea></label>
+    <label class="f">Avisar quantos dias antes<input class="in" data-f="d" type="number" min="0" max="30" value="${waDays()}"></label>
+    <div class="acts"><button class="bt" data-r>Voltar ao padrão</button><span class="sp" style="flex:1"></span><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Salvar</button></div>`, m => {
+    $('[data-r]', m).onclick = () => $('[data-f="m"]', m).value = WA_DEF;
+    $('[data-no]', m).onclick = () => { closeModal(); res(null) };
+    $('[data-ok]', m).onclick = () => { closeModal(); res({ m: $('[data-f="m"]', m).value.trim() || WA_DEF, d: Math.max(0, Math.min(30, parseInt($('[data-f="d"]', m).value) || 0)) }) };
+  }));
+}
 function renderSrv() {
   if (!GLOADED) return;
   const SV = srvList(), q = SQ.toLowerCase();
+  $('#sWa').innerHTML = renderWa();
   let nCli = 0, tCob = 0, tPag = 0, nExp = 0, nSoon = 0, tDes = 0, tRec = 0;
   SV.forEach(sv => (sv.plans || []).forEach(p => { const i = rowInfo(p); nCli++; tCob += netOf(p); tDes += discOf(p); tPag += p.cost || 0; if (!p.paid) tRec += netOf(p); if (i.k == 'exp') nExp++; if (i.k == 'soon') nSoon++ }));
   const cards = SV.map(sv => {
@@ -352,11 +392,11 @@ function renderSrv() {
     const table = rows.length ? `<div class="twrap"><table class="ktab rt"><thead><tr><th>Cliente</th><th>Lançado</th><th>Vence</th><th>Situação</th>${C('<th class="r">Você paga</th>')}<th class="r">Cobra</th><th class="r">Desconto</th><th class="r">Recebe</th>${C('<th class="r">Sobra</th>')}<th>Pagamento</th><th>Comentário</th><th></th></tr></thead><tbody>${rows.map(({ p, i }) => {
       const ds = discOf(p), nt = netOf(p), mg = nt - (p.cost || 0), rf = p.ref && rowById(p.ref), ni = refsOf(p.id).length;
       const sub = [p.months > 1 ? p.months + ' meses' : '', rf ? 'indicado por ' + rf.p.name : '', ni ? 'indicou ' + ni : ''].filter(Boolean).join(' · ');
-      return `<tr><td class="nm"><b style="font-weight:500">${esc(p.name)}</b>${sub ? `<small class="muted" style="display:block">${esc(sub)}</small>` : ''}</td><td data-l="Lançado">${fmtISO(p.start)}</td><td data-l="Vence">${fmtISO(p.exp)}</td><td data-l="Situação"><span class="bdg ${i.cls}">${esc(i.lab)}</span></td>
+      return `<tr><td class="nm"><b style="font-weight:500">${esc(p.name)}</b>${sub ? `<small class="muted" style="display:block">${esc(sub)}</small>` : ''}</td><td data-l="Lançado">${fmtS(p.start)}</td><td data-l="Vence">${fmtS(p.exp)}</td><td data-l="Situação"><span class="bdg ${i.cls}">${esc(i.lab)}</span></td>
         ${C(`<td class="r" data-l="Você paga">${brl(p.cost)}</td>`)}<td class="r" data-l="Cobra">${brl(p.price)}</td><td class="r" data-l="Desconto" title="${ni ? 'inclui ' + brl(refDiscOf(p)) + ' por indicação' : ''}">${ds ? '−' + brl(ds) : '—'}</td><td class="r" data-l="Recebe"><b>${brl(nt)}</b></td>${C(`<td class="r ${mg < 0 ? 'neg' : ''}" data-l="Sobra">${brl(mg)}</td>`)}
         <td data-l="Pagamento"><button class="bdg ${p.paid ? 'g' : 'y'}" data-sa="ppay" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Clique para trocar">${p.paid ? 'Recebido' : 'A receber'}</button></td>
         <td class="cmt" data-l="Comentário" title="${esc(p.note || '')}">${p.note ? esc(p.note) : '<span class="muted">—</span>'}</td>
-        <td class="r ac" style="white-space:nowrap"><button class="ia" data-sa="pren" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Renovar (+${p.months || 1} mês)">${svgI('renew')}</button><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar">${SVG_DEL}</button></td></tr>`;
+        <td class="r ac" style="white-space:nowrap">${p.wa ? `<a class="ia wai" href="${esc(waLink(p, sv))}" target="_blank" rel="noopener" data-wa="${esc(sv.id)}|${esc(p.id)}" title="WhatsApp ${esc(p.wa)}">${SVG_WA}</a>` : ''}<button class="ia" data-sa="pren" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Renovar (+${p.months || 1} mês)">${svgI('renew')}</button><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar">${SVG_DEL}</button></td></tr>`;
     }).join('')}</tbody><tfoot><tr><td colspan="4" class="nm"><b>Total · ${all.length} cliente${all.length == 1 ? '' : 's'}</b>${ex ? ` <span class="bdg r">${ex} vencido${ex > 1 ? 's' : ''}</span>` : ''}</td>${C(`<td class="r" data-l="Você paga"><b>${brl(sp)}</b></td>`)}<td class="r" data-l="Cobra"><b>${brl(sc)}</b></td><td class="r" data-l="Desconto"><b>${sd ? '−' + brl(sd) : '—'}</b></td><td class="r" data-l="Recebe"><b>${brl(sn)}</b></td>${C(`<td class="r ${sn - sp < 0 ? 'neg' : ''}" data-l="Sobra"><b>${brl(sn - sp)}</b></td>`)}<td colspan="3" data-l="A receber">${sr ? `<span class="muted">a receber</span> <b>${brl(sr)}</b>` : ''}</td></tr></tfoot></table></div>`
       : '<p class="muted" style="padding:10px 0">Nenhum cliente neste servidor. Use <b>+ Cliente</b>.</p>';
     return `<div class="sv"><div class="svh"><h3>${esc(sv.name)}</h3>${sv.url ? `<a class="u" href="${esc(sv.url)}" target="_blank" rel="noopener">${esc(hostOf(sv.url))}</a>` : ''}<span class="bdg n">${all.length} cliente${all.length == 1 ? '' : 's'}</span><span class="sp"></span>
@@ -409,7 +449,8 @@ function planBox(p) {
     <div class="row"><label class="f">Desconto fixo (R$)<input class="in" data-f="disc" inputmode="decimal" value="${esc(v(p && p.disc))}" placeholder="opcional"></label>
       <label class="f">Indicado por<select class="in" data-f="ref"><option value="">Ninguém</option>${allRows().filter(x => !p || x.p.id != p.id).sort((a, b) => a.p.name.localeCompare(b.p.name)).map(x => `<option value="${esc(x.p.id)}" ${p && p.ref == x.p.id ? 'selected' : ''}>${esc(x.p.name)} (${esc(x.sv.name)})</option>`).join('')}</select></label></div>
     <label class="f" style="display:flex;align-items:center;gap:8px;color:var(--tx)"><input type="checkbox" data-f="paid" ${p && p.paid ? 'checked' : ''}>Já recebi o pagamento deste ciclo</label>
-    <label class="f">Comentário<textarea class="in" data-f="note" rows="2" maxlength="300" placeholder="WhatsApp, forma de pagamento, aparelho…">${esc(p ? p.note || '' : '')}</textarea></label>
+    <label class="f">WhatsApp do cliente<input class="in" data-f="wa" inputmode="tel" maxlength="20" value="${esc(p ? p.wa || '' : '')}" placeholder="ex.: (11) 98765-4321"></label>
+    <label class="f">Comentário<textarea class="in" data-f="note" rows="2" maxlength="300" placeholder="Forma de pagamento, aparelho…">${esc(p ? p.note || '' : '')}</textarea></label>
     <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Salvar</button></div>`, m => {
     const f = k => $(`[data-f="${k}"]`, m); let touched = !!(p && p.exp);
     f('exp').oninput = () => touched = true;
@@ -421,8 +462,9 @@ function planBox(p) {
       if (!name) return toast('Informe o nome do cliente.', 1);
       const cost = g('cost') ? money(g('cost')) : null, price = g('price') ? money(g('price')) : null, disc = g('disc') ? money(g('disc')) : null;
       if ((g('cost') && cost == null) || (g('price') && price == null) || (g('disc') && disc == null)) return toast('Valor inválido. Use, por exemplo, 35 ou 35,90.', 1);
+      if (g('wa') && waNum(g('wa')).length < 12) return toast('WhatsApp incompleto. Coloque DDD + número.', 1);
       if (g('start') && g('exp') && g('exp') < g('start')) return toast('O vencimento está antes do lançamento.', 1);
-      closeModal(); res({ name, months, start: g('start'), exp: g('exp'), cost, price, disc, ref: f('ref').value, paid: f('paid').checked, note: g('note') });
+      closeModal(); res({ name, months, start: g('start'), exp: g('exp'), cost, price, disc, ref: f('ref').value, wa: g('wa'), paid: f('paid').checked, note: g('note') });
     };
     f('name').focus();
   }));
@@ -435,7 +477,11 @@ $('#sNew').onclick = async () => {
   saveGroups(withSrv(clone(GROUPS), l => l.push({ id, ...o, plans: [] })), 'Servidor adicionado.');
 };
 $('#t-srv').onclick = async e => {
+  const w = e.target.closest('[data-wa]');
+  if (w) { const [sid, pid] = w.dataset.wa.split('|'), t = todayISO(); // deixa o link abrir o WhatsApp e marca como avisado
+    const r = rowById(pid); if (r && r.p.warned != t) setTimeout(() => saveRec(rc => { const sv = rc.servers.find(x => x.id == sid), p = sv && (sv.plans || []).find(x => x.id == pid); if (p) p.warned = t }, 'Marcado como avisado hoje.'), 300); return }
   const b = e.target.closest('[data-sa]'); if (!b) return;
+  if (b.dataset.sa == 'wacfg') { const o = await waBox(); if (!o) return; return saveRec(r => { r.cfg.waMsg = o.m == WA_DEF ? '' : o.m; r.cfg.waDays = o.d }, 'Mensagem salva.') }
   if (b.dataset.sa == 'pcost') {
     const cur = panelCost(), o = await askBox('Pago nos painéis', 'Quanto você paga por mês nos painéis, somando todos. Deixe vazio para voltar a somar o "Você paga" de cada cliente.', [{ k: 'v', label: 'Valor por mês (R$)', v: cur != null ? String(cur).replace('.', ',') : '' }], 'Salvar');
     if (!o) return; const t = o.v.trim(), n = t ? money(t) : null; if (t && n == null) return toast('Valor inválido. Use, por exemplo, 150 ou 150,00.', 1);
@@ -456,7 +502,7 @@ $('#t-srv').onclick = async e => {
   if (act == 'pren') {
     const base = p.exp && p.exp > todayISO() ? p.exp : todayISO(), nx = addMonths(base, p.months || 1);
     if (!await confirmBox('Renovar ' + p.name, `Vencimento passa de ${fmtISO(p.exp)} para ${fmtISO(nx)} (+${p.months || 1} mês).`, 'Renovar')) return;
-    p.exp = nx; p.renewed = todayISO(); p.paid = false; return saveGroups(next, 'Renovado até ' + fmtISO(nx) + '. Marcado como a receber.');
+    p.exp = nx; p.renewed = todayISO(); p.paid = false; delete p.warned; return saveGroups(next, 'Renovado até ' + fmtISO(nx) + '. Marcado como a receber.');
   }
   if (act == 'ppay') { p.paid = !p.paid; if (p.paid) p.paidAt = todayISO(); return saveGroups(next, p.paid ? p.name + ': recebido.' : p.name + ': a receber.') }
   if (act == 'pdel') { if (!await confirmBox('Apagar cliente', `"${p.name}" será tirado de ${sv.name}.`, 'Apagar', 1)) return; sv.plans = sv.plans.filter(x => x != p); return saveGroups(next, 'Cliente apagado.') }

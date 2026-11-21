@@ -227,14 +227,24 @@ h2.sec{font-size:14px;font-weight:600;margin:24px 0 10px}
 .neg{color:#ec9591}
 .cmt{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c3c8cd;font-size:12px}
 .ktab tfoot td{border-top:1px solid var(--line2);border-bottom:0;padding-top:10px;background:#ffffff03}
-.svb .ktab{min-width:900px}
+.svb .ktab{min-width:860px}
+.svb .ktab .cmt{max-width:140px}
 .st b{white-space:nowrap}
+.svb .ktab td.nm{min-width:110px}
+.svb .ktab td.ac{width:1%}
+.svb .ktab td.ac .ia{width:26px;height:26px;margin-left:2px}
+.svb .ktab td,.svb .ktab th{padding:7px 5px}
 .bdg:empty{display:none}
 button.stb{text-align:left;cursor:pointer;border-top:0;border-bottom:0;border-left:0}
 button.stb:hover{background:#ffffff06}
 button.stb small{display:flex;align-items:center;gap:5px}
 button.stb svg.i{width:13px;height:13px}
 button.bdg{cursor:pointer}
+.wa{margin-bottom:14px;border-left:3px solid var(--gr)}
+.wa.ok .gah{margin-bottom:0}
+a.wab{background:#1f7a4d;border-color:#1f7a4d;color:#fff}
+a.wab:hover{background:#25915b}
+a.ia.wai{color:#5fc48f;text-decoration:none}
 /* gráficos e comentários */
 .gch2{width:100%;height:auto;display:block}
 .lgd{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:6px}
@@ -422,6 +432,7 @@ button.bdg{cursor:pointer}
       <div class="top"><div><h1>Servidores</h1><div class="sub">Clientes de cada painel, com lançamento, vencimento, valores e comentários.</div></div><span class="sp"></span>
         <button class="bt" id="sRef"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Atualizar</button>
         <button class="bt pk" id="sNew"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Novo servidor</button></div>
+      <div id="sWa"></div>
       <div id="sStats"></div>
       <div id="sBody" class="svl"></div>
       <p class="muted" style="margin-top:14px">Os totais somam todos os clientes de todos os servidores. O botão de renovar soma os meses do cliente ao vencimento (ou a hoje, se já venceu).</p>
