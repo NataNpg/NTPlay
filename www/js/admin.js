@@ -453,6 +453,8 @@ const discOf = p => Math.min(Number(p.price) || 0, (Number(p.disc) || 0) + refDi
 const netOf = p => Math.max(0, (Number(p.price) || 0) - discOf(p));
 const SVG_WA = '<svg class="i" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 9.5c.5 2 2 3.6 4.5 4.5"/></svg>';
 const SVG_MV = '<svg class="i" viewBox="0 0 24 24"><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/></svg>';
+const SVG_INFO = '<svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>';
+const INFO_MAX = 8000;
 const perMonth = (v, months) => v == null ? 0 : v / Math.max(1, Number(months) || 1);
 
 function srvStart() { if (!GLOADED) { $('#sBody').innerHTML = '<p class="muted"><span class="spin"></span> Carregando…</p>'; loadGroups() } else renderGrp() }
@@ -513,6 +515,42 @@ function moveBox(p, sv, others) {
     $('[data-ok]', m).onclick = () => { if (!f('d').value) return toast('Informe a data da mudança.', 1); closeModal(); res({ to: f('to').value, d: f('d').value, keep: keep() }) };
   }));
 }
+/* Informações de acesso: o texto que o painel do servidor gera ("Detalhes do Cliente"), colado como está. */
+function infoBox(p, sv) {
+  return new Promise(res => modal(`<h3>Informações de ${esc(p.name)}</h3>
+    <p class="muted">Cole aqui os detalhes que o painel ${esc(sv.name)} mostra ao criar ou renovar o cliente (usuário, senha, apps, links M3U…).${p.infoAt ? ' Atualizado em ' + fmtDT(p.infoAt) + '.' : ''}</p>
+    <textarea class="in mono" data-f="t" rows="14" maxlength="${INFO_MAX}" placeholder="Cole aqui o texto do painel…">${esc(p.info || '')}</textarea>
+    <div class="row" style="justify-content:space-between;align-items:center"><span class="muted" id="ifN"></span></div>
+    <div class="acts"><button class="bt" data-cp>Copiar</button><button class="bt wab" data-wa>${SVG_WA}Enviar no WhatsApp</button><span style="flex:1"></span><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Salvar</button></div>`, m => {
+    const t = $('[data-f="t"]', m), n = () => $('#ifN', m).textContent = t.value.length + ' de ' + INFO_MAX + ' letras'; t.oninput = n; n();
+    $('[data-cp]', m).onclick = async () => { try { await navigator.clipboard.writeText(t.value); toast('Copiado.') } catch (e) { t.select(); document.execCommand('copy'); toast('Copiado.') } };
+    $('[data-wa]', m).onclick = async () => { const v = t.value.trim(); closeModal(); const o = await waSendBox(p, sv, 'info', v); res(v != (p.info || '') ? v : null); if (o && o.wa != (p.wa || '')) toast('Abra o lápis do cliente para salvar o número.') };
+    $('[data-no]', m).onclick = () => { closeModal(); res(null) };
+    $('[data-ok]', m).onclick = () => { closeModal(); res(t.value.trim()) };
+    t.focus();
+  }));
+}
+/* Enviar WhatsApp: escolhe a mensagem (vencimento, informações de acesso ou livre), edita e abre o WhatsApp. */
+function waSendBox(p, sv, kind, infoNow) {
+  const texts = { venc: waText(p, sv), info: infoNow != null ? infoNow : (p.info || ''), livre: '' };
+  let k = kind || 'venc';
+  return new Promise(res => modal(`<h3>WhatsApp de ${esc(p.name)}</h3>
+    <label class="f">Número do cliente<input class="in" data-f="n" inputmode="tel" maxlength="20" value="${esc(p.wa || '')}" placeholder="(11) 98765-4321"></label>
+    <div class="seg" id="wsK"><button data-k="venc">Aviso de vencimento</button><button data-k="info">Informações de acesso</button><button data-k="livre">Mensagem livre</button></div>
+    <textarea class="in" data-f="m" rows="9" maxlength="${INFO_MAX}"></textarea>
+    <p class="muted" id="wsH"></p>
+    <div class="acts"><button class="bt" data-no>Cancelar</button><a class="bt wab" data-wgo target="_blank" rel="noopener">${SVG_WA}Abrir WhatsApp</a></div>`, m => {
+    const num = $('[data-f="n"]', m), msg = $('[data-f="m"]', m), go = $('[data-wgo]', m);
+    const upd = () => { const d = waNum(num.value); go.href = d.length >= 12 ? 'https://wa.me/' + d + '?text=' + encodeURIComponent(msg.value) : '#'; go.classList.toggle('off', d.length < 12) };
+    const pick = x => { texts[k] = msg.value; k = x; msg.value = texts[k]; $$('#wsK button', m).forEach(b => b.classList.toggle('on', b.dataset.k == k));
+      $('#wsH', m).textContent = k == 'info' && !texts.info ? 'Este cliente ainda não tem informações salvas. Cole o texto no botão de documento da linha dele.' : k == 'venc' ? 'Muda o texto padrão em "Mensagem", no quadro Avisos de vencimento.' : ''; upd() };
+    $$('#wsK button', m).forEach(b => b.onclick = () => pick(b.dataset.k)); msg.oninput = upd; num.oninput = upd;
+    msg.value = texts[k]; pick(k);
+    $('[data-no]', m).onclick = () => { closeModal(); res(null) };
+    go.onclick = e => { if (go.classList.contains('off')) { e.preventDefault(); return toast('Coloque o número com DDD.', 1) } if (!msg.value.trim()) { e.preventDefault(); return toast('A mensagem está vazia.', 1) } setTimeout(() => { closeModal(); res({ wa: num.value.trim(), warn: k == 'venc' }) }, 50) };
+    msg.focus();
+  }));
+}
 function waBox() {
   return new Promise(res => modal(`<h3>Mensagem de aviso</h3><p class="muted">Use: {nome} (primeiro nome), {nomecompleto}, {quando} (ex.: "em 3 dias"), {vence} (data), {dias}, {valor} (já com desconto), {servidor}.</p>
     <label class="f">Mensagem<textarea class="in" data-f="m" rows="5" maxlength="600">${esc(waMsgT())}</textarea></label>
@@ -544,7 +582,7 @@ function renderSrv() {
         ${C(`<td class="r" data-l="Você paga">${brl(p.cost)}</td>`)}<td class="r" data-l="Cobra">${brl(p.price)}</td><td class="r" data-l="Desconto" title="${ni ? 'inclui ' + brl(refDiscOf(p)) + ' por indicação' : ''}">${ds ? '−' + brl(ds) : '—'}</td><td class="r" data-l="Recebe"><b>${brl(nt)}</b></td>${C(`<td class="r ${mg < 0 ? 'neg' : ''}" data-l="Sobra">${brl(mg)}</td>`)}
         <td data-l="Pagamento"><button class="bdg ${p.paid ? 'g' : 'y'}" data-sa="ppay" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Clique para trocar">${p.paid ? 'Recebido' : 'A receber'}</button></td>
         <td class="cmt" data-l="Comentário" title="${esc(p.note || '')}">${p.note ? esc(p.note) : '<span class="muted">—</span>'}</td>
-        <td class="r ac" style="white-space:nowrap">${p.wa ? `<a class="ia wai" href="${esc(waLink(p, sv))}" target="_blank" rel="noopener" data-wa="${esc(sv.id)}|${esc(p.id)}" title="WhatsApp ${esc(p.wa)}">${SVG_WA}</a>` : ''}<button class="ia" data-sa="pren" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Renovar (+${p.months || 1} mês)">${svgI('renew')}</button><button class="ia" data-sa="pmove" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Mudar de servidor">${SVG_MV}</button><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar">${SVG_DEL}</button></td></tr>`;
+        <td class="r ac" style="white-space:nowrap"><button class="ia ${p.wa ? 'wai' : ''}" data-sa="pwa" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="${p.wa ? 'WhatsApp ' + esc(p.wa) : 'WhatsApp (sem número)'}">${SVG_WA}</button><button class="ia ${p.info ? 'inf' : ''}" data-sa="pinfo" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="${p.info ? 'Informações de acesso' : 'Colar informações de acesso'}">${SVG_INFO}</button><button class="ia" data-sa="pren" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Renovar (+${p.months || 1} mês)">${svgI('renew')}</button><button class="ia" data-sa="pmove" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Mudar de servidor">${SVG_MV}</button><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar">${SVG_DEL}</button></td></tr>`;
     }).join('')}</tbody><tfoot><tr><td colspan="4" class="nm"><b>Total · ${all.length} cliente${all.length == 1 ? '' : 's'}</b>${ex ? ` <span class="bdg r">${ex} vencido${ex > 1 ? 's' : ''}</span>` : ''}</td>${C(`<td class="r" data-l="Você paga"><b>${brl(sp)}</b></td>`)}<td class="r" data-l="Cobra"><b>${brl(sc)}</b></td><td class="r" data-l="Desconto"><b>${sd ? '−' + brl(sd) : '—'}</b></td><td class="r" data-l="Recebe"><b>${brl(sn)}</b></td>${C(`<td class="r ${sn - sp < 0 ? 'neg' : ''}" data-l="Sobra"><b>${brl(sn - sp)}</b></td>`)}<td colspan="3" data-l="A receber">${sr ? `<span class="muted">a receber</span> <b>${brl(sr)}</b>` : ''}</td></tr></tfoot></table></div>`
       : '<p class="muted" style="padding:10px 0">Nenhum cliente neste servidor. Use <b>+ Cliente</b>.</p>';
     return `<div class="sv"><div class="svh"><h3>${esc(sv.name)}</h3>${sv.url ? `<a class="u" href="${esc(sv.url)}" target="_blank" rel="noopener">${esc(hostOf(sv.url))}</a>` : ''}<span class="bdg n">${all.length} cliente${all.length == 1 ? '' : 's'}</span><span class="sp"></span>
@@ -662,6 +700,8 @@ $('#t-srv').onclick = async e => {
     dest.plans.push(p);
     return saveGroups(next, p.name + ' foi para ' + dest.name + (p.exp ? ', vence ' + fmtISO(p.exp) : '') + '.');
   }
+  if (act == 'pinfo') { const o = await infoBox(p, sv); if (o == null) return; p.info = o; p.infoAt = Date.now(); return saveGroups(next, o ? 'Informações salvas.' : 'Informações apagadas.') }
+  if (act == 'pwa') { const o = await waSendBox(p, sv); if (!o) return; if (o.wa != (p.wa || '') || o.warn) { p.wa = o.wa; if (o.warn) p.warned = todayISO(); return saveGroups(next, o.warn ? 'Marcado como avisado hoje.' : 'WhatsApp salvo.') } return }
   if (act == 'ppay') { p.paid = !p.paid; if (p.paid) p.paidAt = todayISO(); return saveGroups(next, p.paid ? p.name + ': recebido.' : p.name + ': a receber.') }
   if (act == 'pdel') { if (!await confirmBox('Apagar cliente', `"${p.name}" será tirado de ${sv.name}.`, 'Apagar', 1)) return; sv.plans = sv.plans.filter(x => x != p); return saveGroups(next, 'Cliente apagado.') }
 };

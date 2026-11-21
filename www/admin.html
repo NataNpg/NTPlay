@@ -228,12 +228,14 @@ h2.sec{font-size:14px;font-weight:600;margin:24px 0 10px}
 .cmt{max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c3c8cd;font-size:12px}
 .ktab tfoot td{border-top:1px solid var(--line2);border-bottom:0;padding-top:10px;background:#ffffff03}
 .svb .ktab{min-width:860px}
-.svb .ktab .cmt{max-width:140px}
+.svb .ktab .cmt{max-width:110px}
 .st b{white-space:nowrap}
-.svb .ktab td.nm{min-width:110px}
+.svb .ktab td.nm{min-width:100px}
 .svb .ktab td.ac{width:1%}
-.svb .ktab td.ac .ia{width:26px;height:26px;margin-left:2px}
-.svb .ktab td,.svb .ktab th{padding:7px 5px}
+.svb .ktab td.ac .ia{width:25px;height:25px;margin-left:1px}
+.svb .ktab td.ac .ia svg.i{width:14px;height:14px}
+.svb .ktab th{white-space:nowrap}
+.svb .ktab td,.svb .ktab th{padding:7px 4px}
 .bdg:empty{display:none}
 button.stb{text-align:left;cursor:pointer;border-top:0;border-bottom:0;border-left:0}
 button.stb:hover{background:#ffffff06}
@@ -269,6 +271,12 @@ a.ia.wai{color:#5fc48f;text-decoration:none}
 #sStats .st{border-bottom:1px solid var(--line)}
 #sStats .st:nth-child(4n){border-right:0}
 #sStats .st:nth-last-child(-n+4):nth-child(4n+1),#sStats .st:nth-last-child(-n+4):nth-child(4n+1)~.st{border-bottom:0}
+.ia.inf{color:#7db3e8;border-color:#5c9bd155}
+button.ia.wai{color:#5fc48f}
+.bt.wab{background:#1f7a4d;border-color:#1f7a4d;color:#fff;text-decoration:none}
+.bt.wab.off{opacity:.5}
+.in.mono{font:12.5px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap}
+.md:has(.in.mono){width:min(640px,100%)}
 /* gráficos e comentários */
 .gch2{width:100%;height:auto;display:block}
 .lgd{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:6px}
@@ -324,7 +332,9 @@ a.ia.wai{color:#5fc48f;text-decoration:none}
   .ktab.rt td{border:0;padding:4px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:right;max-width:none;white-space:normal}
   .ktab.rt td[data-l]::before{content:attr(data-l);color:var(--mut);font-size:12px;text-align:left}
   .ktab.rt td.nm{display:block;text-align:left;padding-bottom:6px;border-bottom:1px solid var(--line);margin-bottom:4px}
-  .ktab.rt td.ac{justify-content:flex-end;padding-top:8px}
+  .ktab.rt td.ac{justify-content:flex-end;padding-top:8px;width:100%!important;flex-wrap:wrap;gap:6px}
+  .ktab.rt td.ac .ia{margin:0}
+  .ktab.rt td.cmt{max-width:none!important}
   .ktab.rt td.ac .ia{width:38px;height:38px}
   .ktab.rt td:empty{display:none}
   .ktab.rt tfoot tr{background:transparent;border-style:dashed}
