@@ -23,7 +23,17 @@ async function call(body) {
   if (!r.ok || !j.ok) throw new Error(j.msg || ('Erro do servidor (' + r.status + ')'));
   return j;
 }
-const adm = (op, extra = {}) => call({ a: 'adm', adm: ADM, op, ...extra });
+// Modo local (servidores.html, <body data-local="1">): sem login e sem servidor. Os dados ficam só neste navegador
+// (localStorage). Nada é enviado para o Supabase; o site não fica ligado ao painel principal.
+const LOCAL = document.body.dataset.local == '1', LKEY = 'ntSrvLocal';
+function localGet() { try { const o = JSON.parse(LS[LKEY] || 'null'); if (o && Array.isArray(o.groups)) return o } catch (e) { } return { groups: [], ts: 0 } }
+async function localAdm(op, x) {
+  if (op == 'list') return { ok: true, users: [] };
+  if (op == 'gget') { const o = localGet(); return { ok: true, groups: o.groups, ts: o.ts } }
+  if (op == 'gset') { const ts = Date.now(); try { LS[LKEY] = JSON.stringify({ groups: x.groups, ts }) } catch (e) { throw new Error('Não deu para salvar neste navegador (memória cheia ou modo anônimo).') } return { ok: true, ts } }
+  throw new Error('Não disponível neste site.');
+}
+const adm = (op, extra = {}) => LOCAL ? localAdm(op, extra) : call({ a: 'adm', adm: ADM, op, ...extra });
 
 /* ================= criptografia (igual ao app: core/Sync) =================
    chave = PBKDF2-HMAC-SHA1(senha, "ntplay-auth:"/"ntplay-enc:" + usuário, 40000, 256 bits)
@@ -432,11 +442,11 @@ function renderSrv() {
       <div class="svb">${table}</div></div>`;
   }).join('');
   $('#sStats').innerHTML = `<div class="stats">${[['', nCli, 'clientes em ' + SV.length + (SV.length == 1 ? ' servidor' : ' servidores')], ['gr', brl(tCob), 'total a cobrar (já com descontos)'], ['', brl(tDes), 'descontos'], ['pc', brl(panelCost() ?? tPag), panelCost() != null ? 'pago nos painéis por mês (digitado)' : 'pago nos painéis (clique para digitar)'], [tCob - (panelCost() ?? tPag) < 0 ? 'rd' : 'pk', brl(tCob - (panelCost() ?? tPag)), 'sobra'], [tRec ? 'yl' : '', brl(tRec), 'a receber'], [nExp ? 'rd' : '', nExp, 'vencidos'], [nSoon ? 'yl' : '', nSoon, 'vencem em ' + ALERT_DAYS + ' dias']].map(x => x[0] == 'pc' ? `<button class="st stb" data-sa="pcost" title="Digitar o valor pago nos painéis"><b>${x[1]}</b><small>${x[2]} ${SVG_ED}</small></button>` : `<div class="st ${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>
-    <div class="bar"><input class="in" id="sQ" placeholder="Buscar cliente ou comentário…" value="${esc(SQ)}">${[['all', 'Todos'], ['exp', 'Vencidos'], ['soon', 'Vencendo'], ['ok', 'Em dia'], ['none', 'Sem data'], ['rcv', 'A receber']].map(([k, l]) => `<button class="ch ${SF == k ? 'on' : ''}" data-sf="${k}">${l}</button>`).join('')}<button class="bt" id="sCsv">Exportar CSV</button></div>`;
+    <div class="bar"><input class="in" id="sQ" placeholder="Buscar cliente ou comentário…" value="${esc(SQ)}">${[['all', 'Todos'], ['exp', 'Vencidos'], ['soon', 'Vencendo'], ['ok', 'Em dia'], ['none', 'Sem data'], ['rcv', 'A receber']].map(([k, l]) => `<button class="ch ${SF == k ? 'on' : ''}" data-sf="${k}">${l}</button>`).join('')}<button class="bt" id="sCsv">Exportar CSV</button><button class="bt" id="sBk" title="Baixa um arquivo com os servidores e clientes (backup ou para abrir no outro site)">Salvar cópia</button></div>`;
   $('#sBody').innerHTML = cards || `<div class="empty card">${q || SF != 'all' ? 'Nenhum cliente encontrado.' : 'Nenhum servidor. Cadastre em <b>Novo servidor</b>.'}</div>`;
   const qi = $('#sQ'); qi.oninput = () => { SQ = qi.value; const pos = qi.selectionStart; renderSrv(); const n = $('#sQ'); n.focus(); n.setSelectionRange(pos, pos) };
   $$('[data-sf]').forEach(b => b.onclick = () => { SF = b.dataset.sf; renderSrv() });
-  $('#sCsv').onclick = srvCsv;
+  $('#sCsv').onclick = srvCsv; $('#sBk').onclick = backupSave;
 }
 function srvCsv() {
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"', num = v => v == null ? '' : String(v).replace('.', ',');
@@ -1004,4 +1014,30 @@ setInterval(async () => {
   const a = document.activeElement; if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.value) return;
   try { const j = await adm('gget'); if ((j.ts || 0) != GTS) { GROUPS = Array.isArray(j.groups) ? j.groups : []; GTS = j.ts || 0; renderGrp() } } catch (e) { }
 }, 30000);
-(function boot() { const a = SS.ntAdmKey; if (a) { ADM = a; start() } else $('#vLogin').classList.remove('hide') })();
+/* ---- cópia de segurança (arquivo .json): backup e para levar os dados de um aparelho para outro ---- */
+function backupSave() {
+  const r = GROUPS.find(g => g.id == SRV_ID); if (!r) return toast('Ainda não há dados para salvar.', 1);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({ ntplay: 'servidores', v: 1, t: Date.now(), data: r }, null, 1)], { type: 'application/json' }));
+  a.download = 'ntplay-servidores-' + todayISO() + '.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  try { LS.ntSrvBackup = String(Date.now()) } catch (e) { } toast('Cópia salva nos Downloads.');
+}
+function backupOpen() {
+  const i = document.createElement('input'); i.type = 'file'; i.accept = '.json,application/json';
+  i.onchange = async () => {
+    const f = i.files[0]; if (!f) return; let o; try { o = JSON.parse(await f.text()) } catch (e) { return toast('Arquivo inválido.', 1) }
+    const r = o && o.ntplay == 'servidores' && o.data && o.data.id == SRV_ID ? o.data : null; if (!r) return toast('Este arquivo não é uma cópia dos servidores.', 1);
+    const n = (r.servers || []).reduce((a, s) => a + (s.plans || []).length, 0);
+    if (!await confirmBox('Abrir cópia', `A cópia de ${fmtDT(o.t)} tem ${n} cliente(s). Ela substitui tudo o que está neste site agora.`, 'Substituir', 1)) return;
+    const next = clone(GROUPS).filter(g => g.id != SRV_ID); next.push(r); saveGroups(next, 'Cópia aberta.');
+  };
+  i.click();
+}
+if (LOCAL) {
+  $('#bOut').classList.add('hide');
+  const sp = $('.side .sp');
+  sp.insertAdjacentHTML('beforebegin', `<button class="nav" id="bkS"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Salvar cópia</button><button class="nav" id="bkO"><svg class="i" viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>Abrir cópia</button>`);
+  $('#bkS').onclick = backupSave; $('#bkO').onclick = backupOpen;
+  // lembrete: sem cópia há mais de 7 dias
+  setTimeout(() => { const b = +(LS.ntSrvBackup || 0); if (allRows().length && Date.now() - b > 7 * DAY) toast(b ? 'Faz mais de 7 dias da última cópia. Use "Salvar cópia".' : 'Os dados ficam só neste navegador. Use "Salvar cópia" de vez em quando.') }, 4000);
+}
+(function boot() { if (LOCAL) { ADM = 'local'; return start() } const a = SS.ntAdmKey; if (a) { ADM = a; start() } else $('#vLogin').classList.remove('hide') })();
