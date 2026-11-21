@@ -323,6 +323,7 @@ const refDiscOf = p => refsOf(p.id).length * refDisc();
 const discOf = p => Math.min(Number(p.price) || 0, (Number(p.disc) || 0) + refDiscOf(p));
 const netOf = p => Math.max(0, (Number(p.price) || 0) - discOf(p));
 const SVG_WA = '<svg class="i" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 9.5c.5 2 2 3.6 4.5 4.5"/></svg>';
+const SVG_MV = '<svg class="i" viewBox="0 0 24 24"><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/></svg>';
 const perMonth = (v, months) => v == null ? 0 : v / Math.max(1, Number(months) || 1);
 
 function srvStart() { if (!GLOADED) { $('#sBody').innerHTML = '<p class="muted"><span class="spin"></span> Carregando…</p>'; loadGroups() } else renderGrp() }
@@ -365,6 +366,24 @@ function renderWa() {
       return `<div class="gm ${done ? '' : i.cls}"><div class="n"><b>${esc(p.name)}</b><small>${esc(sv.name)} · ${esc(i.lab)} · ${brl(netOf(p))}${p.warned ? ' · avisado ' + (done ? 'hoje' : fmtISO(p.warned)) : ''}</small></div>
         ${p.wa ? `<a class="bt sm ${done ? '' : 'wab'}" href="${esc(waLink(p, sv))}" target="_blank" rel="noopener" data-wa="${esc(sv.id)}|${esc(p.id)}">${done ? 'Enviar de novo' : 'Enviar WhatsApp'}</a>` : `<button class="bt sm" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}">+ WhatsApp</button>`}</div>` }).join('')}</div>` : ''}</div>`;
 }
+const withSrvList = next => { let l; withSrv(next, x => l = x); return l };
+function moveBox(p, sv, others) {
+  const i = rowInfo(p), left = p.exp ? Math.max(0, Math.floor(i.d)) : null;
+  return new Promise(res => modal(`<h3>Mudar ${esc(p.name)} de servidor</h3>
+    <p class="muted">Hoje está em <b>${esc(sv.name)}</b>${p.exp ? `, vence ${fmtISO(p.exp)} (${esc(i.lab.toLowerCase())})` : ''}.</p>
+    <label class="f">Vai para<select class="in" data-f="to">${others.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select></label>
+    <label class="f">Data da mudança<input class="in" type="date" data-f="d" value="${todayISO()}"></label>
+    <label class="f" style="display:flex;align-items:flex-start;gap:8px;color:var(--tx)"><input type="radio" name="mk" value="1" checked style="margin-top:3px"><span>Manter o vencimento${left != null ? ` — os ${left} dia(s) que faltam passam para o servidor novo` : ''}</span></label>
+    <label class="f" style="display:flex;align-items:flex-start;gap:8px;color:var(--tx)"><input type="radio" name="mk" value="0" style="margin-top:3px"><span>Começar do zero — novo período de ${p.months || 1} mês a partir da data da mudança</span></label>
+    <p class="muted" id="mvP"></p>
+    <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Mudar</button></div>`, m => {
+    const f = k => $(`[data-f="${k}"]`, m), keep = () => $('input[name="mk"]:checked', m).value == '1';
+    const prev = () => { const e = keep() ? p.exp : addMonths(f('d').value || todayISO(), p.months || 1); $('#mvP', m).textContent = e ? 'No servidor novo vai vencer em ' + fmtISO(e) + '.' : '' };
+    $$('input[name="mk"]', m).forEach(r => r.onchange = prev); f('d').oninput = prev; prev();
+    $('[data-no]', m).onclick = () => { closeModal(); res(null) };
+    $('[data-ok]', m).onclick = () => { if (!f('d').value) return toast('Informe a data da mudança.', 1); closeModal(); res({ to: f('to').value, d: f('d').value, keep: keep() }) };
+  }));
+}
 function waBox() {
   return new Promise(res => modal(`<h3>Mensagem de aviso</h3><p class="muted">Use: {nome} (primeiro nome), {nomecompleto}, {quando} (ex.: "em 3 dias"), {vence} (data), {dias}, {valor} (já com desconto), {servidor}.</p>
     <label class="f">Mensagem<textarea class="in" data-f="m" rows="5" maxlength="600">${esc(waMsgT())}</textarea></label>
@@ -391,12 +410,12 @@ function renderSrv() {
     const pc = panelCost() == null, C = (h) => pc ? h : '';
     const table = rows.length ? `<div class="twrap"><table class="ktab rt"><thead><tr><th>Cliente</th><th>Lançado</th><th>Vence</th><th>Situação</th>${C('<th class="r">Você paga</th>')}<th class="r">Cobra</th><th class="r">Desconto</th><th class="r">Recebe</th>${C('<th class="r">Sobra</th>')}<th>Pagamento</th><th>Comentário</th><th></th></tr></thead><tbody>${rows.map(({ p, i }) => {
       const ds = discOf(p), nt = netOf(p), mg = nt - (p.cost || 0), rf = p.ref && rowById(p.ref), ni = refsOf(p.id).length;
-      const sub = [p.months > 1 ? p.months + ' meses' : '', rf ? 'indicado por ' + rf.p.name : '', ni ? 'indicou ' + ni : ''].filter(Boolean).join(' · ');
+      const mv = (p.moves || []).slice(-1)[0], sub = [p.months > 1 ? p.months + ' meses' : '', mv ? 'veio de ' + mv.fromName + ' em ' + fmtS(mv.d) : '', rf ? 'indicado por ' + rf.p.name : '', ni ? 'indicou ' + ni : ''].filter(Boolean).join(' · ');
       return `<tr><td class="nm"><b style="font-weight:500">${esc(p.name)}</b>${sub ? `<small class="muted" style="display:block">${esc(sub)}</small>` : ''}</td><td data-l="Lançado">${fmtS(p.start)}</td><td data-l="Vence">${fmtS(p.exp)}</td><td data-l="Situação"><span class="bdg ${i.cls}">${esc(i.lab)}</span></td>
         ${C(`<td class="r" data-l="Você paga">${brl(p.cost)}</td>`)}<td class="r" data-l="Cobra">${brl(p.price)}</td><td class="r" data-l="Desconto" title="${ni ? 'inclui ' + brl(refDiscOf(p)) + ' por indicação' : ''}">${ds ? '−' + brl(ds) : '—'}</td><td class="r" data-l="Recebe"><b>${brl(nt)}</b></td>${C(`<td class="r ${mg < 0 ? 'neg' : ''}" data-l="Sobra">${brl(mg)}</td>`)}
         <td data-l="Pagamento"><button class="bdg ${p.paid ? 'g' : 'y'}" data-sa="ppay" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Clique para trocar">${p.paid ? 'Recebido' : 'A receber'}</button></td>
         <td class="cmt" data-l="Comentário" title="${esc(p.note || '')}">${p.note ? esc(p.note) : '<span class="muted">—</span>'}</td>
-        <td class="r ac" style="white-space:nowrap">${p.wa ? `<a class="ia wai" href="${esc(waLink(p, sv))}" target="_blank" rel="noopener" data-wa="${esc(sv.id)}|${esc(p.id)}" title="WhatsApp ${esc(p.wa)}">${SVG_WA}</a>` : ''}<button class="ia" data-sa="pren" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Renovar (+${p.months || 1} mês)">${svgI('renew')}</button><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar">${SVG_DEL}</button></td></tr>`;
+        <td class="r ac" style="white-space:nowrap">${p.wa ? `<a class="ia wai" href="${esc(waLink(p, sv))}" target="_blank" rel="noopener" data-wa="${esc(sv.id)}|${esc(p.id)}" title="WhatsApp ${esc(p.wa)}">${SVG_WA}</a>` : ''}<button class="ia" data-sa="pren" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Renovar (+${p.months || 1} mês)">${svgI('renew')}</button><button class="ia" data-sa="pmove" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Mudar de servidor">${SVG_MV}</button><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar">${SVG_DEL}</button></td></tr>`;
     }).join('')}</tbody><tfoot><tr><td colspan="4" class="nm"><b>Total · ${all.length} cliente${all.length == 1 ? '' : 's'}</b>${ex ? ` <span class="bdg r">${ex} vencido${ex > 1 ? 's' : ''}</span>` : ''}</td>${C(`<td class="r" data-l="Você paga"><b>${brl(sp)}</b></td>`)}<td class="r" data-l="Cobra"><b>${brl(sc)}</b></td><td class="r" data-l="Desconto"><b>${sd ? '−' + brl(sd) : '—'}</b></td><td class="r" data-l="Recebe"><b>${brl(sn)}</b></td>${C(`<td class="r ${sn - sp < 0 ? 'neg' : ''}" data-l="Sobra"><b>${brl(sn - sp)}</b></td>`)}<td colspan="3" data-l="A receber">${sr ? `<span class="muted">a receber</span> <b>${brl(sr)}</b>` : ''}</td></tr></tfoot></table></div>`
       : '<p class="muted" style="padding:10px 0">Nenhum cliente neste servidor. Use <b>+ Cliente</b>.</p>';
     return `<div class="sv"><div class="svh"><h3>${esc(sv.name)}</h3>${sv.url ? `<a class="u" href="${esc(sv.url)}" target="_blank" rel="noopener">${esc(hostOf(sv.url))}</a>` : ''}<span class="bdg n">${all.length} cliente${all.length == 1 ? '' : 's'}</span><span class="sp"></span>
@@ -503,6 +522,16 @@ $('#t-srv').onclick = async e => {
     const base = p.exp && p.exp > todayISO() ? p.exp : todayISO(), nx = addMonths(base, p.months || 1);
     if (!await confirmBox('Renovar ' + p.name, `Vencimento passa de ${fmtISO(p.exp)} para ${fmtISO(nx)} (+${p.months || 1} mês).`, 'Renovar')) return;
     p.exp = nx; p.renewed = todayISO(); p.paid = false; delete p.warned; return saveGroups(next, 'Renovado até ' + fmtISO(nx) + '. Marcado como a receber.');
+  }
+  if (act == 'pmove') {
+    const others = withSrvList(next).filter(x => x.id != sv.id); if (!others.length) return toast('Cadastre outro servidor primeiro.', 1);
+    const o = await moveBox(p, sv, others); if (!o) return;
+    const dest = others.find(x => x.id == o.to); dest.plans = dest.plans || [];
+    sv.plans = sv.plans.filter(x => x != p);
+    p.moves = (p.moves || []).concat({ d: o.d, from: sv.id, fromName: sv.name, to: dest.id, keep: o.keep });
+    if (!o.keep) { p.start = o.d; p.exp = addMonths(o.d, p.months || 1) }
+    dest.plans.push(p);
+    return saveGroups(next, p.name + ' foi para ' + dest.name + (p.exp ? ', vence ' + fmtISO(p.exp) : '') + '.');
   }
   if (act == 'ppay') { p.paid = !p.paid; if (p.paid) p.paidAt = todayISO(); return saveGroups(next, p.paid ? p.name + ': recebido.' : p.name + ': a receber.') }
   if (act == 'pdel') { if (!await confirmBox('Apagar cliente', `"${p.name}" será tirado de ${sv.name}.`, 'Apagar', 1)) return; sv.plans = sv.plans.filter(x => x != p); return saveGroups(next, 'Cliente apagado.') }
