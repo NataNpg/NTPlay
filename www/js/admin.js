@@ -392,14 +392,23 @@ function srvMembers(sid) { const out = []; realGroups(GROUPS).forEach(g => (g.me
    Linha de cliente também guarda disc (desconto fixo R$), ref (id da linha de quem indicou) e paid (recebido no ciclo atual). */
 const REC = () => GROUPS.find(g => g.id == SRV_ID) || {};
 function withRec(next, fn) { let r = next.find(g => g.id == SRV_ID); if (!r) { r = { id: SRV_ID, kind: 'srv', servers: clone(DEFAULT_SRV) }; next.push(r) } r.servers = r.servers || []; r.expenses = r.expenses || []; r.notes = r.notes || []; r.cfg = r.cfg || {}; fn(r); return next }
-const allRows = () => srvList().flatMap(sv => (sv.plans || []).map(p => ({ sv, p })));
-const rowById = id => allRows().find(x => x.p.id == id);
+// índice das linhas, refeito só quando os dados mudam (GROUPS vira outro array a cada carga/salvamento).
+// Sem ele, cada linha varria a lista inteira e o site ficava lento com milhares de clientes.
+let RC = null;
+function rowCache() {
+  if (RC && RC.g === GROUPS) return RC;
+  const rows = srvList().flatMap(sv => (sv.plans || []).map(p => ({ sv, p }))), byId = new Map(), refs = new Map();
+  rows.forEach(x => { byId.set(x.p.id, x); if (x.p.ref) { if (!refs.has(x.p.ref)) refs.set(x.p.ref, []); refs.get(x.p.ref).push(x) } });
+  return RC = { g: GROUPS, rows, byId, refs };
+}
+const allRows = () => rowCache().rows;
+const rowById = id => rowCache().byId.get(id);
 // valor pago nos painéis digitado à mão (por mês, tudo junto). null = somar o "Você paga" de cada cliente.
 const panelCost = () => { const v = (REC().cfg || {}).panelCost; return v == null || v === '' ? null : Number(v) };
 const refDisc = () => Number((REC().cfg || {}).refDisc) || 0;
 const rowOn = p => !p.exp || (new Date(p.exp + 'T23:59:59-03:00') - Date.now()) > 0;
 // indicados de um cliente que estão com o plano em dia (cada um dá refDisc de desconto a quem indicou)
-const refsOf = id => allRows().filter(x => x.p.ref == id && rowOn(x.p));
+const refsOf = id => (rowCache().refs.get(id) || []).filter(x => rowOn(x.p));
 const refDiscOf = p => refsOf(p.id).length * refDisc();
 const discOf = p => Math.min(Number(p.price) || 0, (Number(p.disc) || 0) + refDiscOf(p));
 const netOf = p => Math.max(0, (Number(p.price) || 0) - discOf(p));
