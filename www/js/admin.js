@@ -92,7 +92,15 @@ function askBox(title, text, fields, okLabel) {
 }
 
 /* ================= navegação ================= */
-const TABS = ['geral', 'contas', 'clientes', 'sigma', 'srv', 'ind', 'fin', 'com', 'listas', 'uso'];
+// servidores.html é o mesmo painel com <body data-only="srv,ind,fin,com">: só essas abas, mesmos dados.
+const ONLY = (document.body.dataset.only || '').split(',').filter(Boolean);
+const TABS = ['geral', 'contas', 'clientes', 'sigma', 'srv', 'ind', 'fin', 'com', 'listas', 'uso'].filter(t => !ONLY.length || ONLY.includes(t));
+if (ONLY.length) {
+  $$('.nav[data-tab]').forEach(b => { if (!TABS.includes(b.dataset.tab)) b.classList.add('hide') }); // escondidos, não apagados: o código ainda atualiza os números deles
+  $$('main > section').forEach(s => { if (!TABS.includes(s.id.slice(2))) { s.classList.add('hide'); s.dataset.off = 1 } });
+  $$('.brand b span').forEach(x => x.textContent = 'Servidores');
+  const k = $('#lKey'); if (k) k.closest('label').classList.add('hide');
+}
 function go(tab) {
   $$('.nav[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab == tab));
   TABS.forEach(t => $('#t-' + t).classList.toggle('hide', t != tab));
@@ -988,5 +996,12 @@ $('#lGo').onclick = async () => {
 $('#lAdm').onkeydown = e => { if (e.key == 'Enter') $('#lGo').click() };
 function logout() { try { delete SS.ntAdmKey } catch (e) { } ADM = ''; GROUPS = []; GTS = 0; GLOADED = false; ustarted = false; clearInterval(UT); $('#vApp').classList.add('hide'); $('#vLogin').classList.remove('hide') }
 $('#bOut').onclick = logout;
-function start() { $('#vLogin').classList.add('hide'); $('#vApp').classList.remove('hide'); loadUsers().then(loadGroups); const t = (location.hash || '').slice(1); go(TABS.includes(t) ? t : 'geral') }
+function start() { $('#vLogin').classList.add('hide'); $('#vApp').classList.remove('hide'); loadUsers().then(loadGroups); const t = (location.hash || '').slice(1); go(TABS.includes(t) ? t : TABS[0]) }
+// os dois sites (painel e servidores) usam os mesmos dados: a cada 30 s confere se algo mudou no outro e atualiza,
+// sem atrapalhar quem está digitando ou com uma janela aberta.
+setInterval(async () => {
+  if (!ADM || !GLOADED || GBUSY || document.hidden || !$('#modal').classList.contains('hide')) return;
+  const a = document.activeElement; if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.value) return;
+  try { const j = await adm('gget'); if ((j.ts || 0) != GTS) { GROUPS = Array.isArray(j.groups) ? j.groups : []; GTS = j.ts || 0; renderGrp() } } catch (e) { }
+}, 30000);
 (function boot() { const a = SS.ntAdmKey; if (a) { ADM = a; start() } else $('#vLogin').classList.remove('hide') })();

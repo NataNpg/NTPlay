@@ -27,6 +27,9 @@ jobs:
         run: |
           mkdir _site
           cp www/contas.html www/admin.html www/enviar.html _site/
+          # servidores.html: o mesmo painel só com as abas Servidores, Indicações, Financeiro e Comentários (mesmos dados)
+          sed -e 's|<body>|<body data-only="srv,ind,fin,com">|' -e 's|<title>NTPlay Painel</title>|<title>NTPlay Servidores</title>|' www/admin.html > _site/servidores.html
+          grep -q 'data-only=' _site/servidores.html
           cp -r www/img _site/img
           mkdir -p _site/js && cp www/js/admin.js www/js/chart.umd.js _site/js/
           cat > _site/index.html <<'EOF'
