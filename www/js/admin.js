@@ -27,12 +27,75 @@ async function call(body) {
 // (localStorage). Nada é enviado para o Supabase; o site não fica ligado ao painel principal.
 const LOCAL = document.body.dataset.local == '1', LKEY = 'ntSrvLocal';
 function localGet() { try { const o = JSON.parse(LS[LKEY] || 'null'); if (o && Array.isArray(o.groups)) return o } catch (e) { } return { groups: [], ts: 0 } }
+function localPut(groups, ts) { try { LS[LKEY] = JSON.stringify({ groups, ts }) } catch (e) { throw new Error('Não deu para salvar neste navegador (memória cheia ou modo anônimo).') } }
+/* Nuvem com senha (opcional): os dados vão trancados (AES-GCM com a senha) para uma conta NTPlay própria
+   (ex.: "servidores"), criada no painel. O servidor só guarda o bloco trancado. A senha não fica salva:
+   o aparelho guarda só as chaves derivadas dela (CLKEY), para não pedir de novo. */
+const CLKEY = 'ntSrvCloud';
+const cloud = () => { try { return JSON.parse(LS[CLKEY] || 'null') } catch (e) { return null } };
+const devId = () => { let d = LS.ntSrvDev; if (!d) { d = gid() + gid(); try { LS.ntSrvDev = d } catch (e) { } } return d };
+const cKeys = c => ({ auth: c.auth, enc: unb64(c.enc) });
+async function cloudGet(c) {
+  const j = await call({ a: 'get', u: c.u, k: c.auth, dev: devId(), dn: 'Site servidores' });
+  if (!j.data) return { groups: null, ts: 0 };
+  const d = await decBlob(j.data, cKeys(c).enc); if (!d || !Array.isArray(d.srvGroups)) throw new Error('Os dados da nuvem não abriram com esta senha.');
+  return { groups: d.srvGroups, ts: Number(j.ts) || 0 };
+}
 async function localAdm(op, x) {
   if (op == 'list') return { ok: true, users: [] };
-  if (op == 'gget') { const o = localGet(); return { ok: true, groups: o.groups, ts: o.ts } }
-  if (op == 'gset') { const ts = Date.now(); try { LS[LKEY] = JSON.stringify({ groups: x.groups, ts }) } catch (e) { throw new Error('Não deu para salvar neste navegador (memória cheia ou modo anônimo).') } return { ok: true, ts } }
+  const c = cloud();
+  if (op == 'gget') {
+    if (c) {
+      try { const r = await cloudGet(c); if (r.groups) { localPut(r.groups, r.ts); return { ok: true, groups: r.groups, ts: r.ts } } }
+      catch (e) { if (/incorretos|expirou|validade/i.test(e.message)) toast('Nuvem: ' + e.message, 1); else if (!localAdm.off) { localAdm.off = 1; toast('Sem internet: mostrando a última cópia deste aparelho.', 1) } }
+    }
+    const o = localGet(); return { ok: true, groups: o.groups, ts: o.ts };
+  }
+  if (op == 'gset') {
+    const ts = Date.now();
+    if (c) {
+      const cur = await cloudGet(c); // confere se outro aparelho salvou antes
+      if (cur.groups && cur.ts && cur.ts != x.prev) throw new Error('Outro aparelho alterou os dados. Clique em Atualizar e refaça a mudança.');
+      await call({ a: 'put', u: c.u, k: c.auth, dev: devId(), dn: 'Site servidores', ts, data: await encBlob({ srvGroups: x.groups, lists: [], favs: [], groups: {}, prog: {}, ts }, cKeys(c).enc) });
+      localAdm.off = 0;
+    }
+    localPut(x.groups, ts); return { ok: true, ts };
+  }
   throw new Error('Não disponível neste site.');
 }
+function cloudBox() {
+  const c = cloud();
+  if (c) return modal(`<h3>Nuvem ligada</h3><p class="muted">Este aparelho está salvando na conta <b>${esc(c.u)}</b>. Os mesmos dados aparecem em qualquer aparelho ligado à mesma conta e senha.</p>
+    <div class="acts"><button class="bt rd" data-off>Desligar neste aparelho</button><button class="bt pk" data-no>Fechar</button></div>`, m => {
+    $('[data-no]', m).onclick = closeModal;
+    $('[data-off]', m).onclick = async () => { closeModal(); if (!await confirmBox('Desligar a nuvem', 'Este aparelho para de salvar na nuvem e fica com a cópia que já tem. Os dados na nuvem continuam lá.', 'Desligar', 1)) return; try { delete LS[CLKEY] } catch (e) { } toast('Nuvem desligada neste aparelho.'); renderCloudBtn() };
+  });
+  modal(`<h3>Abrir de outros aparelhos</h3><p class="muted">Digite a conta e a senha do cofre (a conta criada no painel para este site). Este aparelho lembra e não pede de novo.</p>
+    <label class="f">Conta<input class="in" data-f="u" value="servidores" autocomplete="username"></label>
+    <label class="f">Senha<input class="in" data-f="p" type="password" autocomplete="current-password"></label>
+    <p class="err" id="clE"></p>
+    <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Ligar</button></div>`, m => {
+    $('[data-no]', m).onclick = closeModal;
+    const go = async () => {
+      const u = normU($('[data-f="u"]', m).value), p = $('[data-f="p"]', m).value, b = $('[data-ok]', m); $('#clE', m).textContent = '';
+      if (!u || !p) return $('#clE', m).textContent = 'Preencha a conta e a senha.';
+      b.disabled = true; b.innerHTML = '<span class="spin"></span> Ligando…';
+      try {
+        const k = await derive(u, p), c2 = { u, auth: k.auth, enc: b64(k.enc) }, r = await cloudGet(c2), here = localGet();
+        const nHere = here.groups.length ? (here.groups.find(g => g.id == SRV_ID) || {}).servers?.reduce((a, s) => a + (s.plans || []).length, 0) || 0 : 0;
+        LS[CLKEY] = JSON.stringify(c2); closeModal();
+        if (r.groups) {
+          if (nHere && JSON.stringify(here.groups) != JSON.stringify(r.groups)) toast('Nuvem ligada. Os dados da nuvem substituíram os deste aparelho.');
+          else toast('Nuvem ligada.');
+          localPut(r.groups, r.ts); GLOADED = false; await loadGroups();
+        } else { await saveGroups(clone(GROUPS.length ? GROUPS : here.groups), 'Nuvem ligada. Os dados deste aparelho foram enviados.') }
+        renderCloudBtn();
+      } catch (e) { b.disabled = false; b.textContent = 'Ligar'; $('#clE', m).textContent = /incorretos/.test(e.message) ? 'Conta ou senha incorretas.' : e.message }
+    };
+    $('[data-ok]', m).onclick = go; $('[data-f="p"]', m).onkeydown = e => { if (e.key == 'Enter') go() }; $('[data-f="p"]', m).focus();
+  });
+}
+function renderCloudBtn() { const b = $('#bkC'); if (!b) return; const c = cloud(); b.querySelector('span').textContent = c ? 'Nuvem: ' + c.u : 'Abrir em outros aparelhos'; b.classList.toggle('on2', !!c) }
 const adm = (op, extra = {}) => LOCAL ? localAdm(op, extra) : call({ a: 'adm', adm: ADM, op, ...extra });
 
 /* ================= criptografia (igual ao app: core/Sync) =================
@@ -1035,9 +1098,9 @@ function backupOpen() {
 if (LOCAL) {
   $('#bOut').classList.add('hide');
   const sp = $('.side .sp');
-  sp.insertAdjacentHTML('beforebegin', `<button class="nav" id="bkS"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Salvar cópia</button><button class="nav" id="bkO"><svg class="i" viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>Abrir cópia</button>`);
-  $('#bkS').onclick = backupSave; $('#bkO').onclick = backupOpen;
+  sp.insertAdjacentHTML('beforebegin', `<button class="nav" id="bkC"><svg class="i" viewBox="0 0 24 24"><path d="M7 18a5 5 0 0 1-.5-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg><span>Abrir em outros aparelhos</span></button><button class="nav" id="bkS"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Salvar cópia</button><button class="nav" id="bkO"><svg class="i" viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>Abrir cópia</button>`);
+  $('#bkS').onclick = backupSave; $('#bkO').onclick = backupOpen; $('#bkC').onclick = cloudBox; renderCloudBtn();
   // lembrete: sem cópia há mais de 7 dias
-  setTimeout(() => { const b = +(LS.ntSrvBackup || 0); if (allRows().length && Date.now() - b > 7 * DAY) toast(b ? 'Faz mais de 7 dias da última cópia. Use "Salvar cópia".' : 'Os dados ficam só neste navegador. Use "Salvar cópia" de vez em quando.') }, 4000);
+  setTimeout(() => { const b = +(LS.ntSrvBackup || 0); if (allRows().length && Date.now() - b > 7 * DAY) { if (!cloud()) toast(b ? 'Faz mais de 7 dias da última cópia. Use "Salvar cópia".' : 'Os dados ficam só neste navegador. Use "Salvar cópia" ou ligue a nuvem.') } }, 4000);
 }
 (function boot() { if (LOCAL) { ADM = 'local'; return start() } const a = SS.ntAdmKey; if (a) { ADM = a; start() } else $('#vLogin').classList.remove('hide') })();
