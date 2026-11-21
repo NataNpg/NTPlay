@@ -92,13 +92,13 @@ function askBox(title, text, fields, okLabel) {
 }
 
 /* ================= navegação ================= */
-const TABS = ['geral', 'contas', 'clientes', 'sigma', 'srv', 'listas', 'uso'];
+const TABS = ['geral', 'contas', 'clientes', 'sigma', 'srv', 'ind', 'fin', 'com', 'listas', 'uso'];
 function go(tab) {
   $$('.nav[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab == tab));
   TABS.forEach(t => $('#t-' + t).classList.toggle('hide', t != tab));
   if (tab == 'uso') usoStart();
   if (tab == 'sigma') sigmaStart();
-  if (tab == 'srv') srvStart();
+  if (['srv', 'ind', 'fin', 'com'].includes(tab)) srvStart();
   if (tab == 'clientes') setTimeout(drawTimeline, 0);
   try { history.replaceState(null, '', '#' + tab) } catch (e) { }
   window.scrollTo(0, 0);
@@ -170,7 +170,7 @@ function memberInfo(m) {
 }
 const inAlert = i => !i.none && i.d <= ALERT_DAYS && i.d > -ALERT_PAST;
 
-function renderGrp() { renderGroups(); renderSrv() }
+function renderGrp() { renderGroups(); renderSrv(); renderInd(); renderFin(); renderCom() }
 function renderGroups() {
   if (!GLOADED) return;
   const GR = realGroups(GROUPS);
@@ -295,7 +295,7 @@ const DEFAULT_SRV = [
 ].map(([id, name, url]) => ({ id, name, url, note: '', plans: [] }));
 const realGroups = gs => gs.filter(g => g.kind != 'srv');
 const srvList = () => { const r = GROUPS.find(g => g.id == SRV_ID); return r ? (r.servers || []) : clone(DEFAULT_SRV) };
-function withSrv(next, fn) { let r = next.find(g => g.id == SRV_ID); if (!r) { r = { id: SRV_ID, kind: 'srv', servers: clone(DEFAULT_SRV) }; next.push(r) } fn(r.servers); return next }
+function withSrv(next, fn) { return withRec(next, r => fn(r.servers)) }
 const planOf = (sid, pid) => { const sv = srvList().find(x => x.id == sid); return sv && (sv.plans || []).find(p => p.id == pid) };
 const brl = v => v == null || v === '' || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 function money(t) { let x = String(t).replace(/R\$|\s/g, ''); if (!x) return null; if (x.includes(',')) x = x.replace(/\./g, '').replace(',', '.'); const n = Number(x); return isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null }
@@ -307,9 +307,22 @@ function srvPlanText(m) {
 }
 // clientes Sigma de cada servidor (de todos os grupos)
 function srvMembers(sid) { const out = []; realGroups(GROUPS).forEach(g => (g.members || []).forEach(m => { if (m.src == 'sg' && m.srv == sid) out.push({ g, m }) })); return out }
+/* registro completo: servers + expenses (despesas) + notes (comentários) + cfg.refDisc (desconto por indicação).
+   Linha de cliente também guarda disc (desconto fixo R$), ref (id da linha de quem indicou) e paid (recebido no ciclo atual). */
+const REC = () => GROUPS.find(g => g.id == SRV_ID) || {};
+function withRec(next, fn) { let r = next.find(g => g.id == SRV_ID); if (!r) { r = { id: SRV_ID, kind: 'srv', servers: clone(DEFAULT_SRV) }; next.push(r) } r.servers = r.servers || []; r.expenses = r.expenses || []; r.notes = r.notes || []; r.cfg = r.cfg || {}; fn(r); return next }
+const allRows = () => srvList().flatMap(sv => (sv.plans || []).map(p => ({ sv, p })));
+const rowById = id => allRows().find(x => x.p.id == id);
+const refDisc = () => Number((REC().cfg || {}).refDisc) || 0;
+const rowOn = p => !p.exp || (new Date(p.exp + 'T23:59:59-03:00') - Date.now()) > 0;
+// indicados de um cliente que estão com o plano em dia (cada um dá refDisc de desconto a quem indicou)
+const refsOf = id => allRows().filter(x => x.p.ref == id && rowOn(x.p));
+const refDiscOf = p => refsOf(p.id).length * refDisc();
+const discOf = p => Math.min(Number(p.price) || 0, (Number(p.disc) || 0) + refDiscOf(p));
+const netOf = p => Math.max(0, (Number(p.price) || 0) - discOf(p));
 const perMonth = (v, months) => v == null ? 0 : v / Math.max(1, Number(months) || 1);
 
-function srvStart() { if (!GLOADED) { $('#sBody').innerHTML = '<p class="muted"><span class="spin"></span> Carregando…</p>'; loadGroups() } else renderSrv() }
+function srvStart() { if (!GLOADED) { $('#sBody').innerHTML = '<p class="muted"><span class="spin"></span> Carregando…</p>'; loadGroups() } else renderGrp() }
 // Cada linha da tabela de um servidor é um cliente: { id, name, months, start, exp, cost, price, note }.
 // (fica no campo "plans" por compatibilidade com o que já estava salvo)
 let SQ = '', SF = 'all';
@@ -324,29 +337,31 @@ function rowInfo(p) {
 function renderSrv() {
   if (!GLOADED) return;
   const SV = srvList(), q = SQ.toLowerCase();
-  let nCli = 0, tCob = 0, tPag = 0, nExp = 0, nSoon = 0;
-  SV.forEach(sv => (sv.plans || []).forEach(p => { const i = rowInfo(p); nCli++; tCob += p.price || 0; tPag += p.cost || 0; if (i.k == 'exp') nExp++; if (i.k == 'soon') nSoon++ }));
+  let nCli = 0, tCob = 0, tPag = 0, nExp = 0, nSoon = 0, tDes = 0, tRec = 0;
+  SV.forEach(sv => (sv.plans || []).forEach(p => { const i = rowInfo(p); nCli++; tCob += netOf(p); tDes += discOf(p); tPag += p.cost || 0; if (!p.paid) tRec += netOf(p); if (i.k == 'exp') nExp++; if (i.k == 'soon') nSoon++ }));
   const cards = SV.map(sv => {
     const all = (sv.plans || []).map(p => ({ p, i: rowInfo(p) }));
-    const rows = all.filter(({ p, i }) => (SF == 'all' || i.k == SF) && (!q || (p.name + ' ' + (p.note || '')).toLowerCase().includes(q))).sort((a, b) => a.i.d - b.i.d);
+    const rows = all.filter(({ p, i }) => (SF == 'all' || i.k == SF || (SF == 'rcv' && !p.paid)) && (!q || (p.name + ' ' + (p.note || '')).toLowerCase().includes(q))).sort((a, b) => a.i.d - b.i.d);
     if ((q || SF != 'all') && !rows.length) return '';
-    const sc = all.reduce((n, x) => n + (x.p.price || 0), 0), sp = all.reduce((n, x) => n + (x.p.cost || 0), 0);
+    const sum = f => all.reduce((n, x) => n + (f(x.p) || 0), 0), sc = sum(p => p.price), sp = sum(p => p.cost), sd = sum(discOf), sn = sum(netOf), sr = sum(p => p.paid ? 0 : netOf(p));
     const ex = all.filter(x => x.i.k == 'exp').length;
-    const table = rows.length ? `<div class="twrap"><table class="ktab"><thead><tr><th>Cliente</th><th>Lançado</th><th>Vence</th><th>Situação</th><th class="r">Você paga</th><th class="r">Cobra</th><th class="r">Sobra</th><th>Comentário</th><th></th></tr></thead><tbody>${rows.map(({ p, i }) => {
-      const mg = (p.price || 0) - (p.cost || 0);
-      return `<tr><td><b style="font-weight:500">${esc(p.name)}</b>${p.months > 1 ? `<small class="muted" style="display:block">${p.months} meses</small>` : ''}</td><td>${fmtISO(p.start)}</td><td>${fmtISO(p.exp)}</td><td><span class="bdg ${i.cls}">${esc(i.lab)}</span></td>
-        <td class="r">${brl(p.cost)}</td><td class="r"><b>${brl(p.price)}</b></td><td class="r ${mg < 0 ? 'neg' : ''}">${brl(mg)}</td>
-        <td class="cmt" title="${esc(p.note || '')}">${p.note ? esc(p.note) : `<button class="bt sm" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}">+ comentário</button>`}</td>
+    const table = rows.length ? `<div class="twrap"><table class="ktab"><thead><tr><th>Cliente</th><th>Lançado</th><th>Vence</th><th>Situação</th><th class="r">Você paga</th><th class="r">Cobra</th><th class="r">Desconto</th><th class="r">Recebe</th><th class="r">Sobra</th><th>Pagamento</th><th>Comentário</th><th></th></tr></thead><tbody>${rows.map(({ p, i }) => {
+      const ds = discOf(p), nt = netOf(p), mg = nt - (p.cost || 0), rf = p.ref && rowById(p.ref), ni = refsOf(p.id).length;
+      const sub = [p.months > 1 ? p.months + ' meses' : '', rf ? 'indicado por ' + rf.p.name : '', ni ? 'indicou ' + ni : ''].filter(Boolean).join(' · ');
+      return `<tr><td><b style="font-weight:500">${esc(p.name)}</b>${sub ? `<small class="muted" style="display:block">${esc(sub)}</small>` : ''}</td><td>${fmtISO(p.start)}</td><td>${fmtISO(p.exp)}</td><td><span class="bdg ${i.cls}">${esc(i.lab)}</span></td>
+        <td class="r">${brl(p.cost)}</td><td class="r">${brl(p.price)}</td><td class="r" title="${ni ? 'inclui ' + brl(refDiscOf(p)) + ' por indicação' : ''}">${ds ? '−' + brl(ds) : '—'}</td><td class="r"><b>${brl(nt)}</b></td><td class="r ${mg < 0 ? 'neg' : ''}">${brl(mg)}</td>
+        <td><button class="bdg ${p.paid ? 'g' : 'y'}" data-sa="ppay" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Clique para trocar">${p.paid ? 'Recebido' : 'A receber'}</button></td>
+        <td class="cmt" title="${esc(p.note || '')}">${p.note ? esc(p.note) : '<span class="muted">—</span>'}</td>
         <td class="r" style="white-space:nowrap"><button class="ia" data-sa="pren" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Renovar (+${p.months || 1} mês)">${svgI('renew')}</button><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar">${SVG_DEL}</button></td></tr>`;
-    }).join('')}</tbody><tfoot><tr><td colspan="4"><b>Total · ${all.length} cliente${all.length == 1 ? '' : 's'}</b>${ex ? ` <span class="bdg r">${ex} vencido${ex > 1 ? 's' : ''}</span>` : ''}</td><td class="r"><b>${brl(sp)}</b></td><td class="r"><b>${brl(sc)}</b></td><td class="r ${sc - sp < 0 ? 'neg' : ''}"><b>${brl(sc - sp)}</b></td><td colspan="2"></td></tr></tfoot></table></div>`
+    }).join('')}</tbody><tfoot><tr><td colspan="4"><b>Total · ${all.length} cliente${all.length == 1 ? '' : 's'}</b>${ex ? ` <span class="bdg r">${ex} vencido${ex > 1 ? 's' : ''}</span>` : ''}</td><td class="r"><b>${brl(sp)}</b></td><td class="r"><b>${brl(sc)}</b></td><td class="r"><b>${sd ? '−' + brl(sd) : '—'}</b></td><td class="r"><b>${brl(sn)}</b></td><td class="r ${sn - sp < 0 ? 'neg' : ''}"><b>${brl(sn - sp)}</b></td><td colspan="3">${sr ? `<span class="muted">a receber</span> <b>${brl(sr)}</b>` : ''}</td></tr></tfoot></table></div>`
       : '<p class="muted" style="padding:10px 0">Nenhum cliente neste servidor. Use <b>+ Cliente</b>.</p>';
     return `<div class="sv"><div class="svh"><h3>${esc(sv.name)}</h3>${sv.url ? `<a class="u" href="${esc(sv.url)}" target="_blank" rel="noopener">${esc(hostOf(sv.url))}</a>` : ''}<span class="bdg n">${all.length} cliente${all.length == 1 ? '' : 's'}</span><span class="sp"></span>
         ${sv.url ? `<a class="bt sm" href="${esc(sv.url)}" target="_blank" rel="noopener">Abrir painel</a>` : ''}<button class="bt sm pk" data-sa="padd" data-s="${esc(sv.id)}">+ Cliente</button><button class="bt sm" data-sa="edit" data-s="${esc(sv.id)}">${SVG_ED}Editar</button><button class="bt sm rd" data-sa="del" data-s="${esc(sv.id)}" title="Apagar servidor">${SVG_DEL}</button></div>
       ${sv.note ? `<div class="svc">${esc(sv.note)}</div>` : ''}
       <div class="svb">${table}</div></div>`;
   }).join('');
-  $('#sStats').innerHTML = `<div class="stats">${[['', nCli, 'clientes em ' + SV.length + (SV.length == 1 ? ' servidor' : ' servidores')], ['gr', brl(tCob), 'total cobrado'], ['', brl(tPag), 'total pago nos painéis'], [tCob - tPag < 0 ? 'rd' : 'pk', brl(tCob - tPag), 'sobra'], [nExp ? 'rd' : '', nExp, 'vencidos'], [nSoon ? 'yl' : '', nSoon, 'vencem em ' + ALERT_DAYS + ' dias']].map(x => `<div class="st ${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>
-    <div class="bar"><input class="in" id="sQ" placeholder="Buscar cliente ou comentário…" value="${esc(SQ)}">${[['all', 'Todos'], ['exp', 'Vencidos'], ['soon', 'Vencendo'], ['ok', 'Em dia'], ['none', 'Sem data']].map(([k, l]) => `<button class="ch ${SF == k ? 'on' : ''}" data-sf="${k}">${l}</button>`).join('')}<button class="bt" id="sCsv">Exportar CSV</button></div>`;
+  $('#sStats').innerHTML = `<div class="stats">${[['', nCli, 'clientes em ' + SV.length + (SV.length == 1 ? ' servidor' : ' servidores')], ['gr', brl(tCob), 'total a cobrar (já com descontos)'], ['', brl(tDes), 'descontos'], ['', brl(tPag), 'total pago nos painéis'], [tCob - tPag < 0 ? 'rd' : 'pk', brl(tCob - tPag), 'sobra'], [tRec ? 'yl' : '', brl(tRec), 'a receber'], [nExp ? 'rd' : '', nExp, 'vencidos'], [nSoon ? 'yl' : '', nSoon, 'vencem em ' + ALERT_DAYS + ' dias']].map(x => `<div class="st ${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>
+    <div class="bar"><input class="in" id="sQ" placeholder="Buscar cliente ou comentário…" value="${esc(SQ)}">${[['all', 'Todos'], ['exp', 'Vencidos'], ['soon', 'Vencendo'], ['ok', 'Em dia'], ['none', 'Sem data'], ['rcv', 'A receber']].map(([k, l]) => `<button class="ch ${SF == k ? 'on' : ''}" data-sf="${k}">${l}</button>`).join('')}<button class="bt" id="sCsv">Exportar CSV</button></div>`;
   $('#sBody').innerHTML = cards || `<div class="empty card">${q || SF != 'all' ? 'Nenhum cliente encontrado.' : 'Nenhum servidor. Cadastre em <b>Novo servidor</b>.'}</div>`;
   const qi = $('#sQ'); qi.oninput = () => { SQ = qi.value; const pos = qi.selectionStart; renderSrv(); const n = $('#sQ'); n.focus(); n.setSelectionRange(pos, pos) };
   $$('[data-sf]').forEach(b => b.onclick = () => { SF = b.dataset.sf; renderSrv() });
@@ -354,8 +369,8 @@ function renderSrv() {
 }
 function srvCsv() {
   const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"', num = v => v == null ? '' : String(v).replace('.', ',');
-  const lines = [['servidor', 'cliente', 'meses', 'lancado', 'vence', 'situacao', 'voce_paga', 'cobra', 'comentario'].join(';')];
-  srvList().forEach(sv => (sv.plans || []).forEach(p => lines.push([sv.name, p.name, p.months || 1, fmtISO(p.start), fmtISO(p.exp), rowInfo(p).lab, num(p.cost), num(p.price), p.note || ''].map(q).join(';'))));
+  const lines = [['servidor', 'cliente', 'meses', 'lancado', 'vence', 'situacao', 'voce_paga', 'cobra', 'desconto', 'recebe', 'pagamento', 'indicado_por', 'comentario'].join(';')];
+  srvList().forEach(sv => (sv.plans || []).forEach(p => lines.push([sv.name, p.name, p.months || 1, fmtISO(p.start), fmtISO(p.exp), rowInfo(p).lab, num(p.cost), num(p.price), num(discOf(p)), num(netOf(p)), p.paid ? 'recebido' : 'a receber', p.ref && rowById(p.ref) ? rowById(p.ref).p.name : '', p.note || ''].map(q).join(';'))));
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
   a.download = 'ntplay-servidores-' + todayISO() + '.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
@@ -387,6 +402,9 @@ function planBox(p) {
       <label class="f">Vence em<input class="in" data-f="exp" type="date" value="${esc(ex)}"></label></div>
     <div class="row"><label class="f">Você paga no painel (R$)<input class="in" data-f="cost" inputmode="decimal" value="${esc(v(p && p.cost))}" placeholder="ex.: 12,00"></label>
       <label class="f">Cobra do cliente (R$)<input class="in" data-f="price" inputmode="decimal" value="${esc(v(p && p.price))}" placeholder="ex.: 35,00"></label></div>
+    <div class="row"><label class="f">Desconto fixo (R$)<input class="in" data-f="disc" inputmode="decimal" value="${esc(v(p && p.disc))}" placeholder="opcional"></label>
+      <label class="f">Indicado por<select class="in" data-f="ref"><option value="">Ninguém</option>${allRows().filter(x => !p || x.p.id != p.id).sort((a, b) => a.p.name.localeCompare(b.p.name)).map(x => `<option value="${esc(x.p.id)}" ${p && p.ref == x.p.id ? 'selected' : ''}>${esc(x.p.name)} (${esc(x.sv.name)})</option>`).join('')}</select></label></div>
+    <label class="f" style="display:flex;align-items:center;gap:8px;color:var(--tx)"><input type="checkbox" data-f="paid" ${p && p.paid ? 'checked' : ''}>Já recebi o pagamento deste ciclo</label>
     <label class="f">Comentário<textarea class="in" data-f="note" rows="2" maxlength="300" placeholder="WhatsApp, forma de pagamento, aparelho…">${esc(p ? p.note || '' : '')}</textarea></label>
     <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Salvar</button></div>`, m => {
     const f = k => $(`[data-f="${k}"]`, m); let touched = !!(p && p.exp);
@@ -397,10 +415,10 @@ function planBox(p) {
     $('[data-ok]', m).onclick = () => {
       const g = k => f(k).value.trim(), name = g('name'), months = Math.max(1, Math.min(36, parseInt(g('months')) || 1));
       if (!name) return toast('Informe o nome do cliente.', 1);
-      const cost = g('cost') ? money(g('cost')) : null, price = g('price') ? money(g('price')) : null;
-      if ((g('cost') && cost == null) || (g('price') && price == null)) return toast('Valor inválido. Use, por exemplo, 35 ou 35,90.', 1);
+      const cost = g('cost') ? money(g('cost')) : null, price = g('price') ? money(g('price')) : null, disc = g('disc') ? money(g('disc')) : null;
+      if ((g('cost') && cost == null) || (g('price') && price == null) || (g('disc') && disc == null)) return toast('Valor inválido. Use, por exemplo, 35 ou 35,90.', 1);
       if (g('start') && g('exp') && g('exp') < g('start')) return toast('O vencimento está antes do lançamento.', 1);
-      closeModal(); res({ name, months, start: g('start'), exp: g('exp'), cost, price, note: g('note') });
+      closeModal(); res({ name, months, start: g('start'), exp: g('exp'), cost, price, disc, ref: f('ref').value, paid: f('paid').checked, note: g('note') });
     };
     f('name').focus();
   }));
@@ -429,10 +447,134 @@ $('#t-srv').onclick = async e => {
   if (act == 'pren') {
     const base = p.exp && p.exp > todayISO() ? p.exp : todayISO(), nx = addMonths(base, p.months || 1);
     if (!await confirmBox('Renovar ' + p.name, `Vencimento passa de ${fmtISO(p.exp)} para ${fmtISO(nx)} (+${p.months || 1} mês).`, 'Renovar')) return;
-    p.exp = nx; p.renewed = todayISO(); return saveGroups(next, 'Renovado até ' + fmtISO(nx) + '.');
+    p.exp = nx; p.renewed = todayISO(); p.paid = false; return saveGroups(next, 'Renovado até ' + fmtISO(nx) + '. Marcado como a receber.');
   }
+  if (act == 'ppay') { p.paid = !p.paid; if (p.paid) p.paidAt = todayISO(); return saveGroups(next, p.paid ? p.name + ': recebido.' : p.name + ': a receber.') }
   if (act == 'pdel') { if (!await confirmBox('Apagar cliente', `"${p.name}" será tirado de ${sv.name}.`, 'Apagar', 1)) return; sv.plans = sv.plans.filter(x => x != p); return saveGroups(next, 'Cliente apagado.') }
 };
+
+/* ================= indicações, financeiro e comentários =================
+   Usam o mesmo registro dos servidores (REC): cfg.refDisc, expenses e notes. */
+const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const mKey = iso => iso.slice(0, 7);
+const mLab = k => MES[+k.slice(5, 7) - 1] + '/' + k.slice(2, 4);
+function monthKeys(from, n) { const out = []; let d = from.slice(0, 7) + '-01'; for (let i = 0; i < n; i++) { out.push(mKey(d)); d = addMonths(d, 1) } return out }
+function saveRec(fn, msg) { return saveGroups(withRec(clone(GROUPS), fn), msg) }
+
+// --- indicações ---
+function renderInd() {
+  if (!GLOADED || !$('#iBody')) return;
+  const rows = allRows(), refd = rows.filter(x => x.p.ref && rowById(x.p.ref)), v = refDisc();
+  const by = new Map(); refd.forEach(x => { const k = x.p.ref; if (!by.has(k)) by.set(k, []); by.get(k).push(x) });
+  const ind = [...by.entries()].map(([id, l]) => ({ r: rowById(id), l, on: l.filter(x => rowOn(x.p)).length })).sort((a, b) => b.l.length - a.l.length);
+  const tot = ind.reduce((n, x) => n + x.on * v, 0);
+  $('#iBody').innerHTML = `<div class="stats">${[['', refd.length, 'indicações'], ['', ind.length, 'clientes que indicaram'], ['gr', refd.filter(x => rowOn(x.p)).length, 'indicados em dia'], ['yl', brl(tot), 'desconto dado por mês']].map(x => `<div class="st ${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>
+  <div class="grid g2" style="align-items:start">
+    <div class="card"><h3>Desconto por indicação</h3><p class="hint">Quem indicou ganha este desconto em cada renovação, para cada indicado que está com o plano em dia. Se o indicado vencer, o desconto para.</p>
+      <div class="row" style="align-items:center"><input class="in" id="iVal" inputmode="decimal" value="${v ? String(v).replace('.', ',') : ''}" placeholder="ex.: 5,00" style="flex:1 1 120px"><button class="bt pk" id="iSave" style="flex:0 0 auto">Salvar</button></div>
+      <p class="muted" style="margin-top:10px">Para marcar quem indicou, edite o cliente na aba Servidores (campo <b>Indicado por</b>).</p></div>
+    <div class="card"><h3>Quem mais indicou</h3><p class="hint">Indicações por cliente.</p>${ind.length ? hbars(ind.slice(0, 10).map(x => [x.r.p.name, x.l.length])) : '<p class="muted">Nenhuma indicação ainda.</p>'}</div>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>Indicadores</h3><p class="hint">Desconto que cada um recebe por mês com o valor atual.</p>
+    ${ind.length ? `<div class="twrap"><table class="ktab"><thead><tr><th>Cliente</th><th>Servidor</th><th>Indicou</th><th class="r">Em dia</th><th class="r">Desconto</th><th class="r">Cobra</th><th class="r">Recebe</th></tr></thead><tbody>${ind.map(x => `<tr><td><b style="font-weight:500">${esc(x.r.p.name)}</b></td><td>${esc(x.r.sv.name)}</td><td class="muted">${x.l.map(y => esc(y.p.name)).join(', ')}</td><td class="r">${x.on}</td><td class="r">${brl(x.on * v)}</td><td class="r">${brl(x.r.p.price)}</td><td class="r"><b>${brl(netOf(x.r.p))}</b></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Ninguém indicou ainda.</p>'}</div>
+  <div class="card" style="margin-top:12px"><h3>Todas as indicações</h3>
+    ${refd.length ? `<div class="twrap"><table class="ktab"><thead><tr><th>Indicado</th><th>Servidor</th><th>Indicado por</th><th>Desde</th><th>Situação</th></tr></thead><tbody>${refd.sort((a, b) => (b.p.start || '').localeCompare(a.p.start || '')).map(x => { const i = rowInfo(x.p); return `<tr><td>${esc(x.p.name)}</td><td>${esc(x.sv.name)}</td><td>${esc(rowById(x.p.ref).p.name)}</td><td>${fmtISO(x.p.start)}</td><td><span class="bdg ${i.cls}">${esc(i.lab)}</span></td></tr>` }).join('')}</tbody></table></div>` : '<p class="muted">Nenhuma.</p>'}</div>`;
+  $('#iSave').onclick = () => { const t = $('#iVal').value.trim(), n = t ? money(t) : 0; if (n == null) return toast('Valor inválido.', 1); saveRec(r => r.cfg.refDisc = n, 'Desconto por indicação salvo.') };
+}
+
+// --- gráficos simples em SVG ---
+function hbars(rows, fmt = x => x, color = '#5c9bd1') {
+  const max = Math.max(1, ...rows.map(r => r[1]));
+  return `<div class="hb">${rows.map(r => `<div class="hbr"><span title="${esc(r[0])}">${esc(r[0])}</span><div><i style="width:${(r[1] / max * 100).toFixed(1)}%;background:${r[2] || color}"></i></div><b>${esc(fmt(r[1]))}</b></div>`).join('')}</div>`;
+}
+function gbars(keys, series) {
+  const W = 760, H = 250, pl = 58, pr = 10, pt = 14, pb = 28, iw = W - pl - pr, ih = H - pt - pb;
+  const max = Math.max(1, ...series.flatMap(s => keys.map(k => s.v[k] || 0)));
+  const y = v => pt + ih - v / max * ih, gw = iw / keys.length, bw = Math.min(22, (gw - 12) / series.length);
+  const ticks = [0, max / 2, max];
+  return `<svg viewBox="0 0 ${W} ${H}" class="gch2" role="img" aria-label="Valores por mês">
+    ${ticks.map(t => `<line x1="${pl}" x2="${W - pr}" y1="${y(t)}" y2="${y(t)}" stroke="#ffffff12"/><text x="${pl - 6}" y="${y(t) + 4}" text-anchor="end" fill="var(--mut)" font-size="11">${brl(t).replace(',00', '')}</text>`).join('')}
+    ${keys.map((k, i) => { const x0 = pl + i * gw + (gw - bw * series.length) / 2;
+      return series.map((s, j) => { const v = s.v[k] || 0; return v ? `<rect x="${(x0 + j * bw).toFixed(1)}" y="${y(v).toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${(y(0) - y(v)).toFixed(1)}" rx="1.5" fill="${s.c}"><title>${mLab(k)} · ${s.n}: ${brl(v)}</title></rect>` : '' }).join('') + `<text x="${(pl + i * gw + gw / 2).toFixed(1)}" y="${H - 9}" text-anchor="middle" fill="var(--mut)" font-size="11">${mLab(k)}</text>` }).join('')}
+  </svg><div class="lgd">${series.map(s => `<span><i style="background:${s.c}"></i>${esc(s.n)}</span>`).join('')}</div>`;
+}
+function donutSvg(parts, center, sub) {
+  const R = 70, C = 2 * Math.PI * R, tot = parts.reduce((n, p) => n + p[1], 0) || 1; let off = 0;
+  const arcs = parts.filter(p => p[1] > 0).map(p => { const len = p[1] / tot * C, a = `<circle cx="90" cy="90" r="${R}" fill="none" stroke="${p[2]}" stroke-width="16" stroke-dasharray="${Math.max(0, len - 2)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 90 90)"><title>${esc(p[0])}: ${brl(p[1])}</title></circle>`; off += len; return a }).join('');
+  return `<div class="donut"><svg viewBox="0 0 180 180" style="width:min(100%,180px)"><circle cx="90" cy="90" r="${R}" fill="none" stroke="#ffffff0d" stroke-width="16"/>${arcs}<text x="90" y="92" text-anchor="middle" fill="var(--tx)" font-size="17" font-weight="600">${esc(center)}</text><text x="90" y="110" text-anchor="middle" fill="var(--mut)" font-size="11">${esc(sub)}</text></svg>
+    <div class="lg">${parts.map(p => `<span><i style="background:${p[2]}"></i>${esc(p[0])} <b>${brl(p[1])}</b></span>`).join('')}</div></div>`;
+}
+
+// --- financeiro ---
+let FEXP = false;
+const CATS = ['Crédito de painel', 'Internet', 'Anúncio', 'Equipamento', 'Outros'];
+function finData(keys) {
+  const z = () => Object.fromEntries(keys.map(k => [k, 0])), rec = z(), cost = z(), disc = z(), exp = z(), first = keys[0], last = keys[keys.length - 1];
+  allRows().forEach(({ p }) => {
+    const nt = netOf(p), mo = Math.max(1, +p.months || 1);
+    if (!p.exp) { keys.forEach(k => { rec[k] += nt / mo; cost[k] += (p.cost || 0) / mo; disc[k] += discOf(p) / mo }); return }
+    // "paid" vale para o ciclo atual (lançado até o vencimento). Não pago = cobrar já (mês atual).
+    // Vencido: a renovação é esperada agora (uma vez). Em dia: renovações a partir do vencimento.
+    if (p.exp < todayISO()) { rec[first] += nt; cost[first] += p.cost || 0; disc[first] += discOf(p); return }
+    if (!p.paid) rec[first] += nt;
+    for (let d = p.exp, g = 0; mKey(d) <= last && g < 60; g++, d = addMonths(d, mo)) {
+      const k = mKey(d); if (!(k in rec)) continue;
+      rec[k] += nt; cost[k] += p.cost || 0; disc[k] += discOf(p);
+    }
+  });
+  (REC().expenses || []).forEach(e => { const k = mKey(e.date || ''); if (k in exp) exp[k] += e.value || 0 });
+  return { rec, cost, disc, exp };
+}
+function renderFin() {
+  if (!GLOADED || !$('#fBody')) return;
+  const keys = monthKeys(todayISO(), 6), cur = keys[0], D = finData(keys), rows = allRows(), E = REC().expenses || [];
+  const late = rows.filter(x => !x.p.paid && x.p.exp && x.p.exp < todayISO()), paidNow = rows.filter(x => x.p.paid).reduce((n, x) => n + netOf(x.p), 0);
+  const rcvAll = rows.filter(x => !x.p.paid).reduce((n, x) => n + netOf(x.p), 0), lateV = late.reduce((n, x) => n + netOf(x.p), 0);
+  const res = D.rec[cur] - D.cost[cur] - D.exp[cur];
+  // despesas dos últimos 6 meses (o que já foi gasto)
+  const back = monthKeys(addMonths(todayISO().slice(0, 7) + '-01', -5), 6), eb = Object.fromEntries(back.map(k => [k, 0]));
+  E.forEach(e => { const k = mKey(e.date || ''); if (k in eb) eb[k] += e.value || 0 });
+  const bySrv = srvList().map(sv => [sv.name, (sv.plans || []).reduce((n, p) => n + (p.paid ? 0 : netOf(p)), 0)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]);
+  const sorted = [...E].sort((a, b) => (b.date || '').localeCompare(a.date || '')), shown = FEXP ? sorted : sorted.slice(0, 12);
+  $('#fBody').innerHTML = `<div class="stats">${[['yl', brl(rcvAll), 'a receber (todos)'], [lateV ? 'rd' : '', brl(lateV), late.length + ' atrasado(s)'], ['gr', brl(paidNow), 'já recebido (ciclo atual)'], ['', brl(D.cost[cur]), 'custo dos painéis em ' + mLab(cur)], ['', brl(D.exp[cur]), 'despesas em ' + mLab(cur)], ['', brl(D.disc[cur]), 'descontos em ' + mLab(cur)], [res < 0 ? 'rd' : 'pk', brl(res), 'resultado previsto em ' + mLab(cur)]].map(x => `<div class="st ${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>
+  <div class="card"><h3>Próximos 6 meses</h3><p class="hint">Pelo vencimento de cada cliente: quanto entra, quanto vai para os painéis, despesas lançadas e descontos dados. Pagamentos atrasados entram no mês atual.</p>
+    ${gbars(keys, [{ n: 'A receber', c: '#3daa78', v: D.rec }, { n: 'Custo dos painéis', c: '#5c9bd1', v: D.cost }, { n: 'Despesas', c: '#d55a55', v: D.exp }, { n: 'Descontos', c: '#d39b32', v: D.disc }])}</div>
+  <div class="grid g2" style="margin-top:12px;align-items:start">
+    <div class="card"><h3>Para onde vai o dinheiro em ${mLab(cur)}</h3><p class="hint">Do valor cheio cobrado no mês.</p>${donutSvg([['Custo dos painéis', D.cost[cur], '#5c9bd1'], ['Despesas', D.exp[cur], '#d55a55'], ['Descontos', D.disc[cur], '#d39b32'], ['Sobra', Math.max(0, res), '#3daa78']], brl(D.rec[cur] + D.disc[cur]).replace(',00', ''), 'cobrado no mês')}</div>
+    <div class="card"><h3>A receber por servidor</h3><p class="hint">Clientes ainda marcados como "A receber".</p>${bySrv.length ? hbars(bySrv, brl, '#3daa78') : '<p class="muted">Nada a receber.</p>'}
+      <h3 style="margin-top:18px">Despesas nos últimos 6 meses</h3>${hbars(back.map(k => [mLab(k), eb[k]]), brl, '#d55a55')}</div>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>Despesas</h3><p class="hint">Gastos que não são o crédito de cada cliente: internet, anúncios, compra de créditos em lote, etc.</p>
+    <div class="row" style="margin-bottom:12px"><label class="f" style="flex:0 1 150px">Data<input class="in" type="date" id="eD" value="${todayISO()}"></label><label class="f" style="flex:2 1 200px">Descrição<input class="in" id="eT" maxlength="80" placeholder="ex.: 100 créditos Playdragon"></label>
+      <label class="f">Categoria<select class="in" id="eC">${CATS.map(c => `<option>${c}</option>`).join('')}</select></label><label class="f" style="flex:0 1 130px">Valor (R$)<input class="in" id="eV" inputmode="decimal" placeholder="0,00"></label><button class="bt pk" id="eAdd" style="flex:0 0 auto">Lançar</button></div>
+    ${E.length ? `<div class="twrap"><table class="ktab"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th class="r">Valor</th><th></th></tr></thead><tbody>${shown.map(e => `<tr><td>${fmtISO(e.date)}</td><td>${esc(e.desc)}</td><td class="muted">${esc(e.cat || '')}</td><td class="r">${brl(e.value)}</td><td class="r"><button class="ia" data-ed="${esc(e.id)}" title="Apagar">${SVG_DEL}</button></td></tr>`).join('')}</tbody><tfoot><tr><td colspan="3"><b>Total lançado</b></td><td class="r"><b>${brl(E.reduce((n, e) => n + (e.value || 0), 0))}</b></td><td></td></tr></tfoot></table></div>${sorted.length > 12 ? `<button class="bt sm" id="eMore" style="margin-top:8px">${FEXP ? 'Mostrar menos' : 'Mostrar todas (' + sorted.length + ')'}</button>` : ''}` : '<p class="muted">Nenhuma despesa lançada.</p>'}</div>`;
+  $('#eAdd').onclick = () => {
+    const date = $('#eD').value, desc = $('#eT').value.trim(), value = money($('#eV').value);
+    if (!date || !desc) return toast('Preencha a data e a descrição.', 1); if (!value) return toast('Informe o valor.', 1);
+    saveRec(r => r.expenses.push({ id: gid(), date, desc, cat: $('#eC').value, value }), 'Despesa lançada.');
+  };
+  $$('[data-ed]', $('#fBody')).forEach(b => b.onclick = async () => { if (!await confirmBox('Apagar despesa', 'Esta despesa será apagada.', 'Apagar', 1)) return; saveRec(r => r.expenses = r.expenses.filter(e => e.id != b.dataset.ed), 'Despesa apagada.') });
+  const mb = $('#eMore'); if (mb) mb.onclick = () => { FEXP = !FEXP; renderFin() };
+}
+
+// --- comentários ---
+function renderCom() {
+  if (!GLOADED || !$('#cmBody')) return;
+  const N = [...(REC().notes || [])].sort((a, b) => b.t - a.t), SV = srvList();
+  const aboutLab = a => { if (!a) return 'Geral'; const [k, id] = a.split(':'); if (k == 's') { const s = SV.find(x => x.id == id); return s ? 'Servidor ' + s.name : 'servidor removido' } const r = rowById(id); return r ? r.p.name + ' (' + r.sv.name + ')' : 'cliente removido' };
+  const inRows = allRows().filter(x => x.p.note).map(x => ({ who: x.p.name + ' (' + x.sv.name + ')', text: x.p.note, s: x.sv.id, p: x.p.id }));
+  const inSrv = SV.filter(s => s.note).map(s => ({ who: 'Servidor ' + s.name, text: s.note, s: s.id }));
+  $('#cmBody').innerHTML = `<div class="card"><h3>Novo comentário</h3><p class="hint">Anotações com data: combinados, problemas de servidor, cobranças, lembretes.</p>
+    <div class="grid" style="gap:8px"><textarea class="in" id="cmT" rows="3" maxlength="600" placeholder="Escreva aqui…"></textarea>
+    <div class="row" style="align-items:center"><label class="f" style="flex:1 1 220px">Sobre<select class="in" id="cmA"><option value="">Geral</option>${SV.map(s => `<option value="s:${esc(s.id)}">Servidor ${esc(s.name)}</option>`).join('')}${allRows().sort((a, b) => a.p.name.localeCompare(b.p.name)).map(x => `<option value="p:${esc(x.p.id)}">${esc(x.p.name)} (${esc(x.sv.name)})</option>`).join('')}</select></label><button class="bt pk" id="cmAdd" style="flex:0 0 auto">Salvar comentário</button></div></div></div>
+  <div class="bar" style="margin-top:14px"><input class="in" id="cmQ" placeholder="Buscar nos comentários…"></div>
+  <div class="card"><h3>Histórico</h3><div class="cml" id="cmL">${N.length ? N.map(n => `<div class="cmi" data-txt="${esc((n.text + ' ' + aboutLab(n.about)).toLowerCase())}"><div class="cmh"><b>${esc(aboutLab(n.about))}</b><span class="muted">${fmtDT(n.t)}</span><span class="sp"></span><button class="x" data-cd="${esc(n.id)}" title="Apagar">${SVG_X}</button></div><p>${esc(n.text)}</p></div>`).join('') : '<p class="muted">Nenhum comentário ainda.</p>'}</div></div>
+  <div class="card" style="margin-top:12px"><h3>Comentários fixos dos servidores e clientes</h3><p class="hint">O que está no campo Comentário de cada um. Para mudar, use Editar na aba Servidores.</p>
+    <div class="cml">${inSrv.concat(inRows).map(c => `<div class="cmi" data-txt="${esc((c.text + ' ' + c.who).toLowerCase())}"><div class="cmh"><b>${esc(c.who)}</b></div><p>${esc(c.text)}</p></div>`).join('') || '<p class="muted">Nenhum.</p>'}</div></div>`;
+  $('#cmAdd').onclick = () => { const text = $('#cmT').value.trim(); if (!text) return toast('Escreva o comentário.', 1); saveRec(r => r.notes.push({ id: gid(), t: Date.now(), text, about: $('#cmA').value }), 'Comentário salvo.') };
+  $('#cmQ').oninput = e => { const q = e.target.value.toLowerCase(); $$('.cmi', $('#cmBody')).forEach(d => d.classList.toggle('hide', !d.dataset.txt.includes(q))) };
+  $$('[data-cd]', $('#cmBody')).forEach(b => b.onclick = async () => { if (!await confirmBox('Apagar comentário', 'Este comentário será apagado.', 'Apagar', 1)) return; saveRec(r => r.notes = r.notes.filter(n => n.id != b.dataset.cd), 'Comentário apagado.') });
+}
 
 /* ================= aba clientes (gráficos) ================= */
 let KF = 'all', KR = 30, KANIM = false;
