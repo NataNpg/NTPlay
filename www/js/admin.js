@@ -226,7 +226,7 @@ function sigmaBox(mem) {
     <p class="muted">Copie do painel o usuário e o vencimento do cliente.</p>
     <label class="f">Usuário no painel<input class="in" data-f="u" maxlength="60" value="${esc(cur.u || '')}" autocomplete="off"></label>
     <div class="row"><label class="f">Servidor<select class="in" data-f="srv"><option value="">—</option>${SV.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select></label>
-      <label class="f">Plano<select class="in" data-f="plan"></select></label></div>
+      <label class="f">Cliente no servidor<select class="in" data-f="plan"></select></label></div>
     <div class="row"><label class="f">Valor cobrado (R$)<input class="in" data-f="price" inputmode="decimal" value="${cur.price != null ? esc(String(cur.price).replace('.', ',')) : ''}" placeholder="usa o do plano"></label>
       <label class="f">Vencimento<input class="in" type="date" data-f="exp" value="${esc(cur.exp || '')}"></label></div>
     <label class="f">Comentário<textarea class="in" data-f="note" rows="2" maxlength="200" placeholder="WhatsApp, aparelho, combinado de pagamento…">${esc(cur.note || '')}</textarea></label>
@@ -310,27 +310,54 @@ function srvMembers(sid) { const out = []; realGroups(GROUPS).forEach(g => (g.me
 const perMonth = (v, months) => v == null ? 0 : v / Math.max(1, Number(months) || 1);
 
 function srvStart() { if (!GLOADED) { $('#sBody').innerHTML = '<p class="muted"><span class="spin"></span> Carregando…</p>'; loadGroups() } else renderSrv() }
+// Cada linha da tabela de um servidor é um cliente: { id, name, months, start, exp, cost, price, note }.
+// (fica no campo "plans" por compatibilidade com o que já estava salvo)
+let SQ = '', SF = 'all';
+const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: SP });
+function addMonths(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setMonth(d.getMonth() + Number(n || 1)); return d.toISOString().slice(0, 10) }
+const fmtISO = iso => iso ? iso.split('-').reverse().join('/') : '—';
+function rowInfo(p) {
+  if (!p.exp) return { lab: 'Sem data', cls: 'n', d: 1e9, k: 'none' };
+  const d = (new Date(p.exp + 'T23:59:59-03:00') - Date.now()) / DAY;
+  return { lab: remText(d), cls: remCls(d), d, k: d <= 0 ? 'exp' : d <= ALERT_DAYS ? 'soon' : 'ok' };
+}
 function renderSrv() {
   if (!GLOADED) return;
-  const SV = srvList(); let nCli = 0, rec = 0, cost = 0, semPlano = 0;
+  const SV = srvList(), q = SQ.toLowerCase();
+  let nCli = 0, tCob = 0, tPag = 0, nExp = 0, nSoon = 0;
+  SV.forEach(sv => (sv.plans || []).forEach(p => { const i = rowInfo(p); nCli++; tCob += p.price || 0; tPag += p.cost || 0; if (i.k == 'exp') nExp++; if (i.k == 'soon') nSoon++ }));
   const cards = SV.map(sv => {
-    const mem = srvMembers(sv.id), plans = sv.plans || []; let sRec = 0, sCost = 0;
-    mem.forEach(({ m }) => { const p = plans.find(x => x.id == m.plan), v = m.price != null ? m.price : p && p.price; if (!p && m.price == null) semPlano++; sRec += perMonth(v, p ? p.months : 1); sCost += p ? perMonth(p.cost, p.months) : 0 });
-    nCli += mem.length; rec += sRec; cost += sCost;
-    const cnt = mem.length ? `<span class="bdg n">${mem.length} cliente${mem.length > 1 ? 's' : ''}</span>` : '<span class="bdg n">sem clientes</span>';
-    const rows = plans.length ? `<div class="twrap"><table class="ktab"><thead><tr><th>Plano</th><th>Meses</th><th class="r">Você paga</th><th class="r">Cobra do cliente</th><th class="r">Sobra por cliente</th><th class="r">Clientes</th><th></th></tr></thead><tbody>${plans.map(p => {
-      const mg = p.price != null && p.cost != null ? p.price - p.cost : null, n = mem.filter(x => x.m.plan == p.id).length;
-      return `<tr><td>${esc(p.name)}</td><td>${esc(p.months || 1)}</td><td class="r">${brl(p.cost)}</td><td class="r"><b>${brl(p.price)}</b></td><td class="r ${mg != null && mg < 0 ? 'neg' : ''}">${mg == null ? '—' : brl(mg)}</td><td class="r">${n}</td>
-        <td class="r" style="white-space:nowrap"><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar plano">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar plano">${SVG_DEL}</button></td></tr>`
-    }).join('')}</tbody></table></div>` : '<p class="muted" style="padding:10px 0">Nenhum plano cadastrado. Adicione os valores que você cobra por cliente.</p>';
-    return `<div class="sv"><div class="svh"><h3>${esc(sv.name)}</h3>${sv.url ? `<a class="u" href="${esc(sv.url)}" target="_blank" rel="noopener">${esc(hostOf(sv.url))}</a>` : ''}${cnt}<span class="sp"></span>
-        ${sv.url ? `<a class="bt sm" href="${esc(sv.url)}" target="_blank" rel="noopener">Abrir painel</a>` : ''}<button class="bt sm" data-sa="padd" data-s="${esc(sv.id)}">+ Plano</button><button class="bt sm" data-sa="edit" data-s="${esc(sv.id)}">${SVG_ED}Editar</button><button class="bt sm rd" data-sa="del" data-s="${esc(sv.id)}">${SVG_DEL}</button></div>
+    const all = (sv.plans || []).map(p => ({ p, i: rowInfo(p) }));
+    const rows = all.filter(({ p, i }) => (SF == 'all' || i.k == SF) && (!q || (p.name + ' ' + (p.note || '')).toLowerCase().includes(q))).sort((a, b) => a.i.d - b.i.d);
+    if ((q || SF != 'all') && !rows.length) return '';
+    const sc = all.reduce((n, x) => n + (x.p.price || 0), 0), sp = all.reduce((n, x) => n + (x.p.cost || 0), 0);
+    const ex = all.filter(x => x.i.k == 'exp').length;
+    const table = rows.length ? `<div class="twrap"><table class="ktab"><thead><tr><th>Cliente</th><th>Lançado</th><th>Vence</th><th>Situação</th><th class="r">Você paga</th><th class="r">Cobra</th><th class="r">Sobra</th><th>Comentário</th><th></th></tr></thead><tbody>${rows.map(({ p, i }) => {
+      const mg = (p.price || 0) - (p.cost || 0);
+      return `<tr><td><b style="font-weight:500">${esc(p.name)}</b>${p.months > 1 ? `<small class="muted" style="display:block">${p.months} meses</small>` : ''}</td><td>${fmtISO(p.start)}</td><td>${fmtISO(p.exp)}</td><td><span class="bdg ${i.cls}">${esc(i.lab)}</span></td>
+        <td class="r">${brl(p.cost)}</td><td class="r"><b>${brl(p.price)}</b></td><td class="r ${mg < 0 ? 'neg' : ''}">${brl(mg)}</td>
+        <td class="cmt" title="${esc(p.note || '')}">${p.note ? esc(p.note) : `<button class="bt sm" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}">+ comentário</button>`}</td>
+        <td class="r" style="white-space:nowrap"><button class="ia" data-sa="pren" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Renovar (+${p.months || 1} mês)">${svgI('renew')}</button><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar">${SVG_DEL}</button></td></tr>`;
+    }).join('')}</tbody><tfoot><tr><td colspan="4"><b>Total · ${all.length} cliente${all.length == 1 ? '' : 's'}</b>${ex ? ` <span class="bdg r">${ex} vencido${ex > 1 ? 's' : ''}</span>` : ''}</td><td class="r"><b>${brl(sp)}</b></td><td class="r"><b>${brl(sc)}</b></td><td class="r ${sc - sp < 0 ? 'neg' : ''}"><b>${brl(sc - sp)}</b></td><td colspan="2"></td></tr></tfoot></table></div>`
+      : '<p class="muted" style="padding:10px 0">Nenhum cliente neste servidor. Use <b>+ Cliente</b>.</p>';
+    return `<div class="sv"><div class="svh"><h3>${esc(sv.name)}</h3>${sv.url ? `<a class="u" href="${esc(sv.url)}" target="_blank" rel="noopener">${esc(hostOf(sv.url))}</a>` : ''}<span class="bdg n">${all.length} cliente${all.length == 1 ? '' : 's'}</span><span class="sp"></span>
+        ${sv.url ? `<a class="bt sm" href="${esc(sv.url)}" target="_blank" rel="noopener">Abrir painel</a>` : ''}<button class="bt sm pk" data-sa="padd" data-s="${esc(sv.id)}">+ Cliente</button><button class="bt sm" data-sa="edit" data-s="${esc(sv.id)}">${SVG_ED}Editar</button><button class="bt sm rd" data-sa="del" data-s="${esc(sv.id)}" title="Apagar servidor">${SVG_DEL}</button></div>
       ${sv.note ? `<div class="svc">${esc(sv.note)}</div>` : ''}
-      <div class="svb">${rows}</div>
-      ${mem.length ? `<div class="svf"><span>Clientes: ${mem.map(x => esc(x.m.u)).join(', ')}</span><span class="sp"></span><span>Entra por mês <b>${brl(sRec)}</b></span><span>Custo por mês <b>${brl(sCost)}</b></span></div>` : ''}</div>`;
+      <div class="svb">${table}</div></div>`;
   }).join('');
-  $('#sStats').innerHTML = `<div class="stats">${[['', SV.length, 'servidores'], ['', nCli, 'clientes Sigma ligados'], ['gr', brl(rec), 'entra por mês'], ['', brl(cost), 'custo por mês'], [rec - cost < 0 ? 'rd' : '', brl(rec - cost), 'sobra por mês']].map(x => `<div class="st ${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>${semPlano ? `<p class="muted" style="margin:-8px 0 14px">${semPlano} cliente(s) ligado(s) a servidor sem plano nem valor, fora da conta.</p>` : ''}`;
-  $('#sBody').innerHTML = cards || '<div class="empty card">Nenhum servidor. Cadastre em <b>Novo servidor</b>.</div>';
+  $('#sStats').innerHTML = `<div class="stats">${[['', nCli, 'clientes em ' + SV.length + (SV.length == 1 ? ' servidor' : ' servidores')], ['gr', brl(tCob), 'total cobrado'], ['', brl(tPag), 'total pago nos painéis'], [tCob - tPag < 0 ? 'rd' : 'pk', brl(tCob - tPag), 'sobra'], [nExp ? 'rd' : '', nExp, 'vencidos'], [nSoon ? 'yl' : '', nSoon, 'vencem em ' + ALERT_DAYS + ' dias']].map(x => `<div class="st ${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>
+    <div class="bar"><input class="in" id="sQ" placeholder="Buscar cliente ou comentário…" value="${esc(SQ)}">${[['all', 'Todos'], ['exp', 'Vencidos'], ['soon', 'Vencendo'], ['ok', 'Em dia'], ['none', 'Sem data']].map(([k, l]) => `<button class="ch ${SF == k ? 'on' : ''}" data-sf="${k}">${l}</button>`).join('')}<button class="bt" id="sCsv">Exportar CSV</button></div>`;
+  $('#sBody').innerHTML = cards || `<div class="empty card">${q || SF != 'all' ? 'Nenhum cliente encontrado.' : 'Nenhum servidor. Cadastre em <b>Novo servidor</b>.'}</div>`;
+  const qi = $('#sQ'); qi.oninput = () => { SQ = qi.value; const pos = qi.selectionStart; renderSrv(); const n = $('#sQ'); n.focus(); n.setSelectionRange(pos, pos) };
+  $$('[data-sf]').forEach(b => b.onclick = () => { SF = b.dataset.sf; renderSrv() });
+  $('#sCsv').onclick = srvCsv;
+}
+function srvCsv() {
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"', num = v => v == null ? '' : String(v).replace('.', ',');
+  const lines = [['servidor', 'cliente', 'meses', 'lancado', 'vence', 'situacao', 'voce_paga', 'cobra', 'comentario'].join(';')];
+  srvList().forEach(sv => (sv.plans || []).forEach(p => lines.push([sv.name, p.name, p.months || 1, fmtISO(p.start), fmtISO(p.exp), rowInfo(p).lab, num(p.cost), num(p.price), p.note || ''].map(q).join(';'))));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'ntplay-servidores-' + todayISO() + '.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
 function srvBox(sv) {
@@ -352,21 +379,30 @@ function srvBox(sv) {
 }
 function planBox(p) {
   const v = x => x == null ? '' : String(x).replace('.', ',');
-  return new Promise(res => modal(`<h3>${p ? 'Editar plano' : 'Novo plano'}</h3>
-    <div class="row"><label class="f">Nome<input class="in" data-f="name" maxlength="30" value="${esc(p ? p.name : '')}" placeholder="ex.: Mensal"></label>
-      <label class="f" style="flex:0 1 110px">Meses<input class="in" data-f="months" type="number" min="1" max="36" value="${esc(p ? p.months || 1 : 1)}"></label></div>
+  const st = p && p.start || todayISO(), mo = p && p.months || 1, ex = p ? p.exp || '' : addMonths(st, mo);
+  return new Promise(res => modal(`<h3>${p ? 'Editar cliente' : 'Novo cliente no servidor'}</h3>
+    <div class="row"><label class="f">Nome do cliente<input class="in" data-f="name" maxlength="40" value="${esc(p ? p.name : '')}" placeholder="ex.: Rita de Cássia"></label>
+      <label class="f" style="flex:0 1 100px">Meses<input class="in" data-f="months" type="number" min="1" max="36" value="${esc(mo)}"></label></div>
+    <div class="row"><label class="f">Lançado em<input class="in" data-f="start" type="date" value="${esc(st)}"></label>
+      <label class="f">Vence em<input class="in" data-f="exp" type="date" value="${esc(ex)}"></label></div>
     <div class="row"><label class="f">Você paga no painel (R$)<input class="in" data-f="cost" inputmode="decimal" value="${esc(v(p && p.cost))}" placeholder="ex.: 12,00"></label>
       <label class="f">Cobra do cliente (R$)<input class="in" data-f="price" inputmode="decimal" value="${esc(v(p && p.price))}" placeholder="ex.: 35,00"></label></div>
+    <label class="f">Comentário<textarea class="in" data-f="note" rows="2" maxlength="300" placeholder="WhatsApp, forma de pagamento, aparelho…">${esc(p ? p.note || '' : '')}</textarea></label>
     <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Salvar</button></div>`, m => {
+    const f = k => $(`[data-f="${k}"]`, m); let touched = !!(p && p.exp);
+    f('exp').oninput = () => touched = true;
+    const auto = () => { if (!touched && f('start').value) f('exp').value = addMonths(f('start').value, parseInt(f('months').value) || 1) };
+    f('start').oninput = auto; f('months').oninput = auto;
     $('[data-no]', m).onclick = () => { closeModal(); res(null) };
     $('[data-ok]', m).onclick = () => {
-      const g = k => $(`[data-f="${k}"]`, m).value.trim(), name = g('name'), months = Math.max(1, Math.min(36, parseInt(g('months')) || 1));
-      if (!name) return toast('Dê um nome ao plano.', 1);
+      const g = k => f(k).value.trim(), name = g('name'), months = Math.max(1, Math.min(36, parseInt(g('months')) || 1));
+      if (!name) return toast('Informe o nome do cliente.', 1);
       const cost = g('cost') ? money(g('cost')) : null, price = g('price') ? money(g('price')) : null;
       if ((g('cost') && cost == null) || (g('price') && price == null)) return toast('Valor inválido. Use, por exemplo, 35 ou 35,90.', 1);
-      closeModal(); res({ name, months, cost, price });
+      if (g('start') && g('exp') && g('exp') < g('start')) return toast('O vencimento está antes do lançamento.', 1);
+      closeModal(); res({ name, months, start: g('start'), exp: g('exp'), cost, price, note: g('note') });
     };
-    $('[data-f="name"]', m).focus();
+    f('name').focus();
   }));
 }
 
@@ -387,10 +423,15 @@ $('#t-srv').onclick = async e => {
     if (!await confirmBox('Apagar servidor', `"${sv.name}" e os planos dele serão apagados.${n ? ' ' + n + ' cliente(s) ligado(s) a ele ficam marcados como "servidor removido".' : ''}`, 'Apagar', 1)) return;
     return saveGroups(withSrv(next, l => l.splice(l.indexOf(sv), 1)), 'Servidor apagado.');
   }
-  if (act == 'padd') { const o = await planBox(); if (!o) return; sv.plans.push({ id: gid(), ...o }); return saveGroups(next, 'Plano adicionado.') }
+  if (act == 'padd') { const o = await planBox(); if (!o) return; sv.plans.push({ id: gid(), ...o }); return saveGroups(next, 'Cliente adicionado.') }
   const p = sv.plans.find(x => x.id == b.dataset.p); if (!p) return;
-  if (act == 'pedit') { const o = await planBox(p); if (!o) return; Object.assign(p, o); return saveGroups(next, 'Plano salvo.') }
-  if (act == 'pdel') { if (!await confirmBox('Apagar plano', `O plano "${p.name}" de ${sv.name} será apagado.`, 'Apagar', 1)) return; sv.plans = sv.plans.filter(x => x != p); return saveGroups(next, 'Plano apagado.') }
+  if (act == 'pedit') { const o = await planBox(p); if (!o) return; Object.assign(p, o); return saveGroups(next, 'Cliente salvo.') }
+  if (act == 'pren') {
+    const base = p.exp && p.exp > todayISO() ? p.exp : todayISO(), nx = addMonths(base, p.months || 1);
+    if (!await confirmBox('Renovar ' + p.name, `Vencimento passa de ${fmtISO(p.exp)} para ${fmtISO(nx)} (+${p.months || 1} mês).`, 'Renovar')) return;
+    p.exp = nx; p.renewed = todayISO(); return saveGroups(next, 'Renovado até ' + fmtISO(nx) + '.');
+  }
+  if (act == 'pdel') { if (!await confirmBox('Apagar cliente', `"${p.name}" será tirado de ${sv.name}.`, 'Apagar', 1)) return; sv.plans = sv.plans.filter(x => x != p); return saveGroups(next, 'Cliente apagado.') }
 };
 
 /* ================= aba clientes (gráficos) ================= */
