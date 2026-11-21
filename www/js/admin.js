@@ -92,12 +92,13 @@ function askBox(title, text, fields, okLabel) {
 }
 
 /* ================= navegação ================= */
-const TABS = ['geral', 'contas', 'clientes', 'sigma', 'listas', 'uso'];
+const TABS = ['geral', 'contas', 'clientes', 'sigma', 'srv', 'listas', 'uso'];
 function go(tab) {
   $$('.nav[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab == tab));
   TABS.forEach(t => $('#t-' + t).classList.toggle('hide', t != tab));
   if (tab == 'uso') usoStart();
   if (tab == 'sigma') sigmaStart();
+  if (tab == 'srv') srvStart();
   if (tab == 'clientes') setTimeout(drawTimeline, 0);
   try { history.replaceState(null, '', '#' + tab) } catch (e) { }
   window.scrollTo(0, 0);
@@ -112,13 +113,13 @@ async function loadUsers() {
   catch (e) { $('#upd').textContent = ''; toast(e.message, 1); if (/administrador/i.test(e.message)) logout() }
 }
 $('#bRef').onclick = loadUsers;
-function renderAll() { renderGeral(); renderContas(); renderClientes(); fillAccSelect(); if (GLOADED) renderGroups() }
+function renderAll() { renderGeral(); renderContas(); renderClientes(); fillAccSelect(); if (GLOADED) renderGrp() }
 
 /* ================= sigma e grupos =================
    Grupos ficam no servidor (op gget/gset). Cada membro é
    { id, src:'nt', u } (conta NTPlay; vencimento vem de USERS) ou
    { id, src:'sg', u, exp:'AAAA-MM-DD', note } (cliente do painel Sigma, cadastrado à mão). */
-const GCOLS = ['#e93a7d', '#60a5fa', '#34d399', '#fbbf24', '#a78bfa', '#f87171', '#22d3ee'];
+const GCOLS = ['#d0477b', '#5c9bd1', '#3daa78', '#d39b32', '#9a86c9', '#d55a55', '#4fb3b8'];
 let GROUPS = [], GTS = 0, GLOADED = false, GBUSY = false;
 const gid = () => Math.random().toString(36).slice(2, 10);
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -132,15 +133,15 @@ const ALERT_DAYS = 7, ALERT_PAST = 30; // alerta: vence em até 7 dias ou venceu
 
 async function loadGroups() {
   if (!GLOADED) $('#gBody').innerHTML = '<p class="muted"><span class="spin"></span> Carregando grupos…</p>';
-  try { const j = await adm('gget'); GROUPS = Array.isArray(j.groups) ? j.groups : []; GTS = j.ts || 0; GLOADED = true; renderGroups() }
-  catch (e) { $('#gBody').innerHTML = `<p class="err">${esc(e.message)}</p>`; if (/administrador/i.test(e.message)) logout() }
+  try { const j = await adm('gget'); GROUPS = Array.isArray(j.groups) ? j.groups : []; GTS = j.ts || 0; GLOADED = true; renderGrp() }
+  catch (e) { $('#gBody').innerHTML = $('#sBody').innerHTML = `<p class="err">${esc(e.message)}</p>`; if (/administrador/i.test(e.message)) logout() }
 }
 $('#gRef').onclick = () => { loadUsers(); loadGroups() };
 
 async function saveGroups(next, okMsg) {
   if (GBUSY) { toast('Aguarde, salvando…'); return false }
   GBUSY = true;
-  try { const j = await adm('gset', { groups: next, prev: GTS }); GROUPS = next; GTS = j.ts; renderGroups(); if (okMsg) toast(okMsg); return true }
+  try { const j = await adm('gset', { groups: next, prev: GTS }); GROUPS = next; GTS = j.ts; renderGrp(); if (okMsg) toast(okMsg); return true }
   catch (e) { toast(e.message, 1); return false }
   finally { GBUSY = false }
 }
@@ -162,17 +163,20 @@ function memberInfo(m) {
     const d = u.expires_at ? daysLeft(u) : 1e9;
     return { lab: u.expires_at ? remText(d) : 'Sem validade', cls: u.expires_at ? remCls(d) : 'n', d, sub: [u.note, u.expires_at && d <= 3650 ? 'vence ' + fmtD(u.expires_at) : ''].filter(Boolean).join(' · ') };
   }
-  if (!m.exp) return { lab: 'Sem vencimento', cls: 'n', d: 1e9, sub: m.note || '' };
+  const sp = srvPlanText(m);
+  if (!m.exp) return { lab: 'Sem vencimento', cls: 'n', d: 1e9, sub: [sp, m.note].filter(Boolean).join(' · ') };
   const end = new Date(m.exp + 'T23:59:59-03:00').getTime(), d = (end - Date.now()) / DAY;
-  return { lab: remText(d), cls: remCls(d), d, sub: [m.note, 'vence ' + fmtD(end)].filter(Boolean).join(' · ') };
+  return { lab: remText(d), cls: remCls(d), d, sub: [sp, 'vence ' + fmtD(end), m.note].filter(Boolean).join(' · ') };
 }
 const inAlert = i => !i.none && i.d <= ALERT_DAYS && i.d > -ALERT_PAST;
 
+function renderGrp() { renderGroups(); renderSrv() }
 function renderGroups() {
   if (!GLOADED) return;
+  const GR = realGroups(GROUPS);
   // alerta + selo no menu
   const al = [];
-  GROUPS.forEach(g => (g.members || []).forEach(m => { const i = memberInfo(m); if (inAlert(i)) al.push({ g, m, i }) }));
+  GR.forEach(g => (g.members || []).forEach(m => { const i = memberInfo(m); if (inAlert(i)) al.push({ g, m, i }) }));
   al.sort((a, b) => a.i.d - b.i.d);
   const nExp = al.filter(x => x.i.d <= 0).length;
   const nb = $('#nGrp'); nb.textContent = al.length; nb.className = 'bdg ' + (nExp ? 'r' : 'y') + (al.length ? '' : ' hide');
@@ -180,15 +184,15 @@ function renderGroups() {
       <h3>Atenção aos vencimentos</h3><span class="muted">${al.length - nExp} vence${al.length - nExp == 1 ? '' : 'm'} em até ${ALERT_DAYS} dias${nExp ? ` · <b style="color:var(--rd)">${nExp} vencido${nExp > 1 ? 's' : ''}</b>` : ''}</span></div>
       <div class="gai">${al.map(({ g, m, i }) => `<button class="gm ${i.cls}" data-gs="${esc(g.id)}" style="text-align:left;cursor:pointer"><span class="src ${m.src == 'nt' ? 'nt' : 'sg'}">${m.src == 'nt' ? 'NTPLAY' : 'SIGMA'}</span><div class="n"><b>${esc(m.u)}</b><small>${esc(g.name)}${i.sub ? ' · ' + esc(i.sub) : ''}</small></div><span class="bdg ${i.cls}">${esc(i.lab)}</span></button>`).join('')}</div></div>` : '';
 
-  if (!GROUPS.length) { $('#gTabs').innerHTML = ''; $('#gBody').innerHTML = '<div class="empty card">Nenhum grupo ainda. Crie o primeiro em <b>Novo grupo</b>.</div>'; return }
-  if (!GROUPS.some(g => g.id == GSEL)) GSEL = GROUPS[0].id;
+  if (!GR.length) { $('#gTabs').innerHTML = ''; $('#gBody').innerHTML = '<div class="empty card">Nenhum grupo ainda. Crie o primeiro em <b>Novo grupo</b>.</div>'; return }
+  if (!GR.some(g => g.id == GSEL)) GSEL = GR[0].id;
   // abas dos grupos
-  $('#gTabs').innerHTML = GROUPS.map(g => {
+  $('#gTabs').innerHTML = GR.map(g => {
     const inf = (g.members || []).map(memberInfo), w = inf.filter(inAlert), wr = w.some(i => i.d <= 0);
     return `<button class="gtab ${g.id == GSEL ? 'on' : ''}" data-gs="${esc(g.id)}" style="--c:${esc(g.color || GCOLS[0])}"><i></i>${esc(g.name)}<span class="bdg n">${inf.length}</span>${w.length ? `<span class="w ${wr ? 'r' : ''}" title="${w.length} com vencimento próximo"></span>` : ''}</button>`;
   }).join('');
   // grupo aberto: NTPlay e Sigma em colunas separadas
-  const g = GROUPS.find(x => x.id == GSEL), mem = (g.members || []).map(m => ({ m, i: memberInfo(m) })).sort((a, b) => a.i.d - b.i.d);
+  const g = GR.find(x => x.id == GSEL), mem = (g.members || []).map(m => ({ m, i: memberInfo(m) })).sort((a, b) => a.i.d - b.i.d);
   const col = (src, title, add) => {
     const rows = mem.filter(x => (x.m.src == 'nt') == (src == 'nt'));
     return `<div class="card"><div class="gch"><span class="src ${src}">${src == 'nt' ? 'NTPLAY' : 'SIGMA'}</span><b>${title}</b><span class="bdg n">${rows.length}</span><span class="sp"></span><button class="bt sm" data-ga="${add}" data-g="${esc(g.id)}">+ Adicionar</button></div>
@@ -199,11 +203,11 @@ function renderGroups() {
   $('#gBody').innerHTML = `<div class="ghd" style="--c:${esc(g.color || GCOLS[0])}"><h2><i></i>${esc(g.name)}</h2><span class="sp"></span>
       <button class="bt sm" data-ga="edit" data-g="${esc(g.id)}">${SVG_ED}Editar grupo</button><button class="bt sm rd" data-ga="del" data-g="${esc(g.id)}">${SVG_DEL}Apagar</button></div>
     <div class="gcolw">${col('nt', 'Clientes NTPlay', 'addnt')}${col('sg', 'Clientes Sigma', 'addsg')}</div>
-    <p class="muted" style="margin-top:10px">Os clientes Sigma são cadastrados à mão: quando renovar no painel Sigma, atualize o vencimento aqui no lápis.</p>`;
+    <p class="muted" style="margin-top:10px">Os clientes Sigma são cadastrados à mão: quando renovar no painel, atualize o vencimento aqui no lápis. No lápis também dá para escolher o servidor, o plano e o valor cobrado.</p>`;
 }
 
 function groupBox(g) {
-  let color = (g && g.color) || GCOLS[GROUPS.length % GCOLS.length];
+  let color = (g && g.color) || GCOLS[realGroups(GROUPS).length % GCOLS.length];
   return new Promise(res => modal(`<h3>${g ? 'Editar grupo' : 'Novo grupo'}</h3>
     <label class="f">Nome<input class="in" data-f="name" maxlength="40" value="${esc(g ? g.name : '')}" placeholder="ex.: Revenda João"></label>
     <div class="f" style="display:grid;gap:5px;font-size:12px;color:var(--mut);font-weight:600">Cor<div class="gcols">${GCOLS.map(c => `<button style="--c:${c}" data-c="${c}" class="${c == color ? 'on' : ''}" aria-label="Cor ${c}"></button>`).join('')}</div></div>
@@ -216,14 +220,28 @@ function groupBox(g) {
 }
 
 function sigmaBox(mem) {
+  const SV = srvList(), cur = mem || {};
+  const planOpts = sid => { const sv = SV.find(x => x.id == sid); return '<option value="">—</option>' + (sv ? (sv.plans || []).map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.price != null ? ' · ' + brl(p.price) : ''}</option>`).join('') : '') };
   return new Promise(res => modal(`<h3>${mem ? 'Editar cliente Sigma' : 'Cliente do painel Sigma'}</h3>
-    <p class="muted">Copie do painel Sigma o usuário e o vencimento do cliente.</p>
-    <label class="f">Usuário no Sigma<input class="in" data-f="u" maxlength="60" value="${esc(mem ? mem.u : '')}" autocomplete="off"></label>
-    <label class="f">Vencimento (opcional)<input class="in" type="date" data-f="exp" value="${esc(mem ? mem.exp || '' : '')}"></label>
-    <label class="f">Nota (opcional)<input class="in" data-f="note" maxlength="80" value="${esc(mem ? mem.note || '' : '')}" placeholder="ex.: WhatsApp, plano, aparelho"></label>
+    <p class="muted">Copie do painel o usuário e o vencimento do cliente.</p>
+    <label class="f">Usuário no painel<input class="in" data-f="u" maxlength="60" value="${esc(cur.u || '')}" autocomplete="off"></label>
+    <div class="row"><label class="f">Servidor<select class="in" data-f="srv"><option value="">—</option>${SV.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select></label>
+      <label class="f">Plano<select class="in" data-f="plan"></select></label></div>
+    <div class="row"><label class="f">Valor cobrado (R$)<input class="in" data-f="price" inputmode="decimal" value="${cur.price != null ? esc(String(cur.price).replace('.', ',')) : ''}" placeholder="usa o do plano"></label>
+      <label class="f">Vencimento<input class="in" type="date" data-f="exp" value="${esc(cur.exp || '')}"></label></div>
+    <label class="f">Comentário<textarea class="in" data-f="note" rows="2" maxlength="200" placeholder="WhatsApp, aparelho, combinado de pagamento…">${esc(cur.note || '')}</textarea></label>
     <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Salvar</button></div>`, m => {
+    const fs = $('[data-f="srv"]', m), fp = $('[data-f="plan"]', m), fv = $('[data-f="price"]', m), fe = $('[data-f="exp"]', m);
+    const hint = () => { const p = planOf(fs.value, fp.value); fv.placeholder = p && p.price != null ? 'plano: ' + brl(p.price) : 'opcional' };
+    fs.value = cur.srv || ''; fp.innerHTML = planOpts(fs.value); fp.value = cur.plan || ''; hint();
+    fs.onchange = () => { fp.innerHTML = planOpts(fs.value); hint() };
+    fp.onchange = () => { hint(); const p = planOf(fs.value, fp.value); if (p && p.months && !fe.value) { const d = new Date(); d.setMonth(d.getMonth() + Number(p.months)); fe.value = d.toLocaleDateString('en-CA', { timeZone: SP }) } };
     $('[data-no]', m).onclick = () => { closeModal(); res(null) };
-    $('[data-ok]', m).onclick = () => { const u = $('[data-f="u"]', m).value.trim(); if (!u) return toast('Informe o usuário do Sigma.', 1); closeModal(); res({ u, exp: $('[data-f="exp"]', m).value, note: $('[data-f="note"]', m).value.trim() }) };
+    $('[data-ok]', m).onclick = () => {
+      const u = $('[data-f="u"]', m).value.trim(); if (!u) return toast('Informe o usuário do cliente.', 1);
+      const price = fv.value.trim() ? money(fv.value) : null; if (fv.value.trim() && price == null) return toast('Valor inválido. Use, por exemplo, 35 ou 35,90.', 1);
+      closeModal(); res({ u, srv: fs.value, plan: fp.value, price, exp: fe.value, note: $('[data-f="note"]', m).value.trim() });
+    };
     $('[data-f="u"]', m).focus();
   }));
 }
@@ -262,6 +280,119 @@ $('#t-sigma').onclick = async e => {
   if (act == 'edsg') { const mem = g.members.find(x => x.id == b.dataset.m); if (!mem) return; const o = await sigmaBox(mem); if (!o) return; Object.assign(mem, o); return saveGroups(next, 'Cliente atualizado.') }
 };
 
+/* ================= servidores =================
+   Ficam no mesmo registro dos grupos (op gget/gset), num item especial que a aba Grupos ignora:
+   { id:'__srv', kind:'srv', servers:[ { id, name, url, note, plans:[ { id, name, months, cost, price } ] } ] }
+   cost = quanto você paga no painel; price = quanto cobra do cliente. Cliente Sigma guarda srv, plan e price (valor próprio, opcional).
+   Assim não foi preciso mexer na função ntsync do Supabase. */
+const SRV_ID = '__srv';
+const DEFAULT_SRV = [
+  ['coliseutv', 'Coliseutv', 'https://coliseutv.com/'], ['cineflix', 'Cineflix', 'https://cineflix.3xt.fun/'],
+  ['playdragon', 'Playdragon', 'https://playdragon.sigma.st/'], ['wpsistemas', 'Wpsistemas', 'https://wpsistemas.online/'],
+  ['playtvstreaming', 'Playtvstreaming', 'https://playtvstreaming.sigma.st/'], ['problack', 'Problack', 'https://problack.sigma.st/'],
+  ['clickmaxx', 'Painel.clickmaxx', 'https://painel.clickmaxx.sbs/'], ['netplay', 'Netplay', 'https://netplay.mplll.com/'],
+  ['souiptv', 'Painel.souiptv', 'https://painel.souiptv.com/']
+].map(([id, name, url]) => ({ id, name, url, note: '', plans: [] }));
+const realGroups = gs => gs.filter(g => g.kind != 'srv');
+const srvList = () => { const r = GROUPS.find(g => g.id == SRV_ID); return r ? (r.servers || []) : clone(DEFAULT_SRV) };
+function withSrv(next, fn) { let r = next.find(g => g.id == SRV_ID); if (!r) { r = { id: SRV_ID, kind: 'srv', servers: clone(DEFAULT_SRV) }; next.push(r) } fn(r.servers); return next }
+const planOf = (sid, pid) => { const sv = srvList().find(x => x.id == sid); return sv && (sv.plans || []).find(p => p.id == pid) };
+const brl = v => v == null || v === '' || isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+function money(t) { let x = String(t).replace(/R\$|\s/g, ''); if (!x) return null; if (x.includes(',')) x = x.replace(/\./g, '').replace(',', '.'); const n = Number(x); return isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null }
+// texto curto do servidor/plano/valor de um cliente Sigma (aparece na aba Grupos)
+function srvPlanText(m) {
+  if (!m.srv) return m.price != null ? brl(m.price) : '';
+  const sv = srvList().find(x => x.id == m.srv), p = planOf(m.srv, m.plan), v = m.price != null ? m.price : p && p.price;
+  return [sv ? sv.name : 'servidor removido', p ? p.name : '', v != null ? brl(v) : ''].filter(Boolean).join(' ');
+}
+// clientes Sigma de cada servidor (de todos os grupos)
+function srvMembers(sid) { const out = []; realGroups(GROUPS).forEach(g => (g.members || []).forEach(m => { if (m.src == 'sg' && m.srv == sid) out.push({ g, m }) })); return out }
+const perMonth = (v, months) => v == null ? 0 : v / Math.max(1, Number(months) || 1);
+
+function srvStart() { if (!GLOADED) { $('#sBody').innerHTML = '<p class="muted"><span class="spin"></span> Carregando…</p>'; loadGroups() } else renderSrv() }
+function renderSrv() {
+  if (!GLOADED) return;
+  const SV = srvList(); let nCli = 0, rec = 0, cost = 0, semPlano = 0;
+  const cards = SV.map(sv => {
+    const mem = srvMembers(sv.id), plans = sv.plans || []; let sRec = 0, sCost = 0;
+    mem.forEach(({ m }) => { const p = plans.find(x => x.id == m.plan), v = m.price != null ? m.price : p && p.price; if (!p && m.price == null) semPlano++; sRec += perMonth(v, p ? p.months : 1); sCost += p ? perMonth(p.cost, p.months) : 0 });
+    nCli += mem.length; rec += sRec; cost += sCost;
+    const cnt = mem.length ? `<span class="bdg n">${mem.length} cliente${mem.length > 1 ? 's' : ''}</span>` : '<span class="bdg n">sem clientes</span>';
+    const rows = plans.length ? `<div class="twrap"><table class="ktab"><thead><tr><th>Plano</th><th>Meses</th><th class="r">Você paga</th><th class="r">Cobra do cliente</th><th class="r">Sobra por cliente</th><th class="r">Clientes</th><th></th></tr></thead><tbody>${plans.map(p => {
+      const mg = p.price != null && p.cost != null ? p.price - p.cost : null, n = mem.filter(x => x.m.plan == p.id).length;
+      return `<tr><td>${esc(p.name)}</td><td>${esc(p.months || 1)}</td><td class="r">${brl(p.cost)}</td><td class="r"><b>${brl(p.price)}</b></td><td class="r ${mg != null && mg < 0 ? 'neg' : ''}">${mg == null ? '—' : brl(mg)}</td><td class="r">${n}</td>
+        <td class="r" style="white-space:nowrap"><button class="ia" data-sa="pedit" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Editar plano">${SVG_ED}</button><button class="ia" data-sa="pdel" data-s="${esc(sv.id)}" data-p="${esc(p.id)}" title="Apagar plano">${SVG_DEL}</button></td></tr>`
+    }).join('')}</tbody></table></div>` : '<p class="muted" style="padding:10px 0">Nenhum plano cadastrado. Adicione os valores que você cobra por cliente.</p>';
+    return `<div class="sv"><div class="svh"><h3>${esc(sv.name)}</h3>${sv.url ? `<a class="u" href="${esc(sv.url)}" target="_blank" rel="noopener">${esc(hostOf(sv.url))}</a>` : ''}${cnt}<span class="sp"></span>
+        ${sv.url ? `<a class="bt sm" href="${esc(sv.url)}" target="_blank" rel="noopener">Abrir painel</a>` : ''}<button class="bt sm" data-sa="padd" data-s="${esc(sv.id)}">+ Plano</button><button class="bt sm" data-sa="edit" data-s="${esc(sv.id)}">${SVG_ED}Editar</button><button class="bt sm rd" data-sa="del" data-s="${esc(sv.id)}">${SVG_DEL}</button></div>
+      ${sv.note ? `<div class="svc">${esc(sv.note)}</div>` : ''}
+      <div class="svb">${rows}</div>
+      ${mem.length ? `<div class="svf"><span>Clientes: ${mem.map(x => esc(x.m.u)).join(', ')}</span><span class="sp"></span><span>Entra por mês <b>${brl(sRec)}</b></span><span>Custo por mês <b>${brl(sCost)}</b></span></div>` : ''}</div>`;
+  }).join('');
+  $('#sStats').innerHTML = `<div class="stats">${[['', SV.length, 'servidores'], ['', nCli, 'clientes Sigma ligados'], ['gr', brl(rec), 'entra por mês'], ['', brl(cost), 'custo por mês'], [rec - cost < 0 ? 'rd' : '', brl(rec - cost), 'sobra por mês']].map(x => `<div class="st ${x[0]}"><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>${semPlano ? `<p class="muted" style="margin:-8px 0 14px">${semPlano} cliente(s) ligado(s) a servidor sem plano nem valor, fora da conta.</p>` : ''}`;
+  $('#sBody').innerHTML = cards || '<div class="empty card">Nenhum servidor. Cadastre em <b>Novo servidor</b>.</div>';
+}
+
+function srvBox(sv) {
+  return new Promise(res => modal(`<h3>${sv ? 'Editar servidor' : 'Novo servidor'}</h3>
+    <label class="f">Nome<input class="in" data-f="name" maxlength="40" value="${esc(sv ? sv.name : '')}" placeholder="ex.: Playdragon"></label>
+    <label class="f">Endereço do painel<input class="in" data-f="url" maxlength="200" value="${esc(sv ? sv.url : '')}" placeholder="https://…"></label>
+    <label class="f">Comentário<textarea class="in" data-f="note" rows="3" maxlength="400" placeholder="Contato do revendedor, qualidade, regras de crédito…">${esc(sv ? sv.note || '' : '')}</textarea></label>
+    <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Salvar</button></div>`, m => {
+    $('[data-no]', m).onclick = () => { closeModal(); res(null) };
+    $('[data-ok]', m).onclick = () => {
+      const name = $('[data-f="name"]', m).value.trim(); let url = $('[data-f="url"]', m).value.trim();
+      if (!name) return toast('Dê um nome ao servidor.', 1);
+      if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+      if (url && !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test(url)) return toast('Endereço inválido.', 1);
+      closeModal(); res({ name, url, note: $('[data-f="note"]', m).value.trim() });
+    };
+    $('[data-f="name"]', m).focus();
+  }));
+}
+function planBox(p) {
+  const v = x => x == null ? '' : String(x).replace('.', ',');
+  return new Promise(res => modal(`<h3>${p ? 'Editar plano' : 'Novo plano'}</h3>
+    <div class="row"><label class="f">Nome<input class="in" data-f="name" maxlength="30" value="${esc(p ? p.name : '')}" placeholder="ex.: Mensal"></label>
+      <label class="f" style="flex:0 1 110px">Meses<input class="in" data-f="months" type="number" min="1" max="36" value="${esc(p ? p.months || 1 : 1)}"></label></div>
+    <div class="row"><label class="f">Você paga no painel (R$)<input class="in" data-f="cost" inputmode="decimal" value="${esc(v(p && p.cost))}" placeholder="ex.: 12,00"></label>
+      <label class="f">Cobra do cliente (R$)<input class="in" data-f="price" inputmode="decimal" value="${esc(v(p && p.price))}" placeholder="ex.: 35,00"></label></div>
+    <div class="acts"><button class="bt" data-no>Cancelar</button><button class="bt pk" data-ok>Salvar</button></div>`, m => {
+    $('[data-no]', m).onclick = () => { closeModal(); res(null) };
+    $('[data-ok]', m).onclick = () => {
+      const g = k => $(`[data-f="${k}"]`, m).value.trim(), name = g('name'), months = Math.max(1, Math.min(36, parseInt(g('months')) || 1));
+      if (!name) return toast('Dê um nome ao plano.', 1);
+      const cost = g('cost') ? money(g('cost')) : null, price = g('price') ? money(g('price')) : null;
+      if ((g('cost') && cost == null) || (g('price') && price == null)) return toast('Valor inválido. Use, por exemplo, 35 ou 35,90.', 1);
+      closeModal(); res({ name, months, cost, price });
+    };
+    $('[data-f="name"]', m).focus();
+  }));
+}
+
+$('#sRef').onclick = () => { loadUsers(); loadGroups() };
+$('#sNew').onclick = async () => {
+  const o = await srvBox(); if (!o) return;
+  const id = (o.name.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '').slice(0, 20) || 'srv') + '-' + gid().slice(0, 4);
+  saveGroups(withSrv(clone(GROUPS), l => l.push({ id, ...o, plans: [] })), 'Servidor adicionado.');
+};
+$('#t-srv').onclick = async e => {
+  const b = e.target.closest('[data-sa]'); if (!b) return;
+  const act = b.dataset.sa, next = clone(GROUPS); let sv;
+  withSrv(next, l => { sv = l.find(x => x.id == b.dataset.s) }); if (!sv) return;
+  sv.plans = sv.plans || [];
+  if (act == 'edit') { const o = await srvBox(sv); if (!o) return; Object.assign(sv, o); return saveGroups(next, 'Servidor salvo.') }
+  if (act == 'del') {
+    const n = srvMembers(sv.id).length;
+    if (!await confirmBox('Apagar servidor', `"${sv.name}" e os planos dele serão apagados.${n ? ' ' + n + ' cliente(s) ligado(s) a ele ficam marcados como "servidor removido".' : ''}`, 'Apagar', 1)) return;
+    return saveGroups(withSrv(next, l => l.splice(l.indexOf(sv), 1)), 'Servidor apagado.');
+  }
+  if (act == 'padd') { const o = await planBox(); if (!o) return; sv.plans.push({ id: gid(), ...o }); return saveGroups(next, 'Plano adicionado.') }
+  const p = sv.plans.find(x => x.id == b.dataset.p); if (!p) return;
+  if (act == 'pedit') { const o = await planBox(p); if (!o) return; Object.assign(p, o); return saveGroups(next, 'Plano salvo.') }
+  if (act == 'pdel') { if (!await confirmBox('Apagar plano', `O plano "${p.name}" de ${sv.name} será apagado.`, 'Apagar', 1)) return; sv.plans = sv.plans.filter(x => x != p); return saveGroups(next, 'Plano apagado.') }
+};
+
 /* ================= aba clientes (gráficos) ================= */
 let KF = 'all', KR = 30, KANIM = false;
 const SP = 'America/Sao_Paulo';
@@ -283,33 +414,31 @@ function renderClientes() {
   const pct = tot ? Math.round(act.length / tot * 100) : 0;
   $('#kSub').textContent = new Date().toLocaleDateString('pt-BR', { timeZone: SP, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   $('#kKpis').innerHTML = [
-    ['#a78bfa', 'users', 'Total de contas', tot, 'cadastradas'],
-    ['#34d399', 'ok', 'Clientes ativos', act.length, pct + '% do total'],
-    ['#fbbf24', 'clock', 'Vencendo (≤7 dias)', soon.length, soon.length ? 'renove logo' : 'nenhuma pendente'],
-    ['#f87171', 'x', 'Expirados', exp.length, 'bloqueados no app'],
-    ['#60a5fa', 'wifi', 'Aparelhos online', onl, 'últimos 10 min']
-  ].map(k => `<div class="kpi" style="--c:${k[0]}"><div class="ic">${svgI(k[1])}</div><small>${k[2]}</small><b>${k[3]}</b><em>${k[4]}</em></div>`).join('');
-  drawDonut([['Ativos', act.length - soon.length, '#34d399', '#10b981'], ['Vencendo', soon.length, '#fbbf24', '#f59e0b'], ['Expirados', exp.length, '#fb7185', '#e11d48']], tot);
+    ['#8a9199', 'Total de contas', tot, 'cadastradas'],
+    ['#3daa78', 'Ativos', act.length, pct + '% do total'],
+    ['#d39b32', 'Vencem em 7 dias', soon.length, soon.length ? 'renovar' : 'nenhum'],
+    ['#d55a55', 'Expirados', exp.length, 'bloqueados no app'],
+    ['#5c9bd1', 'Online agora', onl, 'últimos 10 min']
+  ].map(k => `<div class="kpi" style="--c:${k[0]}"><small><i></i>${k[1]}</small><b>${k[2]}</b><em>${k[3]}</em></div>`).join('');
+  drawDonut([['Ativos', act.length - soon.length, '#3daa78'], ['Vencendo', soon.length, '#d39b32'], ['Expirados', exp.length, '#d55a55']], tot);
   drawTimeline();
   drawRows();
   KANIM = true;
 }
 
 function drawDonut(parts, tot) {
-  const R = 78, C = 2 * Math.PI * R, live = parts.filter(p => p[1] > 0), gap = live.length > 1 ? 10 : 0;
-  let off = 0, defs = '', arcs = '';
-  live.forEach((p, i) => {
+  const R = 78, C = 2 * Math.PI * R, live = parts.filter(p => p[1] > 0), gap = live.length > 1 ? 2 : 0;
+  let off = 0, arcs = '';
+  live.forEach(p => {
     const len = Math.max(0, p[1] / tot * C - gap);
-    defs += `<linearGradient id="dg${i}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${p[2]}"/><stop offset="1" stop-color="${p[3]}"/></linearGradient>`;
-    arcs += `<circle cx="100" cy="100" r="${R}" fill="none" stroke="url(#dg${i})" stroke-width="18" stroke-linecap="round" stroke-dasharray="${KANIM ? len : 0} ${C}" data-len="${len}" stroke-dashoffset="${-off}" transform="rotate(-90 100 100)" filter="url(#glow)" style="transition:stroke-dasharray .9s cubic-bezier(.2,.8,.2,1)"><title>${p[0]}: ${p[1]}</title></circle>`;
+    arcs += `<circle cx="100" cy="100" r="${R}" fill="none" stroke="${p[2]}" stroke-width="16" stroke-dasharray="${KANIM ? len : 0} ${C}" data-len="${len}" stroke-dashoffset="${-off}" transform="rotate(-90 100 100)" style="transition:stroke-dasharray .5s ease-out"><title>${p[0]}: ${p[1]}</title></circle>`;
     off += p[1] / tot * C;
   });
   $('#kDonut').innerHTML = `<svg viewBox="0 0 200 200" role="img" aria-label="Status das contas">
-    <defs>${defs}<filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    <circle cx="100" cy="100" r="${R}" fill="none" stroke="#ffffff10" stroke-width="18"/>${arcs}
-    <text x="100" y="98" text-anchor="middle" fill="var(--tx)" font-size="40" font-weight="800">${tot}</text>
+    <circle cx="100" cy="100" r="${R}" fill="none" stroke="#ffffff0d" stroke-width="16"/>${arcs}
+    <text x="100" y="100" text-anchor="middle" fill="var(--tx)" font-size="34" font-weight="600">${tot}</text>
     <text x="100" y="122" text-anchor="middle" fill="var(--mut)" font-size="12">contas</text></svg>
-    <div class="lg">${parts.map(p => `<span><i style="background:linear-gradient(135deg,${p[2]},${p[3]})"></i>${p[0]} <b>${p[1]}</b></span>`).join('')}</div>`;
+    <div class="lg">${parts.map(p => `<span><i style="background:${p[2]}"></i>${p[0]} <b>${p[1]}</b></span>`).join('')}</div>`;
   if (!KANIM && !matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(() => requestAnimationFrame(() => $$('#kDonut circle[data-len]').forEach(c => c.setAttribute('stroke-dasharray', c.dataset.len + ' ' + C))));
   else $$('#kDonut circle[data-len]').forEach(c => c.setAttribute('stroke-dasharray', c.dataset.len + ' ' + C));
 }
@@ -332,15 +461,13 @@ function drawTimeline() {
   const area = line + `L${(x(n - 1) + bw).toFixed(1)},${y(0)}L${x(0).toFixed(1)},${y(0)}Z`;
   const bwi = Math.min(26, Math.max(4, bw * .58));
   box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Vencimentos por ${week ? 'semana' : 'dia'}">
-    <defs><linearGradient id="tb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff7aae"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
-    <linearGradient id="ta" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#60a5fa" stop-opacity=".28"/><stop offset="1" stop-color="#60a5fa" stop-opacity="0"/></linearGradient></defs>
     ${ticks.map(t => `<line x1="${pl}" x2="${W - pr}" y1="${y(t)}" y2="${y(t)}" stroke="#ffffff12" ${t ? 'stroke-dasharray="3 4"' : ''}/><text x="${pl - 8}" y="${y(t) + 4}" text-anchor="end" fill="var(--mut)" font-size="11">${t}</text>`).join('')}
-    <path d="${area}" fill="url(#ta)"/><path d="${line}" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-    ${B.map((b, i) => b.n ? `<rect x="${(x(i) + (bw - bwi) / 2).toFixed(1)}" y="${y(b.n).toFixed(1)}" width="${bwi.toFixed(1)}" height="${(y(0) - y(b.n)).toFixed(1)}" rx="${Math.min(6, bwi / 2)}" fill="url(#tb)"/>` : '').join('')}
+    <path d="${area}" fill="#5c9bd114"/><path d="${line}" fill="none" stroke="#5c9bd1" stroke-width="1.5" stroke-linejoin="round"/>
+    ${B.map((b, i) => b.n ? `<rect x="${(x(i) + (bw - bwi) / 2).toFixed(1)}" y="${y(b.n).toFixed(1)}" width="${bwi.toFixed(1)}" height="${(y(0) - y(b.n)).toFixed(1)}" rx="2" fill="#d0477b"/>` : '').join('')}
     ${B.map((b, i) => i % every == 0 ? `<text x="${(x(i) + bw / 2).toFixed(1)}" y="${H - 12}" text-anchor="middle" fill="var(--mut)" font-size="11">${lab(i)}</text>` : '').join('')}
     <line id="khl" x1="0" x2="0" y1="${pt}" y2="${y(0)}" stroke="#ffffff40" visibility="hidden"/>
     ${B.map((b, i) => `<rect class="hz" data-i="${i}" x="${x(i)}" y="${pt}" width="${bw}" height="${ih}" fill="transparent"/>`).join('')}
-  </svg><div class="lg muted" style="display:flex;gap:14px;margin-top:6px"><span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:linear-gradient(#ff7aae,#7c3aed);margin-right:5px"></i>vencem no ${week ? 'semana' : 'dia'}</span><span><i style="display:inline-block;width:14px;height:2px;background:#60a5fa;vertical-align:middle;margin-right:5px"></i>total vencido até a data (sem renovar)</span></div><div class="ktip hide" id="ktip"></div>`;
+  </svg><div class="lg muted" style="display:flex;gap:14px;margin-top:6px"><span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#d0477b;margin-right:5px"></i>vencem no ${week ? 'semana' : 'dia'}</span><span><i style="display:inline-block;width:14px;height:2px;background:#5c9bd1;vertical-align:middle;margin-right:5px"></i>total vencido até a data (sem renovar)</span></div><div class="ktip hide" id="ktip"></div>`;
   const tip = $('#ktip'), hl = $('#khl');
   $$('.hz', box).forEach(r => {
     r.onmouseenter = () => { const i = +r.dataset.i, b = B[i], d = new Date(b.s);
@@ -357,7 +484,7 @@ let kRT; addEventListener('resize', () => { clearTimeout(kRT); kRT = setTimeout(
 function drawRows() {
   const q = ($('#kQ').value || '').toLowerCase();
   const rows = USERS.filter(u => (KF == 'all' || status(u)[2] == KF) && (!q || (u.username + ' ' + (u.note || '')).toLowerCase().includes(q))).sort((a, b) => daysLeft(a) - daysLeft(b));
-  const col = { g: '#34d399', y: '#fbbf24', r: '#f87171' };
+  const col = { g: '#3daa78', y: '#d39b32', r: '#d55a55' };
   $('#kRows').innerHTML = rows.length ? rows.map(u => {
     const s = status(u), d = daysLeft(u), nd = Object.keys(u.devices || {}).length, on = onlineNow(u);
     const life = d > 3650, w = life ? 100 : Math.max(0, Math.min(100, d / 30 * 100));
@@ -389,7 +516,7 @@ function renderGeral() {
   $('#gSub').textContent = att.length ? att.length + (att.length > 1 ? ' contas precisam' : ' conta precisa') + ' de atenção.' : 'Tudo em dia. Nenhuma conta vencendo nos próximos 7 dias.';
   $('#gAtt').innerHTML = att.length ? att.map(u => { const s = status(u); return `<div class="li"><div class="n"><b>${esc(u.username)}</b><small>vence ${fmtD(u.expires_at)}${u.note ? ' · ' + esc(u.note) : ''}</small></div><span class="bdg ${s[1]}">${s[0]}</span><button class="bt sm" data-renew="${esc(u.username)}">Renovar</button></div>` }).join('') : '<p class="muted">Nada pendente.</p>';
   const last = [...USERS].filter(u => u.last_seen).sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen)).slice(0, 6);
-  $('#gLast').innerHTML = last.length ? last.map(u => `<div class="li"><div class="av" style="width:30px;height:30px;font-size:12px">${esc(u.username[0])}</div><div class="n"><b>${esc(u.username)}</b><small>${Object.keys(u.devices || {}).length} aparelho(s)</small></div><span class="muted">${ago(u.last_seen)}</span></div>`).join('') : '<p class="muted">Ninguém entrou ainda.</p>';
+  $('#gLast').innerHTML = last.length ? last.map(u => `<div class="li"><div class="av" style="width:28px;height:28px;font-size:12px">${esc(u.username[0])}</div><div class="n"><b>${esc(u.username)}</b><small>${Object.keys(u.devices || {}).length} aparelho(s)</small></div><span class="muted">${ago(u.last_seen)}</span></div>`).join('') : '<p class="muted">Ninguém entrou ainda.</p>';
 }
 
 function renderContas() {
